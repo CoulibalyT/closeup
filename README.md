@@ -98,6 +98,13 @@ are refused with `PROTOCOL_MISMATCH` when it is stale.
 - **Default locale is French** (unprefixed URLs); browsers that are neither French nor English
   get English. `alwaysRedirect` is on because the PWA always starts on `/`: without it, someone
   who chose English would land on the French page at every launch.
+- **Design direction: "Photomaton"** (chosen over "Tapis rouge"; both are in
+  [docs/design/directions.html](docs/design/directions.html), open it in a browser). The four
+  zoom levels are the four frames of a photo-booth strip: the strip is the level indicator during
+  a round and prints in full on the reveal. Cool palette (sheet-metal grey, curtain blue, the
+  booth's green and red lights), 4 px photo corners everywhere, the lens is the only round shape
+  and is never cropped because its ring is the timer. Anybody (wide, heavy) for numbers and
+  verdicts, Instrument Sans for everything that is read.
 - Bonus costs, early round end and the private mini-lens in big-screen mode were decided with the
   plan; their numbers are in `packages/shared/src/constants/game.ts`.
 

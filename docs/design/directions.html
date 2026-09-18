@@ -1,0 +1,1100 @@
+<!doctype html>
+<html lang="fr" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>closeup — deux directions de design</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,300..900&family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=Instrument+Sans:wdth,wght@75..100,400..700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* ---------- the document itself: neutral on purpose, it must not compete ---------- */
+      :root {
+        --doc-bg: #ededeb;
+        --doc-ink: #1b1b1a;
+        --doc-muted: #63635f;
+        --doc-line: #d2d2ce;
+        --doc-surface: #f8f8f6;
+      }
+      [data-theme='dark'] {
+        --doc-bg: #181817;
+        --doc-ink: #efefec;
+        --doc-muted: #a3a39d;
+        --doc-line: #33332f;
+        --doc-surface: #21211f;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--doc-bg);
+        color: var(--doc-ink);
+        font:
+          400 16px/1.55 'Instrument Sans',
+          sans-serif;
+      }
+      .doc {
+        max-width: 1480px;
+        margin: 0 auto;
+        padding: 40px 24px 96px;
+      }
+      .doc-head {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 24px;
+        align-items: end;
+        justify-content: space-between;
+        margin-bottom: 40px;
+      }
+      .doc-head h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+        line-height: 1.2;
+        font-weight: 600;
+      }
+      .doc-head p {
+        margin: 0;
+        max-width: 62ch;
+        color: var(--doc-muted);
+      }
+      .switch {
+        display: inline-flex;
+        border: 1px solid var(--doc-line);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .switch button {
+        min-height: 44px;
+        padding: 0 18px;
+        border: 0;
+        background: transparent;
+        color: var(--doc-muted);
+        font: inherit;
+        cursor: pointer;
+      }
+      .switch button[aria-pressed='true'] {
+        background: var(--doc-ink);
+        color: var(--doc-bg);
+      }
+      .switch button:focus-visible,
+      .phone button:focus-visible,
+      .phone input:focus-visible {
+        outline: 3px solid var(--focus, #2742f5);
+        outline-offset: 2px;
+      }
+      .directions {
+        display: grid;
+        gap: 56px 40px;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 640px), 1fr));
+      }
+      .direction > h2 {
+        margin: 0 0 4px;
+        font-size: 22px;
+        font-weight: 600;
+      }
+      .direction > .idea {
+        margin: 0 0 24px;
+        max-width: 60ch;
+        color: var(--doc-muted);
+      }
+      .phones {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 24px;
+        margin-bottom: 32px;
+      }
+      .phones figure {
+        margin: 0;
+      }
+      .phones figcaption {
+        margin-top: 10px;
+        font-size: 14px;
+        color: var(--doc-muted);
+      }
+      .spec {
+        display: grid;
+        gap: 20px 32px;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        padding-top: 24px;
+        border-top: 1px solid var(--doc-line);
+      }
+      .spec h3 {
+        margin: 0 0 8px;
+        font-size: 15px;
+        font-weight: 600;
+      }
+      .spec p {
+        margin: 0;
+        font-size: 15px;
+        color: var(--doc-muted);
+      }
+      .swatches {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        font-size: 13px;
+      }
+      .swatches i {
+        display: block;
+        height: 44px;
+        margin-bottom: 6px;
+        border: 1px solid var(--doc-line);
+        border-radius: 4px;
+        background: var(--c);
+      }
+      .swatches b {
+        display: block;
+        font-weight: 600;
+      }
+      .swatches span {
+        color: var(--doc-muted);
+      }
+
+      /* ---------- phone shell ---------- */
+      .phone {
+        width: 340px;
+        height: 700px;
+        border-radius: 40px;
+        padding: 10px;
+        background: #0e0e0e;
+      }
+      .screen {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        overflow: hidden;
+        border-radius: 31px;
+        background: var(--bg);
+        color: var(--ink);
+      }
+      .phone button {
+        font: inherit;
+        color: inherit;
+        cursor: pointer;
+      }
+      .lens {
+        --p: 1;
+        position: relative;
+        aspect-ratio: 1;
+        border-radius: 50%;
+        background: conic-gradient(var(--ring) calc(var(--p) * 360deg), var(--ring-track) 0);
+      }
+      .lens svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        background: var(--surface);
+      }
+      .lens .zoom {
+        transform-origin: 230px 170px;
+        transform: scale(5.6);
+        transition: transform 0.9s cubic-bezier(0.22, 0.8, 0.2, 1);
+      }
+      .lens[data-level='1'] .zoom {
+        transform: scale(3.111);
+      }
+      .lens[data-level='2'] .zoom {
+        transform: scale(1.75);
+      }
+      .lens.hot {
+        --ring: var(--danger);
+      }
+
+      /* =====================================================================
+         A — Tapis rouge
+         ===================================================================== */
+      .dir-a {
+        --bg: #f6eef0;
+        --surface: #ffffff;
+        --ink: #24101a;
+        --muted: #7a5f6b;
+        --line: #e4d3d9;
+        --accent: #b3122d;
+        --accent-ink: #ffffff;
+        --flash: #ffe45c;
+        --flash-ink: #3a2a00;
+        --good: #1f7a4d;
+        --danger: #b3122d;
+        --ring: #24101a;
+        --ring-track: #e9dadf;
+        --focus: #b3122d;
+        font-family: 'Bricolage Grotesque', sans-serif;
+      }
+      [data-theme='dark'] .dir-a {
+        --bg: #2a0f1a;
+        --surface: #3a1726;
+        --ink: #fbeff3;
+        --muted: #c9a6b4;
+        --line: #54273a;
+        --accent: #f0435f;
+        --accent-ink: #2a0f1a;
+        --good: #6fd9a2;
+        --danger: #f0435f;
+        --ring: #fbeff3;
+        --ring-track: #4a2033;
+        --focus: #ffe45c;
+      }
+      .dir-a .screen {
+        padding: 22px 20px 0;
+        text-align: center;
+      }
+      .dir-a .top {
+        display: flex;
+        justify-content: space-between;
+        font-size: 15px;
+        color: var(--muted);
+      }
+      .dir-a .top b {
+        color: var(--ink);
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+      }
+      .dir-a .lens {
+        width: 252px;
+        margin: 26px auto 0;
+        padding: 9px;
+      }
+      .dir-a .worth {
+        margin: 14px 0 0;
+        font-size: 60px;
+        line-height: 1;
+        font-weight: 800;
+        font-stretch: 75%;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.01em;
+      }
+      .dir-a .worth-note {
+        margin: 2px 0 0;
+        font-size: 15px;
+        color: var(--muted);
+      }
+      .dir-a .bonuses {
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        margin: 20px 0 0;
+      }
+      .dir-a .bonuses button {
+        min-height: 44px;
+        padding: 0 13px;
+        white-space: nowrap;
+        border: 1.5px solid var(--ink);
+        border-radius: 999px;
+        background: transparent;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .dir-a .bonuses button.attack {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      .dir-a .rank {
+        display: flex;
+        justify-content: center;
+        gap: 18px;
+        margin: 18px 0 0;
+        padding: 0;
+        list-style: none;
+        font-size: 15px;
+        color: var(--muted);
+      }
+      .dir-a .rank .me {
+        color: var(--ink);
+        font-weight: 700;
+      }
+      .dir-a .answer {
+        display: flex;
+        gap: 8px;
+        margin: auto -20px 0;
+        padding: 12px 14px 18px;
+        border-top: 1px solid var(--line);
+        background: var(--surface);
+      }
+      .dir-a .answer input {
+        flex: 1;
+        min-width: 0;
+        min-height: 48px;
+        padding: 0 18px;
+        border: 1.5px solid var(--line);
+        border-radius: 999px;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          500 17px 'Bricolage Grotesque',
+          sans-serif;
+      }
+      .dir-a .answer input::placeholder {
+        color: var(--muted);
+      }
+      .dir-a .answer button {
+        min-height: 48px;
+        padding: 0 20px;
+        border: 0;
+        border-radius: 999px;
+        background: var(--accent);
+        color: var(--accent-ink);
+        font-weight: 700;
+        font-size: 16px;
+      }
+      /* reveal */
+      .dir-a .verdict {
+        margin: 6px 0 0;
+        font-size: 44px;
+        line-height: 1.05;
+        font-weight: 800;
+        font-stretch: 75%;
+      }
+      .dir-a .verdict mark {
+        padding: 0 8px;
+        background: var(--flash);
+        color: var(--flash-ink);
+      }
+      .dir-a .was {
+        margin: 8px 0 0;
+        font-size: 19px;
+      }
+      .dir-a .full {
+        width: 206px;
+        margin: 18px auto 0;
+        border-radius: 28px;
+        overflow: hidden;
+        background: var(--surface);
+      }
+      .dir-a .credit {
+        margin: 8px 0 0;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .dir-a .scores {
+        margin: 16px 0 0;
+        padding: 0;
+        list-style: none;
+        text-align: left;
+        font-size: 16px;
+      }
+      .dir-a .scores li {
+        display: flex;
+        justify-content: space-between;
+        padding: 9px 2px;
+        border-top: 1px solid var(--line);
+      }
+      .dir-a .scores .pts {
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+      }
+      .dir-a .scores .miss {
+        color: var(--muted);
+        font-weight: 400;
+      }
+      .dir-a .next {
+        margin: auto 0 18px;
+        min-height: 52px;
+        border: 0;
+        border-radius: 999px;
+        background: var(--ink);
+        color: var(--bg);
+        font-size: 17px;
+        font-weight: 700;
+      }
+
+      /* =====================================================================
+         B — Photomaton
+         ===================================================================== */
+      .dir-b {
+        --bg: #e9edf3;
+        --surface: #ffffff;
+        --ink: #11183a;
+        --muted: #5b6483;
+        --line: #cfd6e2;
+        --accent: #2742f5;
+        --accent-ink: #ffffff;
+        --good: #12925a;
+        --danger: #d42a20;
+        --ring: #2742f5;
+        --ring-track: #cfd6e2;
+        --focus: #2742f5;
+        font-family: 'Instrument Sans', sans-serif;
+      }
+      [data-theme='dark'] .dir-b {
+        --bg: #0c1130;
+        --surface: #161d49;
+        --ink: #eef1ff;
+        --muted: #9aa4cf;
+        --line: #273066;
+        --accent: #7d90ff;
+        --accent-ink: #0c1130;
+        --good: #3fd693;
+        --danger: #ff6b61;
+        --ring: #7d90ff;
+        --ring-track: #273066;
+        --focus: #eef1ff;
+      }
+      .dir-b .display {
+        font-family: 'Anybody', sans-serif;
+        font-stretch: 140%;
+        font-weight: 800;
+      }
+      .dir-b .screen {
+        padding: 22px 18px 0;
+      }
+      .dir-b .top {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        font-size: 15px;
+        color: var(--muted);
+      }
+      .dir-b .top b {
+        color: var(--ink);
+        font-variant-numeric: tabular-nums;
+      }
+      .dir-b .stage {
+        display: grid;
+        grid-template-columns: 52px 1fr;
+        gap: 14px;
+        margin-top: 22px;
+        align-items: start;
+      }
+      /* The strip is the level indicator: one frame per zoom level, developing as they unlock. */
+      .dir-b .strip {
+        margin: 0;
+        padding: 5px;
+        list-style: none;
+        border-radius: 4px;
+        background: var(--surface);
+        display: grid;
+        gap: 5px;
+      }
+      .dir-b .strip li {
+        position: relative;
+        aspect-ratio: 1;
+        overflow: hidden;
+        border-radius: 2px;
+        background: var(--line);
+      }
+      .dir-b .strip svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        filter: saturate(0) contrast(0.6);
+        transition:
+          opacity 0.9s ease,
+          filter 1.4s ease;
+      }
+      .dir-b .strip li.on svg {
+        opacity: 1;
+        filter: none;
+      }
+      .dir-b .strip li.locked {
+        background: transparent;
+        outline: 1.5px dashed var(--muted);
+        outline-offset: -2px;
+      }
+      .dir-b .strip li.locked span {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        font-size: 11px;
+        line-height: 1.1;
+        text-align: center;
+        color: var(--muted);
+      }
+      /* Offset, never cropped: the ring is the timer. */
+      .dir-b .lens {
+        width: 236px;
+        padding: 9px;
+      }
+      .dir-b .worth {
+        margin: 16px 0 0;
+        font-size: 46px;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+      }
+      .dir-b .worth-note {
+        margin: 4px 0 0;
+        font-size: 15px;
+        color: var(--muted);
+      }
+      .dir-b .bonuses {
+        display: flex;
+        gap: 6px;
+        margin: 18px 0 0;
+      }
+      .dir-b .bonuses button {
+        min-height: 44px;
+        padding: 0 12px;
+        white-space: nowrap;
+        border: 0;
+        border-radius: 4px;
+        background: var(--surface);
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .dir-b .bonuses button.attack {
+        background: var(--danger);
+        color: #fff;
+      }
+      .dir-b .rank {
+        margin: 16px 0 0;
+        padding: 0;
+        list-style: none;
+        font-size: 15px;
+        color: var(--muted);
+      }
+      .dir-b .rank li {
+        display: flex;
+        justify-content: space-between;
+        padding: 3px 0;
+        font-variant-numeric: tabular-nums;
+      }
+      .dir-b .rank .me {
+        color: var(--ink);
+        font-weight: 700;
+      }
+      .dir-b .answer {
+        display: flex;
+        gap: 6px;
+        margin: auto -18px 0;
+        padding: 10px 12px 18px;
+        background: var(--surface);
+      }
+      .dir-b .answer input {
+        flex: 1;
+        min-width: 0;
+        min-height: 48px;
+        padding: 0 14px;
+        border: 1.5px solid var(--line);
+        border-radius: 4px;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          500 17px 'Instrument Sans',
+          sans-serif;
+      }
+      .dir-b .answer input::placeholder {
+        color: var(--muted);
+      }
+      .dir-b .answer button {
+        min-height: 48px;
+        padding: 0 18px;
+        border: 0;
+        border-radius: 4px;
+        background: var(--accent);
+        color: var(--accent-ink);
+        font-weight: 700;
+        font-size: 16px;
+      }
+      /* reveal */
+      .dir-b .verdict {
+        margin: 10px 0 0;
+        font-size: 34px;
+        line-height: 1.05;
+        color: var(--good);
+      }
+      .dir-b .was {
+        margin: 8px 0 0;
+        font-size: 18px;
+      }
+      .dir-b .print {
+        display: grid;
+        grid-template-columns: 52px 1fr;
+        gap: 14px;
+        margin-top: 18px;
+      }
+      .dir-b .full {
+        padding: 6px;
+        border-radius: 4px;
+        background: var(--surface);
+      }
+      .dir-b .full svg {
+        display: block;
+        border-radius: 2px;
+      }
+      .dir-b .credit {
+        margin: 8px 0 0;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .dir-b .scores {
+        margin: 14px 0 0;
+        padding: 0;
+        list-style: none;
+        font-size: 16px;
+      }
+      .dir-b .scores li {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 10px;
+        border-radius: 4px;
+      }
+      .dir-b .scores li:nth-child(odd) {
+        background: var(--surface);
+      }
+      .dir-b .scores .pts {
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+      }
+      .dir-b .scores .miss {
+        color: var(--muted);
+        font-weight: 400;
+      }
+      .dir-b .next {
+        margin: auto 0 18px;
+        min-height: 52px;
+        border: 0;
+        border-radius: 4px;
+        background: var(--accent);
+        color: var(--accent-ink);
+        font-size: 17px;
+        font-weight: 700;
+      }
+
+      /* type specimens in the spec blocks */
+      .specimen-a {
+        font-family: 'Bricolage Grotesque', sans-serif;
+        color: var(--doc-ink);
+      }
+      .specimen-a .big {
+        font-size: 40px;
+        line-height: 1;
+        font-weight: 800;
+        font-stretch: 75%;
+      }
+      .specimen-b .big {
+        font:
+          800 30px/1 'Anybody',
+          sans-serif;
+        font-stretch: 140%;
+        color: var(--doc-ink);
+      }
+      .specimen-b .text {
+        color: var(--doc-ink);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .lens .zoom,
+        .dir-b .strip svg {
+          transition: none;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- One original illustration, reused at every zoom level. Built by the script below. -->
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <symbol id="card" viewBox="0 0 400 400"></symbol>
+    </svg>
+
+    <div class="doc">
+      <header class="doc-head">
+        <div>
+          <h1>Deux directions pour closeup</h1>
+          <p>
+            Le même écran de manche et le même reveal, dans chaque direction. Le minuteur tourne
+            pour de vrai (30 s, dézoom à 10 s et 20 s, valeur de 1000 à 200). L'image est une
+            illustration originale : aucune photo tierce.
+          </p>
+        </div>
+        <div class="switch" role="group" aria-label="Thème">
+          <button type="button" data-set-theme="light" aria-pressed="true">Clair</button>
+          <button type="button" data-set-theme="dark" aria-pressed="false">Sombre</button>
+        </div>
+      </header>
+
+      <main class="directions">
+        <!-- ================================ A ================================ -->
+        <section class="direction">
+          <h2>A. Tapis rouge</h2>
+          <p class="idea">
+            Ton prototype, mûri. Une colonne centrée, la lentille au centre optique, et le jaune du
+            flash gardé pour un seul moment : la bonne réponse.
+          </p>
+
+          <div class="phones">
+            <figure>
+              <div class="phone dir-a">
+                <div class="screen">
+                  <div class="top"><span>Manche 3 sur 10</span><b>2 130</b></div>
+                  <div class="lens" data-lens data-level="0">
+                    <svg viewBox="62 2 336 336" role="img" aria-label="Gros plan à deviner">
+                      <g class="zoom"><use href="#card" width="400" height="400" /></g>
+                    </svg>
+                  </div>
+                  <p class="worth" data-worth>1000</p>
+                  <p class="worth-note">points si tu trouves maintenant</p>
+                  <div class="bonuses">
+                    <button type="button">Dézoomer</button>
+                    <button type="button">Bouclier</button>
+                    <button type="button" class="attack">Flouter Awa</button>
+                  </div>
+                  <ol class="rank">
+                    <li>Awa 2 450</li>
+                    <li class="me">Toi 2 130</li>
+                    <li>Moussa 1 980</li>
+                  </ol>
+                  <form class="answer" onsubmit="return false;">
+                    <input type="text" placeholder="C'est quoi ?" aria-label="Ta réponse" />
+                    <button type="submit">Répondre</button>
+                  </form>
+                </div>
+              </div>
+              <figcaption>Manche, réponse libre</figcaption>
+            </figure>
+
+            <figure>
+              <div class="phone dir-a">
+                <div class="screen">
+                  <div class="top"><span>Manche 3 sur 10</span><b>2 860</b></div>
+                  <p class="verdict"><mark>Trouvé</mark> +730</p>
+                  <p class="was">C'était la pulpe d'une orange</p>
+                  <div class="full">
+                    <svg viewBox="0 0 400 400" role="img" aria-label="Image entière, zone entourée">
+                      <use href="#card" width="400" height="400" />
+                      <circle
+                        cx="230"
+                        cy="170"
+                        r="33"
+                        fill="none"
+                        stroke="#24101a"
+                        stroke-width="9"
+                      />
+                      <circle
+                        cx="230"
+                        cy="170"
+                        r="33"
+                        fill="none"
+                        stroke="#ffe45c"
+                        stroke-width="5"
+                      />
+                    </svg>
+                  </div>
+                  <p class="credit">Illustration closeup, CC0</p>
+                  <ol class="scores">
+                    <li><span>Awa</span><span class="pts">+820 en 6,4 s</span></li>
+                    <li><span>Toi</span><span class="pts">+730 en 9,1 s</span></li>
+                    <li><span>Moussa</span><span class="pts miss">pas trouvé</span></li>
+                  </ol>
+                  <button type="button" class="next">Manche suivante</button>
+                </div>
+              </div>
+              <figcaption>Reveal</figcaption>
+            </figure>
+          </div>
+
+          <div class="spec">
+            <div>
+              <h3>Couleurs</h3>
+              <ul class="swatches">
+                <li style="--c: #f6eef0"><i></i><b>Papier</b><span>#F6EEF0</span></li>
+                <li style="--c: #24101a"><i></i><b>Prune</b><span>#24101A</span></li>
+                <li style="--c: #b3122d"><i></i><b>Carmin</b><span>#B3122D</span></li>
+                <li style="--c: #ffe45c"><i></i><b>Flash</b><span>#FFE45C</span></li>
+                <li style="--c: #e4d3d9"><i></i><b>Filet</b><span>#E4D3D9</span></li>
+                <li style="--c: #1f7a4d"><i></i><b>Juste</b><span>#1F7A4D</span></li>
+              </ul>
+            </div>
+            <div class="specimen-a">
+              <h3 style="font-family: 'Instrument Sans', sans-serif">Typo</h3>
+              <div class="big">730 Trouvé</div>
+              <p>
+                Bricolage Grotesque seule. Chiffres et verdicts en gras condensé (largeur 75), texte
+                en largeur normale. Le contraste vient de l'axe de largeur, pas d'une seconde
+                police.
+              </p>
+            </div>
+            <div>
+              <h3>Formes et espace</h3>
+              <p>
+                Pilules pour tout ce qui se touche, 28 px pour les images, base 4 avec un rythme
+                vertical généreux. Tout est centré sur l'axe de la lentille.
+              </p>
+            </div>
+            <div>
+              <h3>Mouvement</h3>
+              <p>
+                Le dézoom, l'anneau, et un éclair jaune plein écran d'un quart de seconde quand tu
+                trouves. Rien d'autre ne bouge.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================================ B ================================ -->
+        <section class="direction">
+          <h2>B. Photomaton</h2>
+          <p class="idea">
+            Quatre niveaux de zoom, quatre vues d'une bande de cabine. La bande n'est pas un décor :
+            elle dit où en est la manche, et elle s'imprime au reveal.
+          </p>
+
+          <div class="phones">
+            <figure>
+              <div class="phone dir-b">
+                <div class="screen">
+                  <div class="top"><span>Manche 3 sur 10</span><b>2 130</b></div>
+                  <div class="stage">
+                    <ol class="strip" data-strip aria-label="Niveaux de zoom">
+                      <li class="on">
+                        <svg viewBox="200 140 60 60">
+                          <use href="#card" width="400" height="400" />
+                        </svg>
+                      </li>
+                      <li>
+                        <svg viewBox="176 116 108 108">
+                          <use href="#card" width="400" height="400" />
+                        </svg>
+                      </li>
+                      <li>
+                        <svg viewBox="134 74 192 192">
+                          <use href="#card" width="400" height="400" />
+                        </svg>
+                      </li>
+                      <li class="locked"><span>avec un bonus</span></li>
+                    </ol>
+                    <div>
+                      <div class="lens" data-lens data-level="0">
+                        <svg viewBox="62 2 336 336" role="img" aria-label="Gros plan à deviner">
+                          <g class="zoom"><use href="#card" width="400" height="400" /></g>
+                        </svg>
+                      </div>
+                      <p class="worth display" data-worth>1000</p>
+                      <p class="worth-note">points si tu trouves maintenant</p>
+                    </div>
+                  </div>
+                  <div class="bonuses">
+                    <button type="button">Dézoomer</button>
+                    <button type="button">Bouclier</button>
+                    <button type="button" class="attack">Flouter Awa</button>
+                  </div>
+                  <ol class="rank">
+                    <li><span>1. Awa</span><span>2 450</span></li>
+                    <li class="me"><span>2. Toi</span><span>2 130</span></li>
+                    <li><span>3. Moussa</span><span>1 980</span></li>
+                  </ol>
+                  <form class="answer" onsubmit="return false;">
+                    <input type="text" placeholder="C'est quoi ?" aria-label="Ta réponse" />
+                    <button type="submit">Répondre</button>
+                  </form>
+                </div>
+              </div>
+              <figcaption>Manche, réponse libre</figcaption>
+            </figure>
+
+            <figure>
+              <div class="phone dir-b">
+                <div class="screen">
+                  <div class="top"><span>Manche 3 sur 10</span><b>2 860</b></div>
+                  <p class="verdict display">Trouvé +730</p>
+                  <p class="was">C'était la pulpe d'une orange</p>
+                  <div class="print">
+                    <ol class="strip" aria-label="Les vues de la manche">
+                      <li class="on">
+                        <svg viewBox="200 140 60 60">
+                          <use href="#card" width="400" height="400" />
+                        </svg>
+                      </li>
+                      <li class="on">
+                        <svg viewBox="176 116 108 108">
+                          <use href="#card" width="400" height="400" />
+                        </svg>
+                      </li>
+                      <li class="on">
+                        <svg viewBox="134 74 192 192">
+                          <use href="#card" width="400" height="400" />
+                        </svg>
+                      </li>
+                      <li class="on">
+                        <svg viewBox="62 2 336 336">
+                          <use href="#card" width="400" height="400" />
+                        </svg>
+                      </li>
+                    </ol>
+                    <div>
+                      <div class="full">
+                        <svg
+                          viewBox="0 0 400 400"
+                          role="img"
+                          aria-label="Image entière, zone entourée"
+                        >
+                          <use href="#card" width="400" height="400" />
+                          <circle
+                            cx="230"
+                            cy="170"
+                            r="33"
+                            fill="none"
+                            stroke="#ffffff"
+                            stroke-width="9"
+                          />
+                          <circle
+                            cx="230"
+                            cy="170"
+                            r="33"
+                            fill="none"
+                            stroke="#2742f5"
+                            stroke-width="5"
+                          />
+                        </svg>
+                      </div>
+                      <p class="credit">Illustration closeup, CC0</p>
+                    </div>
+                  </div>
+                  <ol class="scores">
+                    <li><span>Awa</span><span class="pts">+820 en 6,4 s</span></li>
+                    <li><span>Toi</span><span class="pts">+730 en 9,1 s</span></li>
+                    <li><span>Moussa</span><span class="pts miss">pas trouvé</span></li>
+                  </ol>
+                  <button type="button" class="next">Manche suivante</button>
+                </div>
+              </div>
+              <figcaption>Reveal</figcaption>
+            </figure>
+          </div>
+
+          <div class="spec">
+            <div>
+              <h3>Couleurs</h3>
+              <ul class="swatches">
+                <li style="--c: #e9edf3"><i></i><b>Tôle</b><span>#E9EDF3</span></li>
+                <li style="--c: #11183a"><i></i><b>Nuit</b><span>#11183A</span></li>
+                <li style="--c: #2742f5"><i></i><b>Rideau</b><span>#2742F5</span></li>
+                <li style="--c: #ffffff"><i></i><b>Bande</b><span>#FFFFFF</span></li>
+                <li style="--c: #12925a"><i></i><b>Voyant prêt</b><span>#12925A</span></li>
+                <li style="--c: #d42a20"><i></i><b>Voyant occupé</b><span>#D42A20</span></li>
+              </ul>
+            </div>
+            <div class="specimen-b">
+              <h3>Typo</h3>
+              <div class="big">730 Trouvé</div>
+              <p class="text">
+                Anybody très large et grasse pour les chiffres et les verdicts, comme une enseigne
+                de cabine. Instrument Sans pour tout ce qui se lit : réponses, classement, boutons.
+              </p>
+            </div>
+            <div>
+              <h3>Formes et espace</h3>
+              <p>
+                Coins de photo à 4 px partout, marges blanches de tirage autour des images. La
+                lentille est la seule forme ronde, décalée à droite de la bande mais jamais rognée :
+                son anneau est le minuteur. Tout le reste est calé à gauche.
+              </p>
+            </div>
+            <div>
+              <h3>Mouvement</h3>
+              <p>
+                Le dézoom, l'anneau, et les vues de la bande qui se développent une à une. Au
+                reveal, la bande complète sort d'un seul geste.
+              </p>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      // ---- the illustration: an orange slice, drawn in code so every zoom level stays crisp ----
+      (function drawCard() {
+        const NS = 'http://www.w3.org/2000/svg';
+        const card = document.getElementById('card');
+        const add = (name, attrs) => {
+          const el = document.createElementNS(NS, name);
+          for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+          card.append(el);
+          return el;
+        };
+        const at = (deg, r) => {
+          const a = (deg * Math.PI) / 180;
+          return [200 + Math.cos(a) * r, 200 + Math.sin(a) * r];
+        };
+        let seed = 7;
+        const rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+
+        add('rect', { width: 400, height: 400, fill: '#2f6f73' });
+        add('circle', { cx: 200, cy: 200, r: 182, fill: '#e8761c' });
+        add('circle', { cx: 200, cy: 200, r: 170, fill: '#f9ead0' });
+
+        const SEGMENTS = 10;
+        for (let i = 0; i < SEGMENTS; i++) {
+          const from = i * 36 + 3;
+          const to = i * 36 + 33;
+          const [x1, y1] = at(from, 158);
+          const [x2, y2] = at(to, 158);
+          const [x0, y0] = at(i * 36 + 18, 16);
+          add('path', {
+            d: `M${x0} ${y0} L${x1} ${y1} A158 158 0 0 1 ${x2} ${y2} Z`,
+            fill: '#f7a531',
+            stroke: '#f9ead0',
+            'stroke-width': 3,
+            'stroke-linejoin': 'round',
+          });
+          // pulp vesicles: teardrops pointing at the centre
+          for (let k = 0; k < 46; k++) {
+            const deg = from + 4 + rand() * (to - from - 8);
+            const r = 34 + rand() * 116;
+            const [cx, cy] = at(deg, r);
+            const len = 5 + rand() * 7;
+            add('ellipse', {
+              cx,
+              cy,
+              rx: len,
+              ry: 1.6 + rand() * 1.4,
+              transform: `rotate(${deg} ${cx} ${cy})`,
+              fill: rand() > 0.5 ? '#ffc25a' : '#ee8f1f',
+              opacity: 0.85,
+            });
+          }
+        }
+        add('circle', { cx: 200, cy: 200, r: 11, fill: '#f9ead0' });
+      })();
+
+      // ---- theme switch ----
+      for (const button of document.querySelectorAll('[data-set-theme]')) {
+        button.addEventListener('click', () => {
+          document.documentElement.dataset.theme = button.dataset.setTheme;
+          for (const other of document.querySelectorAll('[data-set-theme]')) {
+            other.setAttribute('aria-pressed', String(other === button));
+          }
+        });
+      }
+
+      // ---- one clock drives every mock, with the real game numbers ----
+      const ROUND_MS = 30_000;
+      const LEVEL_AT = [0, 10_000, 20_000];
+      const valueAt = (ms) => Math.round((1000 - 800 * Math.min(1, ms / ROUND_MS)) / 10) * 10;
+      const lenses = [...document.querySelectorAll('[data-lens]')];
+      const worths = [...document.querySelectorAll('[data-worth]')];
+      const strips = [...document.querySelectorAll('[data-strip]')];
+      const startedAt = performance.now();
+
+      function tick(now) {
+        const elapsed = (now - startedAt) % (ROUND_MS + 2_000); // short pause before looping
+        const ms = Math.min(elapsed, ROUND_MS);
+        const level = LEVEL_AT.filter((t) => ms >= t).length - 1;
+        for (const lens of lenses) {
+          lens.style.setProperty('--p', String(1 - ms / ROUND_MS));
+          lens.dataset.level = String(level);
+          lens.classList.toggle('hot', ROUND_MS - ms < 10_000);
+        }
+        for (const worth of worths) worth.textContent = String(valueAt(ms));
+        for (const strip of strips) {
+          [...strip.children].forEach((frame, i) => {
+            if (!frame.classList.contains('locked')) frame.classList.toggle('on', i <= level);
+          });
+        }
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    </script>
+  </body>
+</html>
