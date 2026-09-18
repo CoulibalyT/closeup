@@ -92,3 +92,162 @@ export const revealSkipSchema = z.object({ roundId: idSchema });
 export const matchmakingJoinSchema = z.object({ nickname: nicknameSchema });
 
 export const bonusTypeSchema = z.enum(BONUS_TYPES);
+
+// ---------------------------------------------------------------------------------------------
+// Server → client payloads (phase 1: what a solo game needs). These are `z.strictObject`s on
+// purpose: a field that is not declared here cannot reach a client, which is what keeps answers
+// and card ids on the server.
+// ---------------------------------------------------------------------------------------------
+
+export const answerModeSchema = z.enum(['text', 'mcq']);
+export type AnswerMode = z.infer<typeof answerModeSchema>;
+
+export const phaseSchema = z.enum(['lobby', 'countdown', 'playing', 'reveal', 'ended']);
+
+/** One zoom level of the current image, behind an opaque, short-lived URL. */
+export const cropSchema = z.strictObject({
+  url: z.string().min(1),
+  level: z.int().min(0).max(3),
+  /** Where the zoom point sits inside this crop (0..1), the origin of the zoom-out animation. */
+  focus: z.strictObject({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }),
+  /** How much wider this crop is than the previous level. `null` on the first level. */
+  scaleFromPrev: z.number().positive().nullable(),
+});
+export type Crop = z.infer<typeof cropSchema>;
+
+export const mcqOptionSchema = z.strictObject({ id: idSchema, label: z.string().min(1) });
+export type McqOption = z.infer<typeof mcqOptionSchema>;
+
+export const playerSchema = z.strictObject({
+  id: idSchema,
+  nickname: z.string(),
+  score: z.int(),
+  connected: z.boolean(),
+});
+export type Player = z.infer<typeof playerSchema>;
+
+export const roundPrepareSchema = z.strictObject({
+  roundId: idSchema,
+  index: z.int().min(0),
+  total: z.int().positive(),
+  startsAt: z.number(),
+});
+export type RoundPrepare = z.infer<typeof roundPrepareSchema>;
+
+export const roundStartSchema = z.strictObject({
+  roundId: idSchema,
+  index: z.int().min(0),
+  total: z.int().positive(),
+  startsAt: z.number(),
+  endsAt: z.number(),
+  /** Server times of the automatic zoom-outs. */
+  levelAt: z.array(z.number()),
+  answerMode: answerModeSchema,
+  crop: cropSchema,
+  options: z.array(mcqOptionSchema).optional(),
+});
+export type RoundStart = z.infer<typeof roundStartSchema>;
+
+export const roundLevelSchema = z.strictObject({
+  roundId: idSchema,
+  level: z.int().min(0).max(3),
+  crop: cropSchema,
+  at: z.number(),
+});
+export type RoundLevel = z.infer<typeof roundLevelSchema>;
+
+export const roundPlayerAnsweredSchema = z.strictObject({
+  roundId: idSchema,
+  playerId: idSchema,
+  points: z.int(),
+  order: z.int().positive(),
+});
+export type RoundPlayerAnswered = z.infer<typeof roundPlayerAnsweredSchema>;
+
+export const creditSchema = z.strictObject({
+  author: z.string(),
+  licence: z.string(),
+  sourceUrl: z.string().optional(),
+});
+
+export const revealSchema = z.strictObject({
+  imageUrl: z.string().min(1),
+  /** The zone that was shown first, in fractions of the image side. */
+  zone: z.strictObject({ cx: z.number(), cy: z.number(), r: z.number() }),
+  zoneLabel: z.string().optional(),
+  answer: z.string(),
+  credit: creditSchema,
+});
+export type Reveal = z.infer<typeof revealSchema>;
+
+export const roundResultSchema = z.strictObject({
+  playerId: idSchema,
+  points: z.int(),
+  elapsedMs: z.number().nullable(),
+});
+
+export const roundEndSchema = z.strictObject({
+  roundId: idSchema,
+  reveal: revealSchema,
+  results: z.array(roundResultSchema),
+  ranking: z.array(playerSchema),
+  /** When the next round is prepared. `null` waits for the host (solo: the player). */
+  nextAt: z.number().nullable(),
+  isLast: z.boolean(),
+});
+export type RoundEnd = z.infer<typeof roundEndSchema>;
+
+export const gameStartedSchema = z.strictObject({
+  totalRounds: z.int().positive(),
+  answerMode: answerModeSchema,
+});
+
+export const gameEndSchema = z.strictObject({
+  ranking: z.array(playerSchema),
+  /** Solo only. */
+  personalBest: z.strictObject({ score: z.int(), isNew: z.boolean() }).optional(),
+});
+export type GameEnd = z.infer<typeof gameEndSchema>;
+
+/** Full picture for a client that joins or reconnects, already stripped of every secret. */
+export const roomStateSchema = z.strictObject({
+  code: z.string(),
+  mode: z.enum(['solo', 'private', 'public']),
+  answerMode: answerModeSchema,
+  phase: phaseSchema,
+  hostId: idSchema,
+  you: idSchema,
+  players: z.array(playerSchema),
+  totalRounds: z.int().positive(),
+  round: z
+    .strictObject({
+      roundId: idSchema,
+      index: z.int().min(0),
+      startsAt: z.number(),
+      endsAt: z.number(),
+      levelAt: z.array(z.number()),
+      crop: cropSchema.optional(),
+      options: z.array(mcqOptionSchema).optional(),
+      answered: z.boolean(),
+      points: z.int().optional(),
+      penalty: z.int(),
+      lockedUntil: z.number().optional(),
+    })
+    .optional(),
+  reveal: roundEndSchema.optional(),
+});
+export type RoomStateView = z.infer<typeof roomStateSchema>;
+
+export const guessReplySchema = z.strictObject({
+  verdict: z.enum(['correct', 'close', 'wrong', 'rate_limited']),
+  points: z.int().optional(),
+});
+export type GuessReply = z.infer<typeof guessReplySchema>;
+
+export const pickReplySchema = z.strictObject({
+  verdict: z.enum(['correct', 'wrong']),
+  points: z.int().optional(),
+  lockedUntil: z.number().optional(),
+  penalty: z.int().optional(),
+});
+export type PickReply = z.infer<typeof pickReplySchema>;
