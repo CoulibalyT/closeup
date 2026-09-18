@@ -1,0 +1,21 @@
+{
+  "status": {
+    "title": "État de {appName}",
+    "intro": "Phase 0 : cette page prouve que toute la chaîne répond. Le jeu arrive à la phase 1.",
+    "services": "Services",
+    "api": "API",
+    "postgres": "PostgreSQL",
+    "redis": "Redis",
+    "worker": "Worker d'images",
+    "socket": "Temps réel",
+    "pwa": "Service worker",
+    "up": "en ligne",
+    "down": "en panne",
+    "unknown": "vérification…",
+    "workerLatency": "un job fait l'aller-retour en {ms} ms",
+    "clock": "Décalage avec l'horloge du serveur : {offset} ms (aller-retour {rtt} ms)",
+    "clockPending": "Mesure du décalage d'horloge…",
+    "refresh": "Vérifier maintenant",
+    "language": "Langue"
+  }
+}

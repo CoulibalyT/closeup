@@ -1,0 +1,33 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Who plays. History and stats hang on the player, not on the device, so that upgrading a guest
+/// to an account (phase 6) is a matter of linking this row to a user.
+model Player {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  nickname  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  devices   Device[]
+}
+
+/// A browser or phone, identified by an opaque token that is only ever stored hashed.
+model Device {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  tokenHash  String    @unique
+  playerId   String    @db.Uuid
+  player     Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  bannedAt   DateTime?
+
+  @@index([playerId])
+}

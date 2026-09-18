@@ -1,0 +1,31 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+.nuxt/
+.output/
+.nitro/
+coverage/
+*.tsbuildinfo
+
+# generated Prisma client (rebuilt by `prisma generate`)
+apps/api/src/generated/
+
+# env
+.env
+.env.*
+!.env.example
+
+# local media volume (originals and crops never go to git)
+/data/
+
+# editor / OS / tooling
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.playwright-mcp/
+apps/web/dev-dist/
+*.log

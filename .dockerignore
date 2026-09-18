@@ -1,0 +1,16 @@
+**/node_modules
+**/dist
+**/.nuxt
+**/.output
+**/coverage
+**/dev-dist
+apps/api/src/generated
+.git
+.github
+.env
+.env.*
+!.env.example
+data
+docs
+*.log
+.DS_Store

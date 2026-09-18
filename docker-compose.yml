@@ -1,0 +1,115 @@
+# Local development. `docker compose up --build`, then open http://localhost:${WEB_PORT}.
+# Host ports come from .env so they can dodge whatever already runs on your machine.
+
+x-app: &app
+  image: closeup-dev
+  build:
+    context: .
+    target: dev
+  environment: &app-env
+    NODE_ENV: development
+    DATABASE_URL: postgresql://closeup:closeup@postgres:5432/closeup
+    REDIS_URL: redis://redis:6379
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: closeup
+      POSTGRES_PASSWORD: closeup
+      POSTGRES_DB: closeup
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U closeup -d closeup']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    # noeviction is a BullMQ requirement; appendonly keeps rooms alive across a Redis restart.
+    command: ['redis-server', '--appendonly', 'yes', '--maxmemory-policy', 'noeviction']
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    <<: *app
+    command:
+      - sh
+      - -c
+      - >-
+        pnpm --filter @closeup/api prisma:generate &&
+        pnpm --filter @closeup/api prisma:deploy &&
+        pnpm --filter @closeup/api dev
+    environment:
+      <<: *app-env
+      API_PORT: 3001
+      CORS_ORIGINS: http://localhost:${WEB_PORT:-3000}
+    ports:
+      - '${API_PORT:-3001}:3001'
+    volumes:
+      - ./apps/api/src:/repo/apps/api/src
+      - ./apps/api/prisma:/repo/apps/api/prisma
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3001/api/health']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
+  worker:
+    <<: *app
+    command: ['pnpm', '--filter', '@closeup/api', 'dev:worker']
+    volumes:
+      - ./apps/api/src:/repo/apps/api/src
+    depends_on:
+      # The api service generates the Prisma client into the shared src folder first.
+      api: { condition: service_healthy }
+    healthcheck:
+      test: ['CMD', 'node', 'apps/api/scripts/worker-health.mjs']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  web:
+    <<: *app
+    command: ['pnpm', '--filter', '@closeup/web', 'dev', '--host', '0.0.0.0', '--port', '3000']
+    environment:
+      NODE_ENV: development
+      CLOSEUP_DISPLAY_NAME: ${CLOSEUP_DISPLAY_NAME:-}
+      # The browser calls the API directly in dev; in production both share an origin.
+      NUXT_PUBLIC_API_BASE: http://localhost:${API_PORT:-3001}
+    ports:
+      - '${WEB_PORT:-3000}:3000'
+    volumes:
+      - ./apps/web/app:/repo/apps/web/app
+      - ./apps/web/i18n:/repo/apps/web/i18n
+      - ./apps/web/public:/repo/apps/web/public
+      - ./apps/web/nuxt.config.ts:/repo/apps/web/nuxt.config.ts
+    depends_on:
+      api: { condition: service_healthy }
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3000/']
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
+volumes:
+  pgdata:
+  redisdata:

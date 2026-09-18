@@ -1,0 +1,10 @@
+pnpm-lock.yaml
+**/dist/
+**/.nuxt/
+**/.output/
+**/coverage/
+**/generated/
+apps/web/dev-dist/
+apps/api/prisma/migrations/
+docs/prototype/
+docs/brief.md

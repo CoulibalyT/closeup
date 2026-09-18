@@ -1,0 +1,30 @@
+{
+  "name": "closeup",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.4.2",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "dev": "docker compose up --build",
+    "build:shared": "pnpm --filter @closeup/shared build",
+    "prepare:all": "pnpm build:shared && pnpm --filter @closeup/api prisma:generate && pnpm --filter @closeup/web nuxt:prepare",
+    "build": "pnpm -r build",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "typecheck": "pnpm prepare:all && pnpm -r typecheck",
+    "test": "pnpm build:shared && pnpm -r test",
+    "smoke": "pnpm --filter @closeup/api smoke"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "eslint": "^10.0.0",
+    "eslint-config-prettier": "^10.1.0",
+    "eslint-plugin-vue": "^10.0.0",
+    "globals": "^17.0.0",
+    "prettier": "^3.9.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.70.0"
+  }
+}

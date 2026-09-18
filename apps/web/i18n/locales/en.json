@@ -1,0 +1,21 @@
+{
+  "status": {
+    "title": "{appName} status",
+    "intro": "Phase 0: this page proves the whole stack answers. The game arrives in phase 1.",
+    "services": "Services",
+    "api": "API",
+    "postgres": "PostgreSQL",
+    "redis": "Redis",
+    "worker": "Image worker",
+    "socket": "Realtime",
+    "pwa": "Service worker",
+    "up": "up",
+    "down": "down",
+    "unknown": "checking…",
+    "workerLatency": "a job makes the round trip in {ms} ms",
+    "clock": "Offset from the server clock: {offset} ms (round trip {rtt} ms)",
+    "clockPending": "Measuring the clock offset…",
+    "refresh": "Check now",
+    "language": "Language"
+  }
+}
