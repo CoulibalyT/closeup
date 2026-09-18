@@ -16,6 +16,7 @@ export const idSchema = z.string().min(1).max(64);
 export const ERROR_CODES = [
   'INVALID_PAYLOAD',
   'PROTOCOL_MISMATCH',
+  'UNAUTHENTICATED',
   'ROOM_NOT_FOUND',
   'ROOM_FULL',
   'NOT_HOST',

@@ -10,8 +10,10 @@ import {
 } from '@closeup/shared';
 import { io, type Socket } from 'socket.io-client';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { IdentityService } from '../../identity/identity.service.js';
 import { listen } from '../../testing/listen.js';
-import { GameModule } from '../game.module.js';
+import { RoomService } from '../rooms/room.service.js';
+import { GameGateway } from './game.gateway.js';
 import { SocketAdapter } from './socket.adapter.js';
 
 describe('GameGateway', () => {
@@ -20,7 +22,14 @@ describe('GameGateway', () => {
   let socket: Socket | undefined;
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({ imports: [GameModule] }).compile();
+    // The gateway alone: anonymous sockets, no database and no rooms behind it.
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        GameGateway,
+        { provide: RoomService, useValue: { onMessage: () => undefined } },
+        { provide: IdentityService, useValue: { resolve: async () => null } },
+      ],
+    }).compile();
     app = moduleRef.createNestApplication();
     app.useWebSocketAdapter(new SocketAdapter(app, []));
     url = await listen(app);
