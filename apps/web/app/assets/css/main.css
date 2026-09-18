@@ -1,0 +1,151 @@
+/*
+ * "Photomaton" design tokens (see docs/design/directions.html). One set of names, two themes.
+ * The lens is the only round shape of the interface; everything else has 4 px photo corners.
+ */
+@import '@fontsource-variable/anybody/standard.css';
+@import '@fontsource-variable/instrument-sans/standard.css';
+
+:root {
+  color-scheme: light dark;
+
+  --bg: #e9edf3; /* sheet metal */
+  --surface: #ffffff; /* strip */
+  --ink: #11183a; /* night */
+  --muted: #5b6483;
+  --line: #cfd6e2;
+  --accent: #2742f5; /* curtain */
+  --accent-ink: #ffffff;
+  --good: #12925a; /* "ready" light */
+  --danger: #d42a20; /* "occupied" light */
+  --danger-ink: #ffffff;
+  --ring: var(--accent);
+  --ring-track: var(--line);
+  --focus: var(--accent);
+
+  --font-text: 'Instrument Sans Variable', ui-sans-serif, sans-serif;
+  --font-display: 'Anybody Variable', var(--font-text);
+
+  --radius: 4px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-10: 40px;
+  --tap: 48px;
+
+  /* Visible height: shrinks when the on-screen keyboard opens (set by useVisualViewport). */
+  --viewport-height: 100dvh;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0c1130;
+    --surface: #161d49;
+    --ink: #eef1ff;
+    --muted: #9aa4cf;
+    --line: #273066;
+    --accent: #7d90ff;
+    --accent-ink: #0c1130;
+    --good: #3fd693;
+    --danger: #ff6b61;
+    --danger-ink: #0c1130;
+    --focus: #eef1ff;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #0c1130;
+  --surface: #161d49;
+  --ink: #eef1ff;
+  --muted: #9aa4cf;
+  --line: #273066;
+  --accent: #7d90ff;
+  --accent-ink: #0c1130;
+  --good: #3fd693;
+  --danger: #ff6b61;
+  --danger-ink: #0c1130;
+  --focus: #eef1ff;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 17px/1.45 var(--font-text);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.display {
+  font-family: var(--font-display);
+  font-stretch: 140%;
+  font-weight: 800;
+  line-height: 1.02;
+  font-variant-numeric: tabular-nums;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
+  padding: 0 var(--space-6);
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.button.quiet {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

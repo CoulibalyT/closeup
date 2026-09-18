@@ -1,7 +1,57 @@
 {
+  "home": {
+    "language": "Language",
+    "pitch": "One detail, from very close. The picture slowly pulls back. Can you name it before the end?",
+    "solo": "Practise on your own",
+    "rounds": "Number of rounds",
+    "answerMode": "How you answer",
+    "text": "I type it",
+    "mcq": "4 options",
+    "play": "Start the game",
+    "failed": "The game could not start. Check your connection and try again.",
+    "soon": "Games with friends are coming soon."
+  },
+  "play": {
+    "title": "Game in progress, {appName}",
+    "round": "Round {n} of {total}",
+    "connecting": "Connecting to the game…",
+    "lost": "This game no longer exists.",
+    "home": "Back to home",
+    "getReady": "Get ready",
+    "worthNote": "points if you find it now",
+    "foundWaiting": "Found. Waiting for the round to end.",
+    "lensAlt": "Close-up to guess",
+    "stripLabel": "Zoom levels seen so far",
+    "bonusFrame": "with a bonus",
+    "placeholder": "What is it?",
+    "answerLabel": "Your answer",
+    "submit": "Answer",
+    "locked": "Wrong pick. You can try again in {seconds} s.",
+    "feedback": {
+      "close": "Almost. Check the spelling or give the full name.",
+      "wrong": "That's not it.",
+      "rate_limited": "Easy, one answer at a time."
+    }
+  },
+  "reveal": {
+    "found": "Found +{points}",
+    "missed": "Not found",
+    "answer": "It was: {answer}",
+    "zone": "You were looking at {zone}.",
+    "credit": "Image: {author}, {licence}",
+    "next": "Next round",
+    "seeResult": "See the result"
+  },
+  "end": {
+    "title": "Game over, your score",
+    "found": "{n} found out of {total}",
+    "newBest": "New personal best.",
+    "best": "Your best: {score}",
+    "replay": "Play another game"
+  },
   "status": {
     "title": "{appName} status",
-    "intro": "Phase 0: this page proves the whole stack answers. The game arrives in phase 1.",
+    "intro": "Technical page: it proves the whole stack answers.",
     "services": "Services",
     "api": "API",
     "postgres": "PostgreSQL",

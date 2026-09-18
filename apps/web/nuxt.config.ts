@@ -13,6 +13,7 @@ export default defineNuxtConfig({
   // rendered; the landing page will opt back into prerendering through routeRules.
   ssr: false,
   modules: ['@pinia/nuxt', '@nuxtjs/i18n', '@vite-pwa/nuxt'],
+  css: ['~/assets/css/main.css'],
 
   runtimeConfig: {
     public: {
@@ -55,8 +56,9 @@ export default defineNuxtConfig({
       short_name: appName,
       display: 'standalone',
       start_url: '/',
-      background_color: '#ffffff',
-      theme_color: '#ffffff',
+      // The "sheet metal" background of the Photomaton tokens (assets/css/main.css).
+      background_color: '#e9edf3',
+      theme_color: '#e9edf3',
       icons: [{ src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
     },
     workbox: {

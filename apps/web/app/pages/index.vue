@@ -1,148 +1,179 @@
 <script setup lang="ts">
-import type { Light } from '~/stores/status';
+import { type AnswerMode, ROOM } from '@closeup/shared';
 
-// Phase 0 technical page: deliberately unstyled. The design direction is chosen at the start of
-// phase 1 and this page goes away with it.
 const { t, locale, locales } = useI18n();
+const localePath = useLocalePath();
 const switchLocalePath = useSwitchLocalePath();
+const game = useGameStore();
 const { appName } = useRuntimeConfig().public;
-const status = useStatusStore();
-const serviceWorker = ref<Light>('unknown');
 
-useHead({ title: () => t('status.title', { appName }) });
+useHead({ title: appName });
 
-const rows = computed(() => [
-  { key: 'api', light: status.api },
-  { key: 'postgres', light: status.postgres },
-  { key: 'redis', light: status.redis },
-  {
-    key: 'worker',
-    light: status.worker,
-    note:
-      status.workerLatencyMs === null
-        ? undefined
-        : t('status.workerLatency', { ms: status.workerLatencyMs }),
-  },
-  { key: 'socket', light: status.realtime },
-  { key: 'pwa', light: serviceWorker.value },
-]);
+const rounds = ref<number>(ROOM.roundsOptions[0]);
+const answerMode = ref<AnswerMode>('text');
+const starting = ref(false);
+const failed = ref(false);
 
-async function checkServiceWorker(): Promise<void> {
-  if (!('serviceWorker' in navigator)) {
-    serviceWorker.value = 'down';
-    return;
+async function play(): Promise<void> {
+  starting.value = true;
+  failed.value = false;
+  try {
+    const code = await game.createSolo(
+      { rounds: rounds.value, answerMode: answerMode.value },
+      locale.value as 'fr' | 'en',
+    );
+    await navigateTo(localePath(`/play/${code}`));
+  } catch {
+    failed.value = true;
+  } finally {
+    starting.value = false;
   }
-  const registration = await navigator.serviceWorker.getRegistration();
-  serviceWorker.value = registration ? 'up' : 'unknown';
 }
-
-async function refresh(): Promise<void> {
-  await Promise.all([status.refreshServices(), checkServiceWorker()]);
-}
-
-let timer: ReturnType<typeof setInterval> | undefined;
-
-onMounted(() => {
-  status.watchRealtime(useGameSocket());
-  void refresh();
-  timer = setInterval(() => void refresh(), 5_000);
-});
-
-onBeforeUnmount(() => clearInterval(timer));
 </script>
 
 <template>
-  <main class="page">
-    <header class="head">
-      <h1>{{ t('status.title', { appName }) }}</h1>
-      <nav :aria-label="t('status.language')">
-        <NuxtLink
-          v-for="l in locales"
-          :key="l.code"
-          :to="switchLocalePath(l.code)"
-          :aria-current="l.code === locale ? 'true' : undefined"
-          class="lang"
-        >
-          {{ l.name }}
-        </NuxtLink>
-      </nav>
-    </header>
+  <main class="home">
+    <nav :aria-label="t('home.language')">
+      <NuxtLink
+        v-for="l in locales"
+        :key="l.code"
+        :to="switchLocalePath(l.code)"
+        :aria-current="l.code === locale ? 'true' : undefined"
+      >
+        {{ l.name }}
+      </NuxtLink>
+    </nav>
 
-    <p>{{ t('status.intro') }}</p>
+    <h1 class="display">{{ appName }}</h1>
+    <p class="pitch">{{ t('home.pitch') }}</p>
 
-    <section aria-live="polite">
-      <h2>{{ t('status.services') }}</h2>
-      <ul class="rows">
-        <li v-for="row in rows" :key="row.key" :data-light="row.light">
-          <span>{{ t(`status.${row.key}`) }}</span>
-          <span class="state">
-            {{ t(`status.${row.light}`) }}<template v-if="row.note"> — {{ row.note }}</template>
-          </span>
-        </li>
-      </ul>
+    <form class="setup" @submit.prevent="play">
+      <h2>{{ t('home.solo') }}</h2>
 
-      <p v-if="status.clock">
-        {{
-          t('status.clock', {
-            offset: Math.round(status.clock.offsetMs),
-            rtt: Math.round(status.clock.rttMs),
-          })
-        }}
-      </p>
-      <p v-else>{{ t('status.clockPending') }}</p>
-    </section>
+      <fieldset>
+        <legend>{{ t('home.rounds') }}</legend>
+        <label v-for="n in ROOM.roundsOptions" :key="n">
+          <input v-model="rounds" type="radio" name="rounds" :value="n" />
+          <span>{{ n }}</span>
+        </label>
+      </fieldset>
 
-    <button type="button" class="refresh" @click="refresh">{{ t('status.refresh') }}</button>
+      <fieldset>
+        <legend>{{ t('home.answerMode') }}</legend>
+        <label>
+          <input v-model="answerMode" type="radio" name="mode" value="text" />
+          <span>{{ t('home.text') }}</span>
+        </label>
+        <label>
+          <input v-model="answerMode" type="radio" name="mode" value="mcq" />
+          <span>{{ t('home.mcq') }}</span>
+        </label>
+      </fieldset>
+
+      <p v-if="failed" class="error" role="alert">{{ t('home.failed') }}</p>
+      <button type="submit" class="button" :disabled="starting">{{ t('home.play') }}</button>
+    </form>
+
+    <p class="foot muted">{{ t('home.soon') }}</p>
   </main>
 </template>
 
 <style scoped>
-.page {
-  max-width: 36rem;
-  margin: 0 auto;
-  padding: 2rem 1rem;
-  font-family: ui-sans-serif, system-ui, sans-serif;
-  line-height: 1.5;
-}
-.head {
+.home {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
+  flex-direction: column;
+  min-height: 100dvh;
+  max-width: 460px;
+  margin: 0 auto;
+  padding: calc(var(--space-4) + env(safe-area-inset-top)) var(--space-4) var(--space-6);
 }
-.lang {
-  display: inline-block;
-  min-height: 44px;
-  padding: 0.6rem 0.5rem;
-  color: inherit;
+nav {
+  display: flex;
+  gap: var(--space-2);
+  margin-left: calc(-1 * var(--space-2));
 }
-.lang[aria-current='true'] {
+nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 var(--space-2);
+  color: var(--muted);
+}
+nav a[aria-current='true'] {
+  color: var(--ink);
   font-weight: 700;
   text-decoration: none;
 }
-.rows {
-  padding: 0;
-  list-style: none;
+h1 {
+  margin-top: var(--space-10);
+  font-size: clamp(40px, 14vw, 64px);
+  overflow-wrap: anywhere;
 }
-.rows li {
+.pitch {
+  max-width: 32ch;
+  margin-top: var(--space-3);
+  font-size: 19px;
+}
+.setup {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-10);
+  padding: var(--space-4);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+h2 {
+  font-size: 19px;
+}
+fieldset {
   display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.6rem 0;
-  border-bottom: 1px solid #ddd;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
-/* The state is always written out; colour only reinforces it. */
-.rows li[data-light='up'] .state {
-  color: #1f7a4d;
+legend {
+  width: 100%;
+  margin-bottom: var(--space-2);
+  padding: 0;
+  font-size: 15px;
+  color: var(--muted);
 }
-.rows li[data-light='down'] .state {
-  color: #b3122d;
-  font-weight: 700;
+label {
+  flex: 1;
+  cursor: pointer;
 }
-.refresh {
-  min-height: 44px;
-  padding: 0 1rem;
-  font: inherit;
+label input {
+  position: absolute;
+  opacity: 0;
+}
+label span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
+  padding: 0 var(--space-3);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  font-weight: 600;
+  text-align: center;
+}
+label input:checked + span {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+label input:focus-visible + span {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+.error {
+  color: var(--danger);
+}
+.foot {
+  margin-top: auto;
+  padding-top: var(--space-6);
+  font-size: 15px;
 }
 </style>

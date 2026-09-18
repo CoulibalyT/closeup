@@ -1,7 +1,57 @@
 {
+  "home": {
+    "language": "Langue",
+    "pitch": "Un détail en très gros plan. L'image recule peu à peu. Tu trouves ce que c'est avant la fin ?",
+    "solo": "S'entraîner en solo",
+    "rounds": "Nombre de manches",
+    "answerMode": "Comment tu réponds",
+    "text": "J'écris",
+    "mcq": "4 propositions",
+    "play": "Commencer la partie",
+    "failed": "La partie n'a pas pu démarrer. Vérifie ta connexion et réessaie.",
+    "soon": "Les parties entre amis arrivent bientôt."
+  },
+  "play": {
+    "title": "Partie en cours, {appName}",
+    "round": "Manche {n} sur {total}",
+    "connecting": "Connexion à la partie…",
+    "lost": "Cette partie n'existe plus.",
+    "home": "Revenir à l'accueil",
+    "getReady": "Prépare-toi",
+    "worthNote": "points si tu trouves maintenant",
+    "foundWaiting": "Trouvé. On attend la fin de la manche.",
+    "lensAlt": "Gros plan à deviner",
+    "stripLabel": "Niveaux de zoom déjà vus",
+    "bonusFrame": "avec un bonus",
+    "placeholder": "C'est quoi ?",
+    "answerLabel": "Ta réponse",
+    "submit": "Répondre",
+    "locked": "Mauvais choix. Tu peux réessayer dans {seconds} s.",
+    "feedback": {
+      "close": "Presque. Vérifie l'orthographe ou donne le nom complet.",
+      "wrong": "Ce n'est pas ça.",
+      "rate_limited": "Doucement, une réponse à la fois."
+    }
+  },
+  "reveal": {
+    "found": "Trouvé +{points}",
+    "missed": "Pas trouvé",
+    "answer": "C'était : {answer}",
+    "zone": "On te montrait {zone}.",
+    "credit": "Image : {author}, {licence}",
+    "next": "Manche suivante",
+    "seeResult": "Voir le résultat"
+  },
+  "end": {
+    "title": "Partie terminée, ton score",
+    "found": "{n} trouvées sur {total}",
+    "newBest": "Nouveau record personnel.",
+    "best": "Ton record : {score}",
+    "replay": "Rejouer une partie"
+  },
   "status": {
     "title": "État de {appName}",
-    "intro": "Phase 0 : cette page prouve que toute la chaîne répond. Le jeu arrive à la phase 1.",
+    "intro": "Page technique : elle prouve que toute la chaîne répond.",
     "services": "Services",
     "api": "API",
     "postgres": "PostgreSQL",
