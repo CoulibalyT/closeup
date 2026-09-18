@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { idSchema, localeSchema, nicknameSchema, roomCodeSchema } from './common.js';
-import { answerModeSchema } from './events.js';
+import { answerModeSchema, phaseSchema } from './events.js';
 
 const dependencySchema = z.looseObject({ status: z.enum(['up', 'down']) });
 
@@ -32,13 +32,31 @@ export const roomSettingsSchema = z.strictObject({
 });
 export type RoomSettings = z.infer<typeof roomSettingsSchema>;
 
-/** `POST /api/rooms`. Only solo training exists so far; private rooms arrive with phase 2. */
-export const createRoomSchema = z.strictObject({
-  mode: z.literal('solo'),
-  language: localeSchema,
-  settings: roomSettingsSchema,
-});
+/** `POST /api/rooms`. The nickname is asked when creating or joining a room with other people. */
+export const createRoomSchema = z
+  .strictObject({
+    mode: z.enum(['solo', 'private']),
+    language: localeSchema,
+    settings: roomSettingsSchema,
+    nickname: nicknameSchema.optional(),
+  })
+  .refine((room) => room.mode === 'solo' || room.nickname !== undefined, {
+    path: ['nickname'],
+    message: 'A nickname is required to play with other people',
+  });
 export type CreateRoom = z.infer<typeof createRoomSchema>;
+
+/** `GET /api/rooms/:code` — what anyone holding the code may see before joining. */
+export const roomSummarySchema = z.strictObject({
+  code: roomCodeSchema,
+  phase: phaseSchema,
+  hostNickname: z.string(),
+  playerCount: z.int().min(0),
+  maxPlayers: z.int().positive(),
+  rounds: z.int().positive(),
+  answerMode: answerModeSchema,
+});
+export type RoomSummary = z.infer<typeof roomSummarySchema>;
 
 export const roomCreatedSchema = z.strictObject({ code: roomCodeSchema });
 export type RoomCreated = z.infer<typeof roomCreatedSchema>;

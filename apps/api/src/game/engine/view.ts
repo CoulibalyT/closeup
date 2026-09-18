@@ -5,6 +5,11 @@ import {
   gameStartedSchema,
   type Player,
   type RoomStateView,
+  roomHostChangedSchema,
+  roomLobbySchema,
+  roomPlayerLeftSchema,
+  roomPlayerSchema,
+  roomSettingsEventSchema,
   roomStateSchema,
   type RoundEnd,
   roundEndSchema,
@@ -81,6 +86,42 @@ export function eventToWire(state: RoomState, event: EngineEvent, sign: Sign): W
   const round = state.round;
 
   switch (event.type) {
+    case 'playerJoined':
+    case 'playerUpdated': {
+      const player = ranking(state).find((p) => p.id === event.playerId);
+      if (!player) return null;
+      return {
+        event:
+          event.type === 'playerJoined'
+            ? ServerEvent.roomPlayerJoined
+            : ServerEvent.roomPlayerUpdated,
+        payload: roomPlayerSchema.parse({ player }),
+      };
+    }
+    case 'playerLeft':
+      return {
+        event: ServerEvent.roomPlayerLeft,
+        payload: roomPlayerLeftSchema.parse({
+          playerId: event.playerId,
+          reason: event.reason,
+          removed: !state.players[event.playerId],
+        }),
+      };
+    case 'hostChanged':
+      return {
+        event: ServerEvent.roomHostChanged,
+        payload: roomHostChangedSchema.parse({ hostId: state.hostId }),
+      };
+    case 'settingsChanged':
+      return {
+        event: ServerEvent.roomSettings,
+        payload: roomSettingsEventSchema.parse(state.settings),
+      };
+    case 'backToLobby':
+      return {
+        event: ServerEvent.roomLobby,
+        payload: roomLobbySchema.parse({ players: ranking(state) }),
+      };
     case 'gameStarted':
       return {
         event: ServerEvent.gameStarted,
@@ -171,6 +212,8 @@ export function toSnapshot(state: RoomState, viewerId: string, sign: Sign): Room
           // Nothing of the card before the countdown is over.
           crop: live ? cropAt(round, round.level, sign) : undefined,
           options: live ? round.card.options : undefined,
+          // Someone who joined mid-round watches it and plays from the next one.
+          seated: mine !== undefined,
           answered: mine?.answeredAt !== undefined,
           points: mine?.points,
           penalty: mine?.penalty ?? 0,

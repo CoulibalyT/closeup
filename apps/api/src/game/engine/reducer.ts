@@ -3,6 +3,7 @@ import {
   FREE_TEXT,
   type Locale,
   MULTIPLE_CHOICE,
+  ROOM,
   ROUND,
   roundValueAt,
   ZOOM,
@@ -39,6 +40,7 @@ export function createRoom(init: {
   language: Locale;
   settings: RoomSettings;
   lexicon: string[];
+  now?: number;
 }): RoomState {
   return {
     code: init.code,
@@ -48,7 +50,7 @@ export function createRoom(init: {
     language: init.language,
     settings: init.settings,
     phase: 'lobby',
-    players: { [init.hostId]: newPlayer(init.hostId, init.nickname) },
+    players: { [init.hostId]: newPlayer(init.hostId, init.nickname, init.now ?? 0) },
     roundIndex: 0,
     totalRounds: init.settings.rounds,
     lexicon: init.lexicon,
@@ -57,7 +59,7 @@ export function createRoom(init: {
   };
 }
 
-const newPlayer = (id: string, nickname: string): PlayerState => ({
+const newPlayer = (id: string, nickname: string, joinedAt: number): PlayerState => ({
   id,
   nickname,
   score: 0,
@@ -65,6 +67,7 @@ const newPlayer = (id: string, nickname: string): PlayerState => ({
   bestStreak: 0,
   correctCount: 0,
   connected: true,
+  joinedAt,
 });
 
 const OK: Reply = { ok: true, data: {} };
@@ -87,6 +90,7 @@ export function reduce(previous: RoomState, command: Command, ctx: Context): Red
 function advance(state: RoomState, ctx: Context, effects: Effect[]): void {
   const emit = (event: EngineEvent) => effects.push({ type: 'emit', event });
 
+  expireGrace(state, ctx.now, effects, emit);
   for (let guard = 0; guard < 16; guard++) {
     const round = state.round;
 
@@ -119,6 +123,15 @@ function advance(state: RoomState, ctx: Context, effects: Effect[]): void {
 }
 
 function nextWake(state: RoomState): number | null {
+  const game = nextGameWake(state);
+  const grace = Object.values(state.players)
+    .filter((p) => p.disconnectedAt !== undefined && !p.gone)
+    .map((p) => p.disconnectedAt! + ROOM.reconnectGraceMs);
+  const next = Math.min(game ?? Infinity, ...grace);
+  return Number.isFinite(next) ? next : null;
+}
+
+function nextGameWake(state: RoomState): number | null {
   const round = state.round;
   if (state.phase === 'countdown' && round) return round.startsAt;
   if (state.phase === 'playing' && round) {
@@ -157,8 +170,79 @@ function dispatch(
       return OK;
 
     case 'join': {
-      if (state.phase !== 'lobby') return refuse('BAD_PHASE', 'The game has already started');
-      state.players[command.playerId] ??= newPlayer(command.playerId, command.nickname);
+      const known = state.players[command.playerId];
+      if (known) {
+        // Coming back: same seat, same score. Only the connection flag changes.
+        known.connected = true;
+        known.disconnectedAt = undefined;
+        known.gone = undefined;
+        if (!state.players[state.hostId]?.connected) migrateHost(state, emit);
+        emit({ type: 'playerUpdated', playerId: known.id });
+        return OK;
+      }
+      if (state.phase === 'ended') return refuse('BAD_PHASE', 'This game is over');
+      if (state.mode === 'solo') return refuse('ROOM_FULL', 'Solo training is for one player');
+      if (Object.keys(state.players).length >= ROOM.maxPlayers) {
+        return refuse('ROOM_FULL', 'This room is full');
+      }
+      // Mid-game newcomers sit out the current round: they are not in its `perPlayer`.
+      state.players[command.playerId] = newPlayer(
+        command.playerId,
+        uniqueNickname(state, command.nickname),
+        ctx.now,
+      );
+      emit({ type: 'playerJoined', playerId: command.playerId });
+      return OK;
+    }
+
+    case 'leave': {
+      if (!state.players[command.playerId]) return OK;
+      removePlayer(state, command.playerId, 'left', ctx.now, effects, emit);
+      return OK;
+    }
+
+    case 'disconnect': {
+      const player = state.players[command.playerId];
+      if (!player?.connected) return OK;
+      player.connected = false;
+      player.disconnectedAt = ctx.now;
+      emit({ type: 'playerUpdated', playerId: player.id });
+      if (state.phase === 'playing' && state.round)
+        checkEarlyEnd(state, state.round, ctx.now, emit);
+      return OK;
+    }
+
+    case 'kick': {
+      if (command.playerId !== state.hostId) return refuse('NOT_HOST', 'Only the host can do that');
+      if (state.phase !== 'lobby') return refuse('BAD_PHASE', 'Only before the game starts');
+      if (command.targetId === state.hostId || !state.players[command.targetId]) {
+        return refuse('TARGET_INVALID', 'Pick another player');
+      }
+      removePlayer(state, command.targetId, 'kicked', ctx.now, effects, emit);
+      return OK;
+    }
+
+    case 'updateSettings': {
+      if (command.playerId !== state.hostId) return refuse('NOT_HOST', 'Only the host can do that');
+      if (state.phase !== 'lobby') return refuse('BAD_PHASE', 'Only before the game starts');
+      state.settings = command.settings;
+      state.totalRounds = command.settings.rounds;
+      emit({ type: 'settingsChanged' });
+      return OK;
+    }
+
+    case 'playAgain': {
+      if (command.playerId !== state.hostId) return refuse('NOT_HOST', 'Only the host can do that');
+      if (state.phase !== 'ended') return refuse('BAD_PHASE', 'The game is not over');
+      for (const player of Object.values(state.players)) {
+        if (player.gone) delete state.players[player.id];
+        else Object.assign(player, { score: 0, streak: 0, bestStreak: 0, correctCount: 0 });
+      }
+      state.phase = 'lobby';
+      state.round = undefined;
+      state.roundIndex = 0;
+      state.totalRounds = state.settings.rounds;
+      emit({ type: 'backToLobby' });
       return OK;
     }
 
@@ -167,6 +251,15 @@ function dispatch(
       if (state.phase !== 'lobby' || state.awaitingCard) {
         return refuse('BAD_PHASE', 'The game has already started');
       }
+      const present = Object.values(state.players).filter((p) => p.connected).length;
+      if (state.mode !== 'solo' && present < ROOM.minPlayers) {
+        return refuse('NOT_ENOUGH_PLAYERS', `At least ${ROOM.minPlayers} players are needed`);
+      }
+      if (command.lexicon) state.lexicon = command.lexicon;
+      state.totalRounds = Math.max(
+        1,
+        Math.min(state.settings.rounds, command.availableRounds ?? state.settings.rounds),
+      );
       emit({ type: 'gameStarted' });
       requestCard(state, effects);
       return OK;
@@ -291,14 +384,76 @@ function score(
   player.bestStreak = Math.max(player.bestStreak, player.streak);
   emit({ type: 'playerAnswered', playerId, points, order: round.answerOrder.length });
 
-  const everyoneFound = Object.values(state.players)
-    .filter((p) => p.connected)
-    .every((p) => round.perPlayer[p.id]?.answeredAt !== undefined);
-  if (everyoneFound) {
-    if (state.mode === 'solo') endRound(state, now, emit);
-    else round.endsEarlyAt = now + ROUND.earlyEndGraceMs;
-  }
+  checkEarlyEnd(state, round, now, emit);
   return points;
+}
+
+/** The round ends early once every connected player *of this round* has found. */
+function checkEarlyEnd(
+  state: RoomState,
+  round: RoundState,
+  now: number,
+  emit: (event: EngineEvent) => void,
+): void {
+  if (round.endsEarlyAt !== undefined) return;
+  const waitingFor = Object.values(state.players).filter(
+    (p) => p.connected && round.perPlayer[p.id] && round.perPlayer[p.id]!.answeredAt === undefined,
+  );
+  const someoneFound = round.answerOrder.length > 0;
+  if (waitingFor.length > 0 || !someoneFound) return;
+  if (state.mode === 'solo') endRound(state, now, emit);
+  else round.endsEarlyAt = now + ROUND.earlyEndGraceMs;
+}
+
+/** "Awa", "Awa 2", "Awa 3": two players must never read the same in a ranking. */
+function uniqueNickname(state: RoomState, wanted: string): string {
+  const base = (name: string) => name.toLowerCase().replace(/ \d+$/, '');
+  const taken = Object.values(state.players).filter((p) => base(p.nickname) === base(wanted));
+  return taken.length ? `${wanted} ${taken.length + 1}` : wanted;
+}
+
+function migrateHost(state: RoomState, emit: (event: EngineEvent) => void): void {
+  const heir = Object.values(state.players)
+    .filter((p) => p.connected && p.id !== state.hostId)
+    .sort((a, b) => a.joinedAt - b.joinedAt)[0];
+  if (!heir) return;
+  state.hostId = heir.id;
+  emit({ type: 'hostChanged' });
+}
+
+function removePlayer(
+  state: RoomState,
+  playerId: string,
+  reason: 'left' | 'kicked' | 'timeout',
+  now: number,
+  effects: Effect[],
+  emit: (event: EngineEvent) => void,
+): void {
+  const player = state.players[playerId];
+  if (!player) return;
+  if (state.phase === 'lobby') delete state.players[playerId];
+  else Object.assign(player, { connected: false, gone: true, disconnectedAt: undefined });
+  emit({ type: 'playerLeft', playerId, reason });
+
+  if (state.hostId === playerId) migrateHost(state, emit);
+  if (state.phase === 'playing' && state.round) checkEarlyEnd(state, state.round, now, emit);
+  if (!Object.values(state.players).some((p) => !p.gone)) effects.push({ type: 'abandoned' });
+}
+
+/** Players whose 60 seconds ran out: the lobby frees their seat, a game keeps their score. */
+function expireGrace(
+  state: RoomState,
+  now: number,
+  effects: Effect[],
+  emit: (event: EngineEvent) => void,
+): void {
+  for (const player of Object.values(state.players)) {
+    const { disconnectedAt } = player;
+    if (disconnectedAt === undefined || player.gone) continue;
+    if (now >= disconnectedAt + ROOM.reconnectGraceMs) {
+      removePlayer(state, player.id, 'timeout', now, effects, emit);
+    }
+  }
 }
 
 function endRound(state: RoomState, now: number, emit: (event: EngineEvent) => void): void {

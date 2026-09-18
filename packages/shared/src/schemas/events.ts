@@ -34,6 +34,7 @@ export const ServerEvent = {
   roomSettings: 'room:settings',
   roomHostChanged: 'room:host:changed',
   roomClosed: 'room:closed',
+  roomLobby: 'room:lobby',
   gameStarted: 'game:started',
   roundPrepare: 'round:prepare',
   roundStart: 'round:start',
@@ -228,6 +229,8 @@ export const roomStateSchema = z.strictObject({
       levelAt: z.array(z.number()),
       crop: cropSchema.optional(),
       options: z.array(mcqOptionSchema).optional(),
+      /** False for someone who joined mid-round: they play from the next one. */
+      seated: z.boolean(),
       answered: z.boolean(),
       points: z.int().optional(),
       penalty: z.int(),
@@ -251,3 +254,27 @@ export const pickReplySchema = z.strictObject({
   penalty: z.int().optional(),
 });
 export type PickReply = z.infer<typeof pickReplySchema>;
+
+// ---- room presence (phase 2) ----
+
+export const roomPlayerSchema = z.strictObject({ player: playerSchema });
+export type RoomPlayer = z.infer<typeof roomPlayerSchema>;
+
+export const roomPlayerLeftSchema = z.strictObject({
+  playerId: idSchema,
+  reason: z.enum(['left', 'kicked', 'timeout']),
+  /** False when a game is running: they keep their line in the ranking, marked offline. */
+  removed: z.boolean(),
+});
+export type RoomPlayerLeft = z.infer<typeof roomPlayerLeftSchema>;
+
+export const roomHostChangedSchema = z.strictObject({ hostId: idSchema });
+
+export const roomSettingsEventSchema = z.strictObject({
+  rounds: z.int().positive(),
+  answerMode: answerModeSchema,
+});
+export type RoomSettingsEvent = z.infer<typeof roomSettingsEventSchema>;
+
+/** The host asked to play again: same players, scores back to zero. */
+export const roomLobbySchema = z.strictObject({ players: z.array(playerSchema) });

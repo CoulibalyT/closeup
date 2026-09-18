@@ -58,6 +58,12 @@ export interface PlayerState {
   bestStreak: number;
   correctCount: number;
   connected: boolean;
+  /** Seniority decides who inherits the room when the host is gone. */
+  joinedAt: number;
+  /** Set on disconnection. After the grace period the player counts as gone. */
+  disconnectedAt?: number;
+  /** The grace period ran out. They keep their score and may still come back. */
+  gone?: boolean;
 }
 
 export interface RoundPlayerState {
@@ -108,8 +114,15 @@ export interface RoomState {
 }
 
 export type Command =
+  /** Joining again is how a player reconnects: same id, score and place kept. */
   | { type: 'join'; playerId: string; nickname: string }
-  | { type: 'start'; playerId: string }
+  | { type: 'leave'; playerId: string }
+  | { type: 'disconnect'; playerId: string }
+  | { type: 'kick'; playerId: string; targetId: string }
+  | { type: 'updateSettings'; playerId: string; settings: RoomSettings }
+  /** The room layer builds the deck first and tells how many cards it found. */
+  | { type: 'start'; playerId: string; lexicon?: string[]; availableRounds?: number }
+  | { type: 'playAgain'; playerId: string }
   | { type: 'cardReady'; card: EngineCard }
   | { type: 'noCardLeft' }
   | { type: 'tick' }
@@ -119,6 +132,12 @@ export type Command =
 
 /** Internal events: they reference crops, the presenter turns those into signed URLs. */
 export type EngineEvent =
+  | { type: 'playerJoined'; playerId: string }
+  | { type: 'playerUpdated'; playerId: string }
+  | { type: 'playerLeft'; playerId: string; reason: 'left' | 'kicked' | 'timeout' }
+  | { type: 'hostChanged' }
+  | { type: 'settingsChanged' }
+  | { type: 'backToLobby' }
   | { type: 'gameStarted' }
   | { type: 'roundPrepare' }
   | { type: 'roundStart' }
@@ -131,7 +150,9 @@ export type Effect =
   | { type: 'emit'; event: EngineEvent }
   /** Ask the room layer for the next playable card; it answers with `cardReady` or `noCardLeft`. */
   | { type: 'needCard' }
-  | { type: 'gameOver' };
+  | { type: 'gameOver' }
+  /** Nobody is left and nobody can come back: the room layer may forget the room. */
+  | { type: 'abandoned' };
 
 export type Reply =
   | { ok: true; data: GuessReply | PickReply | Record<string, never> }

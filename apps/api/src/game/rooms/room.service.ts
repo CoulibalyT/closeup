@@ -6,7 +6,7 @@ import {
   type OnApplicationBootstrap,
   type OnModuleDestroy,
 } from '@nestjs/common';
-import { type Locale, ROOM, type RoomStateView } from '@closeup/shared';
+import { type Locale, ROOM, type RoomStateView, type RoomSummary } from '@closeup/shared';
 import type { Redis } from 'ioredis';
 import { withTimeout } from '../../common/with-timeout.js';
 import { DeckService } from '../../content/deck.service.js';
@@ -89,32 +89,70 @@ export class RoomService implements OnApplicationBootstrap, OnModuleDestroy {
     for (const actor of this.actors.values()) clearTimeout(actor.timer);
   }
 
-  async createSolo(identity: Identity, settings: RoomSettings, language: Locale): Promise<string> {
-    const deck = await this.decks.build(settings.rounds);
+  async create(
+    mode: 'solo' | 'private',
+    host: Identity,
+    settings: RoomSettings,
+    language: Locale,
+  ): Promise<string> {
     const code = this.newCode();
     const state = createRoom({
       code,
-      mode: 'solo',
+      mode,
       display: 'phones',
-      hostId: identity.playerId,
-      nickname: identity.nickname,
+      hostId: host.playerId,
+      nickname: host.nickname,
       language,
-      // Never promise more rounds than there are playable cards.
-      settings: {
-        ...settings,
-        rounds: Math.max(1, Math.min(settings.rounds, deck.cardIds.length)),
-      },
-      lexicon: deck.lexicon,
+      settings,
+      lexicon: [],
+      now: Date.now(),
     });
-    const actor: Actor = { record: { state, deck: deck.cardIds }, queue: Promise.resolve() };
+    // The host is only present once their socket joins; until then the seat is held for them.
+    state.players[host.playerId]!.connected = false;
+    state.players[host.playerId]!.disconnectedAt = Date.now();
+    const actor: Actor = { record: { state, deck: [] }, queue: Promise.resolve() };
     this.actors.set(code, actor);
     await this.persist(code, actor);
+    this.arm(code, actor);
     return code;
+  }
+
+  /**
+   * The deck is drawn when the game starts, not when the room is created: the host may still
+   * change the number of rounds in the lobby. It is set before `start` is dispatched because
+   * `start` immediately asks for the first card.
+   */
+  async start(code: string, playerId: string): Promise<Reply> {
+    const actor = this.actors.get(code);
+    if (!actor) return this.dispatch(code, { type: 'start', playerId });
+    const deck = await this.decks.build(actor.record.state.settings.rounds);
+    actor.record.deck = deck.cardIds;
+    return this.dispatch(code, {
+      type: 'start',
+      playerId,
+      lexicon: deck.lexicon,
+      availableRounds: deck.cardIds.length,
+    });
   }
 
   snapshot(code: string, playerId: string): RoomStateView | null {
     const state = this.actors.get(code)?.record.state;
     return state?.players[playerId] ? toSnapshot(state, playerId, this.sign) : null;
+  }
+
+  /** What anyone holding the code may know before joining. */
+  summary(code: string): RoomSummary | null {
+    const state = this.actors.get(code)?.record.state;
+    if (!state || state.mode === 'solo') return null;
+    return {
+      code,
+      phase: state.phase,
+      hostNickname: state.players[state.hostId]?.nickname ?? '',
+      playerCount: Object.values(state.players).filter((p) => !p.gone).length,
+      maxPlayers: ROOM.maxPlayers,
+      rounds: state.settings.rounds,
+      answerMode: state.settings.answerMode,
+    };
   }
 
   dispatch(code: string, command: Command): Promise<Reply> {
@@ -159,7 +197,13 @@ export class RoomService implements OnApplicationBootstrap, OnModuleDestroy {
         void this.supplyCard(code, actor);
         return;
       case 'gameOver':
-        setTimeout(() => void this.forget(code), ENDED_ROOM_KEPT_MS).unref();
+        // Solo rooms are disposable. A private room stays for "play again" until it is abandoned.
+        if (state.mode === 'solo') {
+          setTimeout(() => void this.forget(code), ENDED_ROOM_KEPT_MS).unref();
+        }
+        return;
+      case 'abandoned':
+        setTimeout(() => void this.forget(code), 0).unref();
         return;
     }
   }

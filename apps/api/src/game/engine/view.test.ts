@@ -158,6 +158,7 @@ describe('a snapshot for someone who reconnects mid-round', () => {
       lexicon: [],
     });
     const at = (now: number) => ({ now, newId: () => 'r1' });
+    live = reduce(live, { type: 'join', playerId: 'p2', nickname: 'Moussa' }, at(T0)).state;
     live = reduce(live, { type: 'start', playerId: 'p1' }, at(T0)).state;
     live = reduce(live, { type: 'cardReady', card: engineCard(1, { mcq: true }) }, at(T0)).state;
     const start = live.round!.startsAt;

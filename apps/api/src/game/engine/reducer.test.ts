@@ -29,6 +29,14 @@ class Game {
       settings: { rounds: options.rounds ?? 2, answerMode: options.answerMode ?? 'text' },
       lexicon: [],
     });
+    // A private room needs two players to start; the second one never answers on its own.
+    if (options.mode === 'private') {
+      this.state = reduce(
+        this.state,
+        { type: 'join', playerId: 'p2', nickname: 'Moussa' },
+        { now: T0, newId: () => 'unused' },
+      ).state;
+    }
   }
 
   send(command: Command, now: number): Reduced {

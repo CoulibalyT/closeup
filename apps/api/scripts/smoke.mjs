@@ -123,6 +123,156 @@ async function playSolo() {
   socket.disconnect();
 }
 
+async function guest(nickname) {
+  const response = await fetch(`${api}/api/identity/guest`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ nickname }),
+  });
+  const cookie = response.headers
+    .getSetCookie()
+    .map((c) => c.split(';')[0])
+    .join('; ');
+  return { cookie, playerId: (await response.json()).playerId };
+}
+
+function player(cookie) {
+  const socket = io(api + SOCKET_NAMESPACE, {
+    path: SOCKET_PATH,
+    auth: { protocolVersion: PROTOCOL_VERSION },
+    transports: ['websocket'],
+    extraHeaders: { cookie },
+  });
+  const once = (event, ms = 15_000) =>
+    new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`timeout waiting for ${event}`)), ms);
+      socket.once(event, (payload) => {
+        clearTimeout(timer);
+        resolve(payload);
+      });
+    });
+  return { socket, once };
+}
+
+/** Picks options until the right one, waiting out the lock after a wrong pick. */
+async function answer(socket, round) {
+  for (const option of round.options) {
+    const ack = await socket.emitWithAck('round:pick', {
+      roundId: round.roundId,
+      optionId: option.id,
+    });
+    if (ack.data?.verdict === 'correct') return ack.data.points;
+    await new Promise((r) => setTimeout(r, Math.max(0, ack.data.lockedUntil - Date.now()) + 50));
+  }
+  return 0;
+}
+
+/** Two players in a private room: lobby, settings, a round, a dropped connection, play again. */
+async function playParty() {
+  const awa = await guest('Awa');
+  const moussa = await guest('Moussa');
+
+  const created = await fetch(`${api}/api/rooms`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: awa.cookie },
+    body: JSON.stringify({
+      mode: 'private',
+      language: 'fr',
+      nickname: 'Awa',
+      settings: { rounds: 5, answerMode: 'text' },
+    }),
+  });
+  const { code } = await created.json();
+  const summary = await getJson(`${api}/api/rooms/${code}`);
+  check(
+    'a private room shows a summary to whoever has the code',
+    summary.body.hostNickname === 'Awa',
+  );
+
+  const host = player(awa.cookie);
+  await host.once('connect');
+  await host.socket.emitWithAck('room:join', { code, nickname: 'Awa', role: 'player' });
+
+  const alone = await host.socket.emitWithAck('game:start');
+  check('a private game does not start alone', alone.error?.code === 'NOT_ENOUGH_PLAYERS');
+
+  const arrival = host.once('room:player:joined');
+  const friend = player(moussa.cookie);
+  await friend.once('connect');
+  const lobby = await friend.socket.emitWithAck('room:join', {
+    code,
+    nickname: 'Moussa',
+    role: 'player',
+  });
+  check('a friend joins the lobby', lobby.data?.players.length === 2);
+  check('the host sees them arrive', (await arrival).player.nickname === 'Moussa');
+
+  const notHost = await friend.socket.emitWithAck('room:settings:update', {
+    rounds: 1,
+    answerMode: 'mcq',
+  });
+  const changed = friend.once('room:settings');
+  await host.socket.emitWithAck('room:settings:update', { rounds: 1, answerMode: 'mcq' });
+  check(
+    'only the host changes the settings, and everyone is told',
+    notHost.error?.code === 'NOT_HOST' && (await changed).answerMode === 'mcq',
+  );
+
+  const rounds = [host.once('round:start'), friend.once('round:start')];
+  await host.socket.emitWithAck('game:start');
+  const [round, sameRound] = await Promise.all(rounds);
+  check('both players get the same round at the same time', round.startsAt === sameRound.startsAt);
+
+  // The friend drops, comes back on a new socket, and finds the round where they left it.
+  const offline = host.once('room:player:updated');
+  friend.socket.disconnect();
+  check('the host sees the friend go offline', (await offline).player.connected === false);
+  const back = player(moussa.cookie);
+  await back.once('connect');
+  const resumed = await back.socket.emitWithAck('room:join', {
+    code,
+    nickname: 'Moussa',
+    role: 'player',
+  });
+  check(
+    'the friend reconnects into the same round',
+    resumed.data?.phase === 'playing' && resumed.data.round?.roundId === round.roundId,
+  );
+
+  const ended = host.once('round:end');
+  const hostPoints = await answer(host.socket, round);
+  const stillOpen = await Promise.race([
+    ended.then(() => false),
+    new Promise((r) => setTimeout(() => r(true), 400)),
+  ]);
+  check(
+    'the first correct answer does not end the round for the other',
+    stillOpen && hostPoints > 0,
+  );
+  const startedAt = Date.now();
+  await answer(back.socket, round);
+  const reveal = await ended;
+  check(
+    'the round ends early once everyone has found',
+    Date.now() - startedAt < 12_000 && reveal.ranking.length === 2,
+    `${reveal.ranking.map((p) => `${p.nickname} ${p.score}`).join(', ')}`,
+  );
+
+  const over = back.once('game:end');
+  await host.socket.emitWithAck('reveal:skip', { roundId: round.roundId });
+  check('the game ends with a ranking for everyone', (await over).ranking.length === 2);
+
+  const again = back.once('room:lobby');
+  await host.socket.emitWithAck('game:playAgain');
+  check(
+    'the host brings everyone back to the lobby',
+    (await again).players.every((p) => p.score === 0),
+  );
+
+  host.socket.disconnect();
+  back.socket.disconnect();
+}
+
 try {
   const live = await getJson(`${api}/api/health`);
   check('API is alive', live.status === 200);
@@ -168,6 +318,7 @@ try {
   stale.socket.disconnect();
 
   await playSolo();
+  await playParty();
 } catch (error) {
   check('stack reachable', false, error.message);
 }
