@@ -1,6 +1,7 @@
 import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
+import { CropService } from '../media/crop.service.js';
 import { MEDIA_QUEUE, MediaJob } from './media-queue.js';
 
 // Image work is memory hungry (sharp, later face landmarks): one job at a time on a small VPS.
@@ -9,10 +10,16 @@ export class MediaProcessor extends WorkerHost {
   private readonly logger = new Logger('MediaWorker');
   private lastError = '';
 
+  constructor(private readonly crops: CropService) {
+    super();
+  }
+
   async process(job: Job): Promise<unknown> {
     switch (job.name) {
       case MediaJob.ping:
         return { pong: true, at: Date.now() };
+      case MediaJob.processCard:
+        return this.crops.processCard((job.data as { cardId: string }).cardId);
       default:
         throw new Error(`Unknown media job: ${job.name}`);
     }

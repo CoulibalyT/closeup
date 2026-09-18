@@ -8,6 +8,8 @@ export const MEDIA_QUEUE = 'media';
 export const MediaJob = {
   /** Round trip used by health checks to prove the worker consumes the queue. */
   ping: 'ping',
+  /** `{ cardId }`: reveal rendition and every crop of a card. Every content producer ends here. */
+  processCard: 'card.process',
 } as const;
 
 export const WORKER_HEARTBEAT_KEY = 'closeup:worker:heartbeat';

@@ -12,11 +12,12 @@ datasource db {
 /// Who plays. History and stats hang on the player, not on the device, so that upgrading a guest
 /// to an account (phase 6) is a matter of linking this row to a user.
 model Player {
-  id        String   @id @default(uuid(7)) @db.Uuid
+  id        String     @id @default(uuid(7)) @db.Uuid
   nickname  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
   devices   Device[]
+  soloBests SoloBest[]
 }
 
 /// A browser or phone, identified by an opaque token that is only ever stored hashed.
@@ -30,4 +31,164 @@ model Device {
   bannedAt   DateTime?
 
   @@index([playerId])
+}
+
+// ------------------------------------------------------------------------------------------
+// Content. One format for every kind of subject: the game engine never learns whether a card
+// shows a person or a toaster.
+// ------------------------------------------------------------------------------------------
+
+enum PackVisibility {
+  PRIVATE
+  PENDING_REVIEW
+  PUBLIC
+  DISABLED
+}
+
+enum Category {
+  CELEBRITY
+  CHARACTER
+  OBJECT
+  ANIMAL
+  LANDMARK
+  FOOD
+  VEHICLE
+  OTHER
+}
+
+enum CardStatus {
+  DRAFT
+  PROCESSING
+  NEEDS_POINTS
+  READY
+  LIVE
+  DISABLED
+}
+
+enum CardSource {
+  SEED
+  UPLOAD
+  WIKIMEDIA
+}
+
+enum ZoomPointOrigin {
+  AUTO
+  MANUAL
+}
+
+model Pack {
+  id              String         @id @default(uuid(7)) @db.Uuid
+  /// Stable handle for system packs (seed, importers). Null for player packs.
+  slug            String?        @unique
+  titleFr         String
+  titleEn         String
+  descriptionFr   String         @default("")
+  descriptionEn   String         @default("")
+  visibility      PackVisibility @default(PRIVATE)
+  publicMatchSafe Boolean        @default(false)
+  category        Category
+  /// Celebrity and fictional-character packs: kept off the landing page, previews and SEO.
+  restricted      Boolean        @default(false)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  cards           Card[]
+}
+
+model Card {
+  id              String       @id @default(uuid(7)) @db.Uuid
+  packId          String       @db.Uuid
+  pack            Pack         @relation(fields: [packId], references: [id], onDelete: Cascade)
+  /// Stable handle for seeded and imported cards, unique inside a pack.
+  slug            String?
+  category        Category
+  difficulty      Int          @default(2)
+  status          CardStatus   @default(DRAFT)
+  /// Authoring hint for the image pipeline only (face landmarks). The engine never reads it.
+  isPerson        Boolean      @default(false)
+  source          CardSource
+  creditAuthor    String?
+  creditLicence   String?
+  creditSourceUrl String?
+  imageId         String?      @unique @db.Uuid
+  image           ImageAsset?  @relation(fields: [imageId], references: [id])
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  answers         CardAnswer[]
+  zoomPoints      ZoomPoint[]
+
+  @@unique([packId, slug])
+  @@index([status, category, difficulty])
+}
+
+model CardAnswer {
+  id      String   @id @default(uuid(7)) @db.Uuid
+  cardId  String   @db.Uuid
+  card    Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  locale  String
+  text    String
+  aliases String[]
+
+  @@unique([cardId, locale])
+}
+
+/// Storage keys are private: clients only ever get encrypted, short-lived URLs.
+model ImageAsset {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  originalKey String
+  /// Downscaled rendition shown on the reveal. The original never leaves the server.
+  revealKey   String?
+  width       Int
+  height      Int
+  mime        String
+  bytes       Int
+  sha256      String
+  createdAt   DateTime @default(now())
+  card        Card?
+}
+
+model ZoomPoint {
+  id         String          @id @default(uuid(7)) @db.Uuid
+  cardId     String          @db.Uuid
+  card       Card            @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  /// Pixels of the original image.
+  x          Float
+  y          Float
+  /// Crop side at level n = 2 × baseRadius × multiplier n. For people: half the eye distance.
+  baseRadius Float
+  labelFr    String?
+  labelEn    String?
+  origin     ZoomPointOrigin @default(MANUAL)
+  /// Relative odds of being drawn for a round.
+  weight     Int             @default(1)
+  crops      Crop[]
+
+  @@index([cardId])
+}
+
+model Crop {
+  id            String    @id @default(uuid(7)) @db.Uuid
+  zoomPointId   String    @db.Uuid
+  zoomPoint     ZoomPoint @relation(fields: [zoomPointId], references: [id], onDelete: Cascade)
+  level         Int
+  sizePx        Int
+  storageKey    String
+  /// Where the zoom point sits inside the crop (0..1): crops are shifted to stay inside the image.
+  focusX        Float
+  focusY        Float
+  scaleFromPrev Float?
+  bytes         Int
+
+  @@unique([zoomPointId, level, sizePx])
+}
+
+/// Personal best in solo training, per configuration (answer mode and number of rounds).
+model SoloBest {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  playerId   String   @db.Uuid
+  player     Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  configKey  String
+  score      Int
+  achievedAt DateTime @default(now())
+
+  @@unique([playerId, configKey])
 }

@@ -10,6 +10,7 @@ x-app: &app
     NODE_ENV: development
     DATABASE_URL: postgresql://closeup:closeup@postgres:5432/closeup
     REDIS_URL: redis://redis:6379
+    MEDIA_DIR: /data/media
   restart: unless-stopped
 
 services:
@@ -51,6 +52,7 @@ services:
       - >-
         pnpm --filter @closeup/api prisma:generate &&
         pnpm --filter @closeup/api prisma:deploy &&
+        pnpm --filter @closeup/api seed &&
         pnpm --filter @closeup/api dev
     environment:
       <<: *app-env
@@ -61,6 +63,8 @@ services:
     volumes:
       - ./apps/api/src:/repo/apps/api/src
       - ./apps/api/prisma:/repo/apps/api/prisma
+      # Originals, reveal renditions and crops. A plain folder in dev so you can look inside.
+      - ./data/media:/data/media
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -76,6 +80,7 @@ services:
     command: ['pnpm', '--filter', '@closeup/api', 'dev:worker']
     volumes:
       - ./apps/api/src:/repo/apps/api/src
+      - ./data/media:/data/media
     depends_on:
       # The api service generates the Prisma client into the shared src folder first.
       api: { condition: service_healthy }
