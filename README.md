@@ -112,4 +112,5 @@ are refused with `PROTOCOL_MISMATCH` when it is stale.
   the offline screen and installability checks belong to phase 9.
 - No production Compose file, no Caddy, no deployment guide (phase 9).
 - No hot reload for `packages/shared` inside the containers (see the limit above).
-- CI is written for GitHub Actions but has never run: the repository has no remote yet.
+- CI (GitHub Actions) runs lint, typecheck, the migration and every test against real Postgres
+  and Redis services. It does not build the Docker image or run `pnpm smoke` yet.
