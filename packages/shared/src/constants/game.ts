@@ -32,7 +32,15 @@ export const SCORING = {
   step: 10,
   /** Penalties (bonus costs, wrong picks) never push a round below this. */
   floorValue: 100,
+  /**
+   * "Fixed points" rooms ignore the clock: what counts is the order in which players find.
+   * First, second, third; the last value is for everyone after that.
+   */
+  fixedByRank: [1000, 800, 600, 500],
 } as const;
+
+export const SCORING_MODES = ['decay', 'fixed'] as const;
+export type ScoringMode = (typeof SCORING_MODES)[number];
 
 export const FREE_TEXT = {
   minGuessIntervalMs: 700,
@@ -89,6 +97,23 @@ export const BONUS = {
   effectMs: { blur: 4_000, flip: 5_000, freeze: 3_000 } satisfies Record<Malus, number>,
   /** Share of the victim's points for the round that moves to the thief. */
   stealPointsShare: 0.3,
+  /**
+   * Relative odds when a bonus is drawn. Types that make no sense in the room are left out of
+   * the draw: attacks and steals in solo training, `removeTwo` when answers are typed.
+   */
+  drawWeights: {
+    zoomOut: 3,
+    secondZone: 3,
+    initials: 2,
+    category: 2,
+    removeTwo: 2,
+    shield: 2,
+    blur: 3,
+    flip: 3,
+    freeze: 2,
+    stealBonus: 2,
+    stealPoints: 2,
+  } satisfies Record<BonusType, number>,
 } as const;
 
 export const ROOM = {

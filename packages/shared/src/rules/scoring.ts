@@ -1,4 +1,23 @@
-import { ROUND, SCORING } from '../constants/game.js';
+import { ROUND, SCORING, type ScoringMode } from '../constants/game.js';
+
+/** In a "fixed points" room: what the next player to find gets, given how many found before. */
+export function fixedRoundValue(foundBefore: number, penalty = 0): number {
+  const ranks = SCORING.fixedByRank;
+  const base = ranks[Math.min(Math.max(0, foundBefore), ranks.length - 1)] ?? SCORING.floorValue;
+  return Math.max(SCORING.floorValue, base - Math.max(0, penalty));
+}
+
+/** What a correct answer is worth right now, in either scoring mode. */
+export function roundValue(input: {
+  scoring: ScoringMode;
+  elapsedMs: number;
+  foundBefore: number;
+  penalty?: number;
+}): number {
+  return input.scoring === 'fixed'
+    ? fixedRoundValue(input.foundBefore, input.penalty)
+    : roundValueAt(input.elapsedMs, input.penalty);
+}
 
 /**
  * What a correct answer is worth `elapsedMs` into the round, for a player who accumulated

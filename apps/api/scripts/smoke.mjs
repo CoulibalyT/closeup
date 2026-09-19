@@ -151,7 +151,9 @@ function player(cookie) {
         resolve(payload);
       });
     });
-  return { socket, once };
+  // Captured at once: a socket created early may connect before anyone awaits it.
+  const ready = new Promise((resolve) => socket.once('connect', resolve));
+  return { socket, once, ready };
 }
 
 /** Picks options until the right one, waiting out the lock after a wrong pick. */
@@ -239,7 +241,8 @@ async function playParty() {
     resumed.data?.phase === 'playing' && resumed.data.round?.roundId === round.roundId,
   );
 
-  const ended = host.once('round:end');
+  // Armed before the answers, which can take a while (wrong picks lock for 3 s each).
+  const ended = host.once('round:end', 45_000);
   const hostPoints = await answer(host.socket, round);
   const stillOpen = await Promise.race([
     ended.then(() => false),
@@ -271,6 +274,80 @@ async function playParty() {
 
   host.socket.disconnect();
   back.socket.disconnect();
+}
+
+/** Three players: the fastest earns a bonus that only they hear about, then plays it. */
+async function playBonuses() {
+  const guests = [await guest('Awa'), await guest('Moussa'), await guest('Ines')];
+  const created = await fetch(`${api}/api/rooms`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: guests[0].cookie },
+    body: JSON.stringify({
+      mode: 'private',
+      language: 'fr',
+      nickname: 'Awa',
+      settings: { rounds: 2, answerMode: 'mcq', scoring: 'fixed' },
+    }),
+  });
+  const { code } = await created.json();
+  const [host, fast, third] = guests.map((g) => player(g.cookie));
+  for (const [i, p] of [host, fast, third].entries()) {
+    await p.ready;
+    const nickname = ['Awa', 'Moussa', 'Ines'][i];
+    await p.socket.emitWithAck('room:join', { code, nickname, role: 'player' });
+  }
+
+  let overheard = false;
+  host.socket.on('bonus:granted', () => (overheard = true));
+  const granted = fast.once('bonus:granted');
+  const counted = new Promise((resolve) =>
+    host.socket.on('room:player:updated', ({ player: p }) => p.bonusCount === 1 && resolve(p)),
+  );
+  const firstRounds = [host, fast, third].map((p) => p.once('round:start'));
+  await host.socket.emitWithAck('game:start');
+  const [round] = await Promise.all(firstRounds);
+
+  const points = await answer(fast.socket, round);
+  const { item } = await granted;
+  check(
+    'fixed points pay the first finder the same whatever the clock',
+    points >= 700,
+    `${points}`,
+  );
+  check('the fastest of three earns a bonus', Boolean(item?.type), item?.type);
+  check('the others only see the count go up', (await counted).nickname === 'Moussa' && !overheard);
+
+  // Armed before the answers, which can take a while (wrong picks lock for 3 s each).
+  const ended = host.once('round:end', 45_000);
+  await answer(host.socket, round);
+  await answer(third.socket, round);
+  await ended;
+  const secondRounds = [host, fast].map((p) => p.once('round:start', 20_000));
+  await host.socket.emitWithAck('reveal:skip', { roundId: round.roundId });
+  const [next] = await Promise.all(secondRounds);
+
+  const self = ['zoomOut', 'secondZone', 'initials', 'category', 'removeTwo', 'shield'];
+  const seen =
+    item.type === 'zoomOut'
+      ? fast.once('round:level', 4_000)
+      : ['blur', 'flip', 'freeze'].includes(item.type)
+        ? host.once('round:effect', 4_000)
+        : item.type === 'stealPoints'
+          ? host.once('round:steal', 4_000)
+          : Promise.resolve(null);
+  const ack = await fast.socket.emitWithAck('bonus:use', {
+    roundId: next.roundId,
+    itemId: item.id,
+    targetPlayerId: self.includes(item.type) ? undefined : guests[0].playerId,
+  });
+  // Nobody holds a bonus yet, so "steal a bonus" is rightly refused and kept.
+  const nothingToSteal = item.type === 'stealBonus' && ack.error?.code === 'TARGET_INVALID';
+  check(
+    `playing "${item.type}" works end to end`,
+    nothingToSteal || (ack.ok && ack.data.inventory.length === 0 && (await seen) !== undefined),
+    nothingToSteal ? 'refused: nothing to steal' : JSON.stringify(ack.data?.hints ?? ack.error),
+  );
+  for (const p of [host, fast, third]) p.socket.disconnect();
 }
 
 try {
@@ -319,6 +396,7 @@ try {
 
   await playSolo();
   await playParty();
+  await playBonuses();
 } catch (error) {
   check('stack reachable', false, error.message);
 }

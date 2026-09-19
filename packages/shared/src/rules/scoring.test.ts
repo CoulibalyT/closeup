@@ -1,5 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { roundValueAt } from './scoring.js';
+import { fixedRoundValue, roundValue, roundValueAt } from './scoring.js';
+
+describe('fixedRoundValue', () => {
+  it('pays by order of arrival, not by the clock', () => {
+    expect([0, 1, 2, 3, 4, 11].map((before) => fixedRoundValue(before))).toEqual([
+      1000, 800, 600, 500, 500, 500,
+    ]);
+  });
+
+  it('still takes penalties off, down to the floor', () => {
+    expect(fixedRoundValue(0, 150)).toBe(850);
+    expect(fixedRoundValue(3, 450)).toBe(100);
+    expect(fixedRoundValue(0, -50)).toBe(1000);
+  });
+});
+
+describe('roundValue', () => {
+  it('follows the scoring mode of the room', () => {
+    const late = { elapsedMs: 29_000, foundBefore: 0, penalty: 100 };
+    expect(roundValue({ scoring: 'fixed', ...late })).toBe(900);
+    expect(roundValue({ scoring: 'decay', ...late })).toBe(130);
+  });
+});
 
 describe('roundValueAt', () => {
   it('starts at 1000 and ends at 200', () => {

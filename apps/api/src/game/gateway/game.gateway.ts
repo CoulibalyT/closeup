@@ -8,6 +8,7 @@ import {
 } from '@nestjs/websockets';
 import {
   type Ack,
+  bonusUseSchema,
   ClientEvent,
   fail,
   handshakeAuthSchema,
@@ -40,6 +41,8 @@ interface SocketData {
 type GameSocket = Socket<never, never, never, SocketData>;
 
 const channel = (code: string) => `room:${code}`;
+/** Every socket of one player in one room: where their private messages go (bonuses, hints). */
+const privateChannel = (code: string, playerId: string) => `room:${code}:player:${playerId}`;
 
 @WebSocketGateway({ namespace: SOCKET_NAMESPACE })
 export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
@@ -73,8 +76,9 @@ export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
     });
 
     this.namespace = namespace;
-    this.rooms.onMessage((code, message) => {
-      namespace.to(channel(code)).emit(message.event, message.payload);
+    this.rooms.onMessage((code, message, to) => {
+      const audience = to ? privateChannel(code, to) : channel(code);
+      namespace.to(audience).emit(message.event, message.payload);
       // Whoever left or was removed hears it (above), then stops receiving the room's events.
       if (message.event === ServerEvent.roomPlayerLeft) {
         const { playerId, removed } = message.payload as RoomPlayerLeft;
@@ -91,6 +95,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
   private async detach(code: string, playerId: string): Promise<void> {
     for (const socket of await this.socketsOf(code, playerId)) {
       socket.leave(channel(code));
+      socket.leave(privateChannel(code, playerId));
       (socket.data as SocketData).roomCode = undefined;
     }
   }
@@ -134,7 +139,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
     if (socket.data.roomCode && socket.data.roomCode !== code) {
       await socket.leave(channel(socket.data.roomCode));
     }
-    await socket.join(channel(code));
+    await socket.join([channel(code), privateChannel(code, identity.playerId)]);
     const reply = await this.rooms.dispatch(code, {
       type: 'join',
       playerId: identity.playerId,
@@ -143,6 +148,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
     const snapshot = reply.ok ? this.rooms.snapshot(code, identity.playerId) : null;
     if (!reply.ok || !snapshot) {
       await socket.leave(channel(code));
+      await socket.leave(privateChannel(code, identity.playerId));
       return reply.ok ? fail('ROOM_NOT_FOUND', 'This room does not exist') : reply;
     }
     socket.data.roomCode = code;
@@ -209,6 +215,22 @@ export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
       }),
       [roundPickSchema, body],
     );
+  }
+
+  @SubscribeMessage(ClientEvent.bonusUse)
+  async onBonusUse(@ConnectedSocket() socket: GameSocket, @MessageBody() body: unknown) {
+    const { identity, roomCode } = socket.data;
+    if (!identity) return fail('UNAUTHENTICATED', 'Unknown device');
+    if (!roomCode) return fail('ROOM_NOT_FOUND', 'Join a room first');
+    const use = bonusUseSchema.safeParse(body);
+    if (!use.success) return fail('INVALID_PAYLOAD', 'bonus:use expects { roundId, itemId }');
+    return this.rooms.useBonus(roomCode, {
+      type: 'useBonus',
+      playerId: identity.playerId,
+      roundId: use.data.roundId,
+      itemId: use.data.itemId,
+      targetId: use.data.targetPlayerId,
+    });
   }
 
   @SubscribeMessage(ClientEvent.revealSkip)

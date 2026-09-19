@@ -55,6 +55,13 @@ export class DeckService {
     if (!point || !primary) return null;
     const fallback = card.answers.find((a) => a.id !== primary.id);
 
+    // For the "second zone" bonus: the closest view of another zoom point of the same image.
+    const elsewhere = pickWeighted(
+      playable.filter((candidate) => candidate.id !== point.id),
+      Math.random,
+    );
+    const second = elsewhere?.crops.find((crop) => crop.level === 0);
+
     const crops = [...point.crops]
       .sort((a, b) => a.level - b.level)
       .map((crop) => ({
@@ -71,6 +78,12 @@ export class DeckService {
         fallback: fallback && { text: fallback.text, aliases: fallback.aliases },
       },
       crops,
+      category: card.category,
+      secondZone: second && {
+        cropId: second.id,
+        focus: { x: second.focusX, y: second.focusY },
+        scaleFromPrev: null,
+      },
       reveal: {
         imageId: card.image.id,
         zone: revealZone(card.image, point),

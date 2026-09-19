@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { BONUS_TYPES, FREE_TEXT } from '../constants/game.js';
+import { BONUS_TYPES, FREE_TEXT, SCORING_MODES } from '../constants/game.js';
 import { idSchema, nicknameSchema, roomCodeSchema } from './common.js';
 
 /**
@@ -103,6 +103,8 @@ export const bonusTypeSchema = z.enum(BONUS_TYPES);
 export const answerModeSchema = z.enum(['text', 'mcq']);
 export type AnswerMode = z.infer<typeof answerModeSchema>;
 
+export const scoringModeSchema = z.enum(SCORING_MODES);
+
 export const phaseSchema = z.enum(['lobby', 'countdown', 'playing', 'reveal', 'ended']);
 
 /** One zoom level of the current image, behind an opaque, short-lived URL. */
@@ -124,6 +126,8 @@ export const playerSchema = z.strictObject({
   nickname: z.string(),
   score: z.int(),
   connected: z.boolean(),
+  /** How many bonuses they hold. Everyone sees the count (to pick who to rob), never the types. */
+  bonusCount: z.int().min(0),
 });
 export type Player = z.infer<typeof playerSchema>;
 
@@ -210,16 +214,86 @@ export const gameEndSchema = z.strictObject({
 });
 export type GameEnd = z.infer<typeof gameEndSchema>;
 
+// ---- bonuses, maluses, steals (phase 3) ----
+
+export const bonusItemSchema = z.strictObject({ id: idSchema, type: z.enum(BONUS_TYPES) });
+export type BonusItem = z.infer<typeof bonusItemSchema>;
+
+/** To the player only: what they hold is private, only the count is public. */
+export const bonusGrantedSchema = z.strictObject({
+  item: bonusItemSchema,
+  reason: z.enum(['streak', 'fastest', 'catchup', 'stolen']),
+});
+export type BonusGranted = z.infer<typeof bonusGrantedSchema>;
+
+/** What a self bonus revealed, kept in the snapshot so that a reconnection does not lose it. */
+export const hintsSchema = z.strictObject({
+  /** First letters, the rest masked: "T··· E·····". */
+  initials: z.string().optional(),
+  category: z.string().optional(),
+  /** Another zone of the same image, at the closest zoom level. */
+  secondZone: cropSchema.optional(),
+  removedOptionIds: z.array(idSchema),
+});
+export type Hints = z.infer<typeof hintsSchema>;
+
+export const malusSchema = z.enum(['blur', 'flip', 'freeze']);
+
+/** Broadcast: everyone sees who did what to whom. */
+export const roundEffectSchema = z.strictObject({
+  roundId: idSchema,
+  type: malusSchema,
+  from: idSchema,
+  to: idSchema,
+  until: z.number(),
+});
+export type RoundEffect = z.infer<typeof roundEffectSchema>;
+
+/**
+ * Broadcast. A theft of points is announced when it is set up (no amount yet) and again when
+ * the victim scores (with the amount taken).
+ */
+export const roundStealSchema = z.strictObject({
+  roundId: idSchema,
+  kind: z.enum(['bonus', 'points']),
+  from: idSchema,
+  to: idSchema,
+  bonusType: z.enum(BONUS_TYPES).optional(),
+  amount: z.int().optional(),
+});
+export type RoundSteal = z.infer<typeof roundStealSchema>;
+
+export const roundBlockedSchema = z.strictObject({
+  roundId: idSchema,
+  from: idSchema,
+  to: idSchema,
+  what: z.enum(BONUS_TYPES),
+});
+export type RoundBlocked = z.infer<typeof roundBlockedSchema>;
+
+/** Ack of `bonus:use`: what the player now holds, and what the round is still worth to them. */
+export const bonusUseReplySchema = z.strictObject({
+  inventory: z.array(bonusItemSchema),
+  penalty: z.int(),
+  shielded: z.boolean(),
+  hints: hintsSchema,
+});
+export type BonusUseReply = z.infer<typeof bonusUseReplySchema>;
+
 /** Full picture for a client that joins or reconnects, already stripped of every secret. */
 export const roomStateSchema = z.strictObject({
   code: z.string(),
   mode: z.enum(['solo', 'private', 'public']),
   answerMode: answerModeSchema,
+  scoring: scoringModeSchema,
   phase: phaseSchema,
   hostId: idSchema,
   you: idSchema,
   players: z.array(playerSchema),
   totalRounds: z.int().positive(),
+  /** The viewer's own bonuses. Nobody else's are ever sent. */
+  inventory: z.array(bonusItemSchema),
+  shielded: z.boolean(),
   round: z
     .strictObject({
       roundId: idSchema,
@@ -235,6 +309,9 @@ export const roomStateSchema = z.strictObject({
       points: z.int().optional(),
       penalty: z.int(),
       lockedUntil: z.number().optional(),
+      hints: hintsSchema,
+      /** The malus currently hitting the viewer, if any. */
+      effect: z.strictObject({ type: malusSchema, from: idSchema, until: z.number() }).optional(),
     })
     .optional(),
   reveal: roundEndSchema.optional(),
@@ -273,6 +350,7 @@ export const roomHostChangedSchema = z.strictObject({ hostId: idSchema });
 export const roomSettingsEventSchema = z.strictObject({
   rounds: z.int().positive(),
   answerMode: answerModeSchema,
+  scoring: scoringModeSchema,
 });
 export type RoomSettingsEvent = z.infer<typeof roomSettingsEventSchema>;
 

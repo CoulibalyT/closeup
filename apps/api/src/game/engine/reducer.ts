@@ -1,13 +1,16 @@
 import {
+  BONUS,
   type ErrorCode,
   FREE_TEXT,
   type Locale,
   MULTIPLE_CHOICE,
   ROOM,
   ROUND,
-  roundValueAt,
+  roundValue,
+  SELF_BONUSES,
   ZOOM,
 } from '@closeup/shared';
+import { attack, grant, grantCatchUp, isFrozen, selfBonus } from './bonuses.js';
 import { matchAnswer } from './matching.js';
 import type {
   Command,
@@ -83,6 +86,8 @@ export function reduce(previous: RoomState, command: Command, ctx: Context): Red
 
   advance(state, ctx, effects);
   const reply = handle(state, command, ctx, effects, emit);
+  // A round that ended during this call, whichever way: the last of the ranking gets a hand.
+  if (previous.phase !== 'reveal' && state.phase === 'reveal') grantCatchUp(state, ctx, effects);
   return { state, effects, reply };
 }
 
@@ -108,6 +113,18 @@ function advance(state: RoomState, ctx: Context, effects: Effect[]): void {
       if (levelDue < endAt) {
         round.level += 1;
         emit({ type: 'roundLevel', level: round.level });
+        // Whoever zoomed out with a bonus stays that many levels ahead of the room.
+        for (const [playerId, mine] of Object.entries(round.perPlayer)) {
+          const ahead = mine.bonusLevels ?? 0;
+          if (ahead > 0 && round.level - 1 + ahead < ZOOM.maxLevel) {
+            const level = Math.min(ZOOM.maxLevel, round.level + ahead);
+            effects.push({
+              type: 'emit',
+              event: { type: 'personalLevel', playerId, level },
+              to: playerId,
+            });
+          }
+        }
       } else if (ctx.now >= endAt) {
         endRound(state, ctx.now, emit);
       } else break;
@@ -298,10 +315,34 @@ function dispatch(
       return OK;
     }
 
+    case 'useBonus': {
+      const round = state.round;
+      const player = state.players[command.playerId];
+      const mine = round?.perPlayer[command.playerId];
+      if (state.phase !== 'playing' || !round || round.id !== command.roundId || !player || !mine) {
+        return refuse('BAD_PHASE', 'Bonuses are played during a round');
+      }
+      const item = player.inventory?.find((owned) => owned.id === command.itemId);
+      if (!item) return refuse('BONUS_NOT_OWNED', 'You do not hold this bonus');
+
+      // Check first, spend second, apply last: a refused bonus stays in the inventory, and a
+      // stolen one needs the room that spending the steal just made.
+      const play = (SELF_BONUSES as readonly string[]).includes(item.type)
+        ? selfBonus(state, round, command.playerId, item.type, ctx, effects)
+        : attack(state, round, command.playerId, item.type, command.targetId, ctx, effects);
+      if (typeof play !== 'function') return play;
+
+      player.inventory = (player.inventory ?? []).filter((owned) => owned.id !== item.id);
+      play();
+      emit({ type: 'playerUpdated', playerId: player.id });
+      return { ok: true, data: { used: item.type } };
+    }
+
     case 'guess': {
       const live = liveRound(state, command.playerId, command.roundId, 'text');
       if ('error' in live) return live.error;
       const { round, mine } = live;
+      if (isFrozen(mine, ctx.now)) return refuse('FROZEN', 'Your input is frozen for a moment');
 
       if (
         mine.lastGuessAt !== undefined &&
@@ -315,7 +356,7 @@ function dispatch(
       if (verdict !== 'correct') {
         return { ok: true, data: { verdict: verdict === 'close' ? 'close' : 'wrong' } };
       }
-      const points = score(state, round, command.playerId, ctx.now, emit);
+      const points = score(state, round, command.playerId, ctx, effects, emit);
       return { ok: true, data: { verdict: 'correct', points } };
     }
 
@@ -323,6 +364,7 @@ function dispatch(
       const live = liveRound(state, command.playerId, command.roundId, 'mcq');
       if ('error' in live) return live.error;
       const { round, mine } = live;
+      if (isFrozen(mine, ctx.now)) return refuse('FROZEN', 'Your input is frozen for a moment');
 
       if (mine.lockedUntil !== undefined && ctx.now < mine.lockedUntil) {
         return refuse('LOCKED', 'Wait before picking again');
@@ -338,7 +380,7 @@ function dispatch(
           data: { verdict: 'wrong', lockedUntil: mine.lockedUntil, penalty: mine.penalty },
         };
       }
-      const points = score(state, round, command.playerId, ctx.now, emit);
+      const points = score(state, round, command.playerId, ctx, effects, emit);
       return { ok: true, data: { verdict: 'correct', points } };
     }
   }
@@ -368,12 +410,30 @@ function score(
   state: RoomState,
   round: RoundState,
   playerId: string,
-  now: number,
+  ctx: Context,
+  effects: Effect[],
   emit: (event: EngineEvent) => void,
 ): number {
+  const { now } = ctx;
   const mine = round.perPlayer[playerId]!;
   const player = state.players[playerId]!;
-  const points = roundValueAt(now - round.startsAt, mine.penalty);
+  const earned = roundValue({
+    scoring: state.settings.scoring ?? 'decay',
+    elapsedMs: now - round.startsAt,
+    foundBefore: round.answerOrder.length,
+    penalty: mine.penalty,
+  });
+
+  // A thief set up earlier in the round takes their share of what was just earned.
+  const thief = mine.pointsThief ? state.players[mine.pointsThief] : undefined;
+  const stolen = thief ? Math.round((earned * BONUS.stealPointsShare) / 10) * 10 : 0;
+  const points = earned - stolen;
+  if (thief && stolen > 0) {
+    thief.score += stolen;
+    const theirs = round.perPlayer[thief.id];
+    if (theirs) theirs.stolenGain = (theirs.stolenGain ?? 0) + stolen;
+    emit({ type: 'steal', kind: 'points', from: thief.id, to: playerId, amount: stolen });
+  }
 
   mine.answeredAt = now;
   mine.points = points;
@@ -383,6 +443,13 @@ function score(
   player.streak += 1;
   player.bestStreak = Math.max(player.bestStreak, player.streak);
   emit({ type: 'playerAnswered', playerId, points, order: round.answerOrder.length });
+
+  // Bonuses are earned by playing: a streak, or being the fastest of a big enough round.
+  if (player.streak % BONUS.streakLength === 0) grant(state, playerId, 'streak', ctx, effects);
+  const seated = Object.keys(round.perPlayer).length;
+  if (round.answerOrder.length === 1 && seated >= BONUS.minPlayersForFastest) {
+    grant(state, playerId, 'fastest', ctx, effects);
+  }
 
   checkEarlyEnd(state, round, now, emit);
   return points;

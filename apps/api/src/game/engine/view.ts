@@ -1,8 +1,13 @@
 import {
+  bonusGrantedSchema,
+  type BonusUseReply,
+  bonusUseReplySchema,
   type Crop,
   type GameEnd,
   gameEndSchema,
   gameStartedSchema,
+  type Hints,
+  hintsSchema,
   type Player,
   type RoomStateView,
   roomHostChangedSchema,
@@ -11,12 +16,15 @@ import {
   roomPlayerSchema,
   roomSettingsEventSchema,
   roomStateSchema,
+  roundBlockedSchema,
+  roundEffectSchema,
   type RoundEnd,
   roundEndSchema,
   roundLevelSchema,
   roundPlayerAnsweredSchema,
   roundPrepareSchema,
   roundStartSchema,
+  roundStealSchema,
   ServerEvent,
   ZOOM,
 } from '@closeup/shared';
@@ -36,10 +44,69 @@ export interface WireMessage {
   payload: unknown;
 }
 
+/** Events that are only ever sent to one player carry their id themselves. */
+export const recipientOf = (event: EngineEvent): string | undefined =>
+  event.type === 'personalLevel' || event.type === 'bonusGranted' ? event.playerId : undefined;
+
+// Only the *count* of bonuses is public. What they are is for their owner alone.
 const ranking = (state: RoomState): Player[] =>
   Object.values(state.players)
-    .map(({ id, nickname, score, connected }) => ({ id, nickname, score, connected }))
+    .map(({ id, nickname, score, connected, inventory }) => ({
+      id,
+      nickname,
+      score,
+      connected,
+      bonusCount: inventory?.length ?? 0,
+    }))
     .sort((a, b) => b.score - a.score || a.nickname.localeCompare(b.nickname));
+
+/** "tour Eiffel" → "T··· E·····": first letters, and how long each word is. */
+export const maskInitials = (answer: string): string =>
+  answer
+    .trim()
+    .split(/\s+/)
+    .map((word) => {
+      const [first = '', ...rest] = [...word];
+      return first.toUpperCase() + '·'.repeat(rest.length);
+    })
+    .join('  ');
+
+/** Zoom level a player sees: the room's, plus what their bonuses unlocked. */
+const levelOf = (round: RoundState, playerId: string): number =>
+  Math.min(ZOOM.maxLevel, round.level + (round.perPlayer[playerId]?.bonusLevels ?? 0));
+
+/** What a player's self bonuses revealed. Derived here, from secrets that stay on the server. */
+function hintsOf(round: RoundState, playerId: string, sign: Sign): Hints {
+  const mine = round.perPlayer[playerId];
+  const { card } = round;
+  return hintsSchema.parse({
+    initials: mine?.revealed?.initials ? maskInitials(card.reveal.answer) : undefined,
+    category: mine?.revealed?.category ? card.category : undefined,
+    secondZone:
+      mine?.revealed?.secondZone && card.secondZone
+        ? {
+            url: sign('crop', card.secondZone.cropId),
+            level: 0,
+            focus: card.secondZone.focus,
+            scaleFromPrev: null,
+          }
+        : undefined,
+    removedOptionIds: mine?.removedOptionIds ?? [],
+  });
+}
+
+/** The ack of `bonus:use`: everything of the player's that the bonus may have changed. */
+export function bonusReply(state: RoomState, playerId: string, sign: Sign): BonusUseReply | null {
+  const player = state.players[playerId];
+  const round = state.round;
+  if (!player || !round) return null;
+  return bonusUseReplySchema.parse({
+    inventory: player.inventory ?? [],
+    penalty: round.perPlayer[playerId]?.penalty ?? 0,
+    shielded: player.shielded ?? false,
+    hints: hintsOf(round, playerId, sign),
+  });
+}
 
 const levelTimes = (round: RoundState): number[] =>
   ZOOM.autoLevelAtMs.slice(1).map((ms) => round.startsAt + ms);
@@ -68,7 +135,8 @@ function roundEnd(state: RoomState, round: RoundState, sign: Sign): RoundEnd {
     },
     results: Object.entries(round.perPlayer).map(([playerId, mine]) => ({
       playerId,
-      points: mine.points ?? 0,
+      // What the round brought them: their own answer, plus what they took from others.
+      points: (mine.points ?? 0) + (mine.stolenGain ?? 0),
       elapsedMs: mine.answeredAt === undefined ? null : mine.answeredAt - round.startsAt,
     })),
     ranking: ranking(state),
@@ -115,7 +183,10 @@ export function eventToWire(state: RoomState, event: EngineEvent, sign: Sign): W
     case 'settingsChanged':
       return {
         event: ServerEvent.roomSettings,
-        payload: roomSettingsEventSchema.parse(state.settings),
+        payload: roomSettingsEventSchema.parse({
+          ...state.settings,
+          scoring: state.settings.scoring ?? 'decay',
+        }),
       };
     case 'backToLobby':
       return {
@@ -132,6 +203,11 @@ export function eventToWire(state: RoomState, event: EngineEvent, sign: Sign): W
       };
     case 'gameEnd':
       return { event: ServerEvent.gameEnd, payload: gameEnd(state) };
+    case 'bonusGranted':
+      return {
+        event: ServerEvent.bonusGranted,
+        payload: bonusGrantedSchema.parse({ item: event.item, reason: event.reason }),
+      };
   }
 
   if (!round) return null;
@@ -183,11 +259,59 @@ export function eventToWire(state: RoomState, event: EngineEvent, sign: Sign): W
       };
     case 'roundEnd':
       return { event: ServerEvent.roundEnd, payload: roundEnd(state, round, sign) };
+    case 'personalLevel':
+      return {
+        event: ServerEvent.roundLevel,
+        payload: roundLevelSchema.parse({
+          roundId: round.id,
+          level: event.level,
+          crop: cropAt(round, event.level, sign),
+          at: round.startsAt,
+        }),
+      };
+    case 'malus':
+      return {
+        event: ServerEvent.roundEffect,
+        payload: roundEffectSchema.parse({
+          roundId: round.id,
+          type: event.malus,
+          from: event.from,
+          to: event.to,
+          until: event.until,
+        }),
+      };
+    case 'steal':
+      return {
+        event: ServerEvent.roundSteal,
+        payload: roundStealSchema.parse({
+          roundId: round.id,
+          kind: event.kind,
+          from: event.from,
+          to: event.to,
+          bonusType: event.bonusType,
+          amount: event.amount,
+        }),
+      };
+    case 'blocked':
+      return {
+        event: ServerEvent.roundBlocked,
+        payload: roundBlockedSchema.parse({
+          roundId: round.id,
+          from: event.from,
+          to: event.to,
+          what: event.what,
+        }),
+      };
   }
 }
 
 /** What a client needs to draw the room from nothing: on join, and after a reconnection. */
-export function toSnapshot(state: RoomState, viewerId: string, sign: Sign): RoomStateView {
+export function toSnapshot(
+  state: RoomState,
+  viewerId: string,
+  sign: Sign,
+  now: number = Date.now(),
+): RoomStateView {
   const round = state.round;
   const mine = round?.perPlayer[viewerId];
   const live = state.phase === 'playing';
@@ -202,6 +326,9 @@ export function toSnapshot(state: RoomState, viewerId: string, sign: Sign): Room
     you: viewerId,
     players: ranking(state),
     totalRounds: state.totalRounds,
+    scoring: state.settings.scoring ?? 'decay',
+    inventory: state.players[viewerId]?.inventory ?? [],
+    shielded: state.players[viewerId]?.shielded ?? false,
     round: showRound
       ? {
           roundId: round.id,
@@ -210,7 +337,9 @@ export function toSnapshot(state: RoomState, viewerId: string, sign: Sign): Room
           endsAt: round.endsAt,
           levelAt: levelTimes(round),
           // Nothing of the card before the countdown is over.
-          crop: live ? cropAt(round, round.level, sign) : undefined,
+          crop: live ? cropAt(round, levelOf(round, viewerId), sign) : undefined,
+          hints: hintsOf(round, viewerId, sign),
+          effect: mine?.effect && mine.effect.until > now ? mine.effect : undefined,
           options: live ? round.card.options : undefined,
           // Someone who joined mid-round watches it and plays from the next one.
           seated: mine !== undefined,

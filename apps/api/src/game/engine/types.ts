@@ -1,4 +1,4 @@
-import type { ErrorCode, Locale } from '@closeup/shared';
+import type { BonusItem, BonusType, ErrorCode, Locale, Malus, ScoringMode } from '@closeup/shared';
 import type { CardAnswers, Verdict } from './matching.js';
 
 /**
@@ -14,6 +14,8 @@ export type AnswerMode = 'text' | 'mcq';
 export interface RoomSettings {
   rounds: number;
   answerMode: AnswerMode;
+  /** `decay` (default): worth less as time passes. `fixed`: paid by order of arrival. */
+  scoring?: ScoringMode;
 }
 
 export interface McqOption {
@@ -48,6 +50,10 @@ export interface EngineCard {
   /** One entry per zoom level. The reducer never reads these two; `view.ts` does. */
   crops: CropInfo[];
   reveal: RevealInfo;
+  /** Content metadata passed through for the "category" bonus. The engine never branches on it. */
+  category?: string;
+  /** Closest crop of *another* zoom point of the same image, for the "second zone" bonus. */
+  secondZone?: CropInfo;
 }
 
 export interface PlayerState {
@@ -64,15 +70,36 @@ export interface PlayerState {
   disconnectedAt?: number;
   /** The grace period ran out. They keep their score and may still come back. */
   gone?: boolean;
+  /** Earned by playing, never bought. Capped; kept from one round to the next. */
+  inventory?: BonusItem[];
+  /** An armed shield absorbs the next malus or steal, in this round or a later one. */
+  shielded?: boolean;
+}
+
+export interface ActiveMalus {
+  type: Malus;
+  from: string;
+  until: number;
 }
 
 export interface RoundPlayerState {
-  /** Wrong multiple-choice picks (and, from phase 3, bonus costs) lower what the round is worth. */
+  /** Wrong multiple-choice picks and the cost of self bonuses lower what the round is worth. */
   penalty: number;
   answeredAt?: number;
   points?: number;
   lockedUntil?: number;
   lastGuessAt?: number;
+  /** Zoom levels unlocked with a bonus, on top of the automatic schedule. */
+  bonusLevels?: number;
+  /** One malus per target at a time. */
+  effect?: ActiveMalus;
+  /** Who takes a share of what this player scores this round. */
+  pointsThief?: string;
+  /** Points taken from others this round, shown with the round's results. */
+  stolenGain?: number;
+  /** What their self bonuses revealed. The values are derived on the way out, in `view.ts`. */
+  revealed?: { initials?: true; category?: true; secondZone?: true };
+  removedOptionIds?: string[];
 }
 
 export interface RoundState {
@@ -128,7 +155,8 @@ export type Command =
   | { type: 'tick' }
   | { type: 'guess'; playerId: string; roundId: string; text: string }
   | { type: 'pick'; playerId: string; roundId: string; optionId: string }
-  | { type: 'skipReveal'; playerId: string };
+  | { type: 'skipReveal'; playerId: string }
+  | { type: 'useBonus'; playerId: string; roundId: string; itemId: string; targetId?: string };
 
 /** Internal events: they reference crops, the presenter turns those into signed URLs. */
 export type EngineEvent =
@@ -144,10 +172,29 @@ export type EngineEvent =
   | { type: 'roundLevel'; level: number }
   | { type: 'playerAnswered'; playerId: string; points: number; order: number }
   | { type: 'roundEnd' }
-  | { type: 'gameEnd' };
+  | { type: 'gameEnd' }
+  /** Sent to one player: their zoom level moved without the rest of the room (zoom-out bonus). */
+  | { type: 'personalLevel'; playerId: string; level: number }
+  | {
+      type: 'bonusGranted';
+      playerId: string;
+      item: BonusItem;
+      reason: 'streak' | 'fastest' | 'catchup' | 'stolen';
+    }
+  | { type: 'malus'; malus: Malus; from: string; to: string; until: number }
+  | {
+      type: 'steal';
+      kind: 'bonus' | 'points';
+      from: string;
+      to: string;
+      bonusType?: BonusType;
+      amount?: number;
+    }
+  | { type: 'blocked'; from: string; to: string; what: BonusType };
 
 export type Effect =
-  | { type: 'emit'; event: EngineEvent }
+  /** `to` narrows the message to one player; without it the whole room hears it. */
+  | { type: 'emit'; event: EngineEvent; to?: string }
   /** Ask the room layer for the next playable card; it answers with `cardReady` or `noCardLeft`. */
   | { type: 'needCard' }
   | { type: 'gameOver' }
@@ -155,7 +202,7 @@ export type Effect =
   | { type: 'abandoned' };
 
 export type Reply =
-  | { ok: true; data: GuessReply | PickReply | Record<string, never> }
+  | { ok: true; data: GuessReply | PickReply | BonusUsed | Record<string, never> }
   | { ok: false; error: { code: ErrorCode; message: string } };
 
 export interface GuessReply {
@@ -170,10 +217,17 @@ export interface PickReply {
   penalty?: number;
 }
 
+/** The engine's half of the `bonus:use` ack; `view.ts` adds what the bonus revealed. */
+export interface BonusUsed {
+  used: BonusType;
+}
+
 export interface Context {
   now: number;
   /** Injected so that tests are deterministic. */
   newId: () => string;
+  /** Bonus draws, random steals, removed options. Defaults to Math.random. */
+  random?: () => number;
 }
 
 export interface Reduced {

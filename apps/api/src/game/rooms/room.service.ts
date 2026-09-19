@@ -6,7 +6,13 @@ import {
   type OnApplicationBootstrap,
   type OnModuleDestroy,
 } from '@nestjs/common';
-import { type Locale, ROOM, type RoomStateView, type RoomSummary } from '@closeup/shared';
+import {
+  type BonusUseReply,
+  type Locale,
+  ROOM,
+  type RoomStateView,
+  type RoomSummary,
+} from '@closeup/shared';
 import type { Redis } from 'ioredis';
 import { withTimeout } from '../../common/with-timeout.js';
 import { DeckService } from '../../content/deck.service.js';
@@ -16,7 +22,15 @@ import { PrismaService } from '../../prisma/prisma.module.js';
 import { REDIS } from '../../redis/redis.module.js';
 import { createRoom, reduce } from '../engine/reducer.js';
 import type { Command, Effect, Reply, RoomSettings, RoomState } from '../engine/types.js';
-import { eventToWire, gameEnd, type Sign, toSnapshot, type WireMessage } from '../engine/view.js';
+import {
+  bonusReply,
+  eventToWire,
+  gameEnd,
+  recipientOf,
+  type Sign,
+  toSnapshot,
+  type WireMessage,
+} from '../engine/view.js';
 
 const ROOM_TTL_S = 2 * 60 * 60;
 const RECOVERY_TIMEOUT_MS = 2_500;
@@ -37,7 +51,8 @@ interface Actor {
   timer?: NodeJS.Timeout;
 }
 
-export type RoomListener = (code: string, message: WireMessage) => void;
+/** `to` is a player id: the message is for them alone. Without it, the whole room hears it. */
+export type RoomListener = (code: string, message: WireMessage, to?: string) => void;
 
 @Injectable()
 export class RoomService implements OnApplicationBootstrap, OnModuleDestroy {
@@ -135,6 +150,17 @@ export class RoomService implements OnApplicationBootstrap, OnModuleDestroy {
     });
   }
 
+  /** Plays a bonus, then answers with everything of the player's that it may have changed. */
+  async useBonus(
+    code: string,
+    command: Extract<Command, { type: 'useBonus' }>,
+  ): Promise<Reply | { ok: true; data: BonusUseReply }> {
+    const reply = await this.dispatch(code, command);
+    const state = this.actors.get(code)?.record.state;
+    const data = reply.ok && state ? bonusReply(state, command.playerId, this.sign) : null;
+    return data ? { ok: true, data } : reply;
+  }
+
   snapshot(code: string, playerId: string): RoomStateView | null {
     const state = this.actors.get(code)?.record.state;
     return state?.players[playerId] ? toSnapshot(state, playerId, this.sign) : null;
@@ -190,7 +216,8 @@ export class RoomService implements OnApplicationBootstrap, OnModuleDestroy {
           effect.event.type === 'gameEnd' && state.mode === 'solo'
             ? { event: 'game:end', payload: gameEnd(state, await this.personalBest(state)) }
             : eventToWire(state, effect.event, this.sign);
-        if (message) this.listener(code, message);
+        // Private events name their recipient twice over: on the effect, and by their type.
+        if (message) this.listener(code, message, effect.to ?? recipientOf(effect.event));
         return;
       }
       case 'needCard':

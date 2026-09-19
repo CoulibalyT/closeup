@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SCORING_MODES } from '../constants/game.js';
 import { idSchema, localeSchema, nicknameSchema, roomCodeSchema } from './common.js';
 import { answerModeSchema, phaseSchema } from './events.js';
 
@@ -29,6 +30,8 @@ export type IdentityView = z.infer<typeof identitySchema>;
 export const roomSettingsSchema = z.strictObject({
   rounds: z.int().min(1).max(20),
   answerMode: answerModeSchema,
+  /** `decay`: 1000 down to 200 over the round. `fixed`: paid by order of arrival, no clock. */
+  scoring: z.enum(SCORING_MODES).default('decay'),
 });
 export type RoomSettings = z.infer<typeof roomSettingsSchema>;
 

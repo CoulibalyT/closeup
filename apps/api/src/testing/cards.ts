@@ -31,6 +31,12 @@ export function engineCard(n = 1, options: { mcq?: boolean; secret?: boolean } =
           correctOptionId: 'b',
         }
       : {}),
+    category: 'FOOD',
+    secondZone: {
+      cropId: `${secret ? SECRETS.cropId : `crop-${n}`}-second`,
+      focus: { x: 0.5, y: 0.5 },
+      scaleFromPrev: null,
+    },
     crops: [0, 1, 2, 3].map((level) => ({
       cropId: `${secret ? SECRETS.cropId : `crop-${n}`}-${level}`,
       focus: { x: 0.5, y: 0.5 },
