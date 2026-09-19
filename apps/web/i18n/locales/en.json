@@ -9,7 +9,51 @@
     "mcq": "4 options",
     "play": "Start the game",
     "failed": "The game could not start. Check your connection and try again.",
-    "soon": "Games with friends are coming soon."
+    "friends": "Play with friends",
+    "create": "Create a game",
+    "codeLabel": "Game code",
+    "codePlaceholder": "5-character code",
+    "join": "Join"
+  },
+  "join": {
+    "title": "Join a game, {appName}",
+    "loading": "Looking for the game…",
+    "missingTitle": "Game not found",
+    "missing": "This code does not match any game in progress. Check it with the person who invited you.",
+    "room": "Game {code}",
+    "invites": "{host} invites you to play",
+    "details": "{players} player(s) already there. {rounds} rounds, {mode}.",
+    "over": "This game is over.",
+    "full": "This game is full.",
+    "started": "The game has already started: you come in on the next round.",
+    "nickname": "Your nickname",
+    "nicknamePlaceholder": "2 to 16 characters",
+    "submit": "Join the game"
+  },
+  "lobby": {
+    "codeLabel": "Game code",
+    "shareTitle": "Come and play with me",
+    "inviteHint": "Have this code scanned, or send the link.",
+    "share": "Share the link",
+    "copy": "Copy the link",
+    "copied": "Link copied",
+    "qrAlt": "QR code to join the game",
+    "players": "Players ({n} of {max})",
+    "you": "you",
+    "host": "host",
+    "offline": "offline",
+    "remove": "Remove",
+    "settingsSummary": "{rounds} rounds, {mode}.",
+    "modeText": "typed answers",
+    "modeMcq": "4 options",
+    "needPlayers": "At least 2 players are needed to start.",
+    "waitingHost": "The host starts the game when everyone is here.",
+    "startFailed": "The game could not start. Try again.",
+    "start": "Start the game",
+    "leave": "Leave the game"
+  },
+  "ranking": {
+    "found": "found it"
   },
   "play": {
     "title": "Game in progress, {appName}",
@@ -31,7 +75,10 @@
       "close": "Almost. Check the spelling or give the full name.",
       "wrong": "That's not it.",
       "rate_limited": "Easy, one answer at a time."
-    }
+    },
+    "nextRound": "You play from the next round.",
+    "full": "This game is full.",
+    "kicked": "The host removed you from the game."
   },
   "reveal": {
     "found": "Found +{points}",
@@ -40,14 +87,19 @@
     "zone": "You were looking at {zone}.",
     "credit": "Image: {author}, {licence}",
     "next": "Next round",
-    "seeResult": "See the result"
+    "seeResult": "See the result",
+    "watched": "Round over",
+    "nextIn": "Next round in {seconds} s",
+    "resultIn": "Result in {seconds} s"
   },
   "end": {
     "title": "Game over, your score",
     "found": "{n} found out of {total}",
     "newBest": "New personal best.",
     "best": "Your best: {score}",
-    "replay": "Play another game"
+    "replay": "Play another game",
+    "replayParty": "Play again with the same players",
+    "waitingHost": "The host can start another game."
   },
   "status": {
     "title": "{appName} status",

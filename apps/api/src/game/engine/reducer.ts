@@ -407,9 +407,14 @@ function checkEarlyEnd(
 
 /** "Awa", "Awa 2", "Awa 3": two players must never read the same in a ranking. */
 function uniqueNickname(state: RoomState, wanted: string): string {
-  const base = (name: string) => name.toLowerCase().replace(/ \d+$/, '');
-  const taken = Object.values(state.players).filter((p) => base(p.nickname) === base(wanted));
-  return taken.length ? `${wanted} ${taken.length + 1}` : wanted;
+  const taken = new Set(Object.values(state.players).map((p) => p.nickname.toLowerCase()));
+  if (!taken.has(wanted.toLowerCase())) return wanted;
+  // The first free suffix, not "how many look alike + 1": that count can land on a taken name.
+  const stem = wanted.replace(/ \d+$/, '');
+  for (let n = 2; ; n++) {
+    const candidate = `${stem} ${n}`;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+  }
 }
 
 function migrateHost(state: RoomState, emit: (event: EngineEvent) => void): void {

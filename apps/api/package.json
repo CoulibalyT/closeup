@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "smoke": "node scripts/smoke.mjs",
+    "bot": "node scripts/bot.mjs",
     "seed": "nest start --entryFile seed",
     "seed:sheet": "node scripts/seed-sheet.mjs",
     "prisma:generate": "prisma generate",

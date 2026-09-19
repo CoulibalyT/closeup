@@ -3,32 +3,58 @@ import type { Crop, RoundEnd } from '@closeup/shared';
 
 const props = defineProps<{
   reveal: RoundEnd;
-  you: number;
+  /** The viewer's player id. */
+  you: string;
+  /** Whether the viewer decides when to move on (the host, or a solo player). */
+  canSkip: boolean;
+  /** Several players: show who scored what, and the countdown to the next round. */
+  party: boolean;
   crops: Crop[];
+  serverNow: () => number;
   mediaUrl: (path: string) => string;
 }>();
 defineEmits<{ next: [] }>();
 const { t } = useI18n();
 
-const found = computed(() => props.you > 0);
+const gains = computed(() =>
+  Object.fromEntries(props.reveal.results.map((result) => [result.playerId, result.points])),
+);
+const yourPoints = computed(() => gains.value[props.you] ?? 0);
+// Someone who joined mid-round has no line in the results: neither found nor missed.
+const played = computed(() => props.reveal.results.some((r) => r.playerId === props.you));
+
 // The circle marks what the first zoom level showed. `r` is a fraction of the image width.
 const zone = computed(() => {
   const { cx, cy, r } = props.reveal.reveal.zone;
   return { cx: cx * 100, cy: cy * 100, r: r * 100 };
 });
+
+const secondsLeft = ref(0);
+let timer: ReturnType<typeof setInterval> | undefined;
+function refresh(): void {
+  const { nextAt } = props.reveal;
+  secondsLeft.value = nextAt ? Math.max(0, Math.ceil((nextAt - props.serverNow()) / 1000)) : 0;
+}
+onMounted(() => {
+  refresh();
+  timer = setInterval(refresh, 250);
+});
+onBeforeUnmount(() => clearInterval(timer));
 </script>
 
 <template>
   <section class="reveal">
-    <h1 class="display verdict" :class="{ found }">
-      {{ found ? t('reveal.found', { points: you }) : t('reveal.missed') }}
+    <h1 class="display verdict" :class="{ found: yourPoints > 0 }">
+      <template v-if="yourPoints > 0">{{ t('reveal.found', { points: yourPoints }) }}</template>
+      <template v-else-if="played">{{ t('reveal.missed') }}</template>
+      <template v-else>{{ t('reveal.watched') }}</template>
     </h1>
     <p class="answer">{{ t('reveal.answer', { answer: reveal.reveal.answer }) }}</p>
     <p v-if="reveal.reveal.zoneLabel" class="muted">
       {{ t('reveal.zone', { zone: reveal.reveal.zoneLabel }) }}
     </p>
 
-    <div class="print">
+    <div class="print" :class="{ party }">
       <ZoomStrip :crops="crops" :media-url="mediaUrl" />
       <figure>
         <div class="photo">
@@ -49,9 +75,20 @@ const zone = computed(() => {
       </figure>
     </div>
 
-    <button type="button" class="button next" @click="$emit('next')">
-      {{ reveal.isLast ? t('reveal.seeResult') : t('reveal.next') }}
-    </button>
+    <RankingList v-if="party" class="scores" :players="reveal.ranking" :you="you" :gains="gains" />
+
+    <div class="foot">
+      <p v-if="party && secondsLeft > 0" class="muted">
+        {{
+          reveal.isLast
+            ? t('reveal.resultIn', { seconds: secondsLeft })
+            : t('reveal.nextIn', { seconds: secondsLeft })
+        }}
+      </p>
+      <button v-if="canSkip" type="button" class="button" @click="$emit('next')">
+        {{ reveal.isLast ? t('reveal.seeResult') : t('reveal.next') }}
+      </button>
+    </div>
   </section>
 </template>
 
@@ -62,6 +99,7 @@ const zone = computed(() => {
   flex: 1;
   min-height: 0;
   padding: var(--space-4) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom));
+  overflow-y: auto;
 }
 .verdict {
   font-size: clamp(28px, 9vw, 40px);
@@ -81,6 +119,10 @@ const zone = computed(() => {
   gap: var(--space-3);
   align-items: start;
   margin-top: var(--space-4);
+}
+/* With a ranking to fit underneath, the photo gives up some room. */
+.print.party {
+  max-width: 300px;
 }
 figure {
   margin: 0;
@@ -119,8 +161,14 @@ figcaption {
   margin-top: var(--space-2);
   font-size: 13px;
 }
-.next {
+.scores {
+  margin-top: var(--space-4);
+  font-size: 17px;
+}
+.foot {
+  display: grid;
+  gap: var(--space-2);
   margin-top: auto;
-  width: 100%;
+  padding-top: var(--space-4);
 }
 </style>

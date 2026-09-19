@@ -9,7 +9,51 @@
     "mcq": "4 propositions",
     "play": "Commencer la partie",
     "failed": "La partie n'a pas pu démarrer. Vérifie ta connexion et réessaie.",
-    "soon": "Les parties entre amis arrivent bientôt."
+    "friends": "Jouer entre amis",
+    "create": "Créer une partie",
+    "codeLabel": "Code de la partie",
+    "codePlaceholder": "Code à 5 caractères",
+    "join": "Rejoindre"
+  },
+  "join": {
+    "title": "Rejoindre une partie, {appName}",
+    "loading": "Recherche de la partie…",
+    "missingTitle": "Partie introuvable",
+    "missing": "Ce code ne correspond à aucune partie en cours. Vérifie-le auprès de la personne qui t'invite.",
+    "room": "Partie {code}",
+    "invites": "{host} t'invite à jouer",
+    "details": "{players} joueur(s) déjà là. {rounds} manches, {mode}.",
+    "over": "Cette partie est terminée.",
+    "full": "Cette partie est complète.",
+    "started": "La partie a déjà commencé : tu entres à la prochaine manche.",
+    "nickname": "Ton pseudo",
+    "nicknamePlaceholder": "2 à 16 caractères",
+    "submit": "Rejoindre la partie"
+  },
+  "lobby": {
+    "codeLabel": "Code de la partie",
+    "shareTitle": "Viens jouer avec moi",
+    "inviteHint": "Fais scanner ce code, ou envoie le lien.",
+    "share": "Partager le lien",
+    "copy": "Copier le lien",
+    "copied": "Lien copié",
+    "qrAlt": "QR code pour rejoindre la partie",
+    "players": "Joueurs ({n} sur {max})",
+    "you": "toi",
+    "host": "hôte",
+    "offline": "hors ligne",
+    "remove": "Retirer",
+    "settingsSummary": "{rounds} manches, {mode}.",
+    "modeText": "réponse écrite",
+    "modeMcq": "4 propositions",
+    "needPlayers": "Il faut au moins 2 joueurs pour commencer.",
+    "waitingHost": "L'hôte lance la partie quand tout le monde est là.",
+    "startFailed": "La partie n'a pas pu démarrer. Réessaie.",
+    "start": "Lancer la partie",
+    "leave": "Quitter la partie"
+  },
+  "ranking": {
+    "found": "a trouvé"
   },
   "play": {
     "title": "Partie en cours, {appName}",
@@ -31,7 +75,10 @@
       "close": "Presque. Vérifie l'orthographe ou donne le nom complet.",
       "wrong": "Ce n'est pas ça.",
       "rate_limited": "Doucement, une réponse à la fois."
-    }
+    },
+    "nextRound": "Tu joues à la prochaine manche.",
+    "full": "Cette partie est complète.",
+    "kicked": "L'hôte t'a retiré de la partie."
   },
   "reveal": {
     "found": "Trouvé +{points}",
@@ -40,14 +87,19 @@
     "zone": "On te montrait {zone}.",
     "credit": "Image : {author}, {licence}",
     "next": "Manche suivante",
-    "seeResult": "Voir le résultat"
+    "seeResult": "Voir le résultat",
+    "watched": "Manche terminée",
+    "nextIn": "Manche suivante dans {seconds} s",
+    "resultIn": "Résultat dans {seconds} s"
   },
   "end": {
     "title": "Partie terminée, ton score",
     "found": "{n} trouvées sur {total}",
     "newBest": "Nouveau record personnel.",
     "best": "Ton record : {score}",
-    "replay": "Rejouer une partie"
+    "replay": "Rejouer une partie",
+    "replayParty": "Rejouer avec les mêmes joueurs",
+    "waitingHost": "L'hôte peut relancer une partie."
   },
   "status": {
     "title": "État de {appName}",

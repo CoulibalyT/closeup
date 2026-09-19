@@ -15,7 +15,8 @@
     "format": "prettier --write .",
     "typecheck": "pnpm prepare:all && pnpm -r typecheck",
     "test": "pnpm build:shared && pnpm -r test",
-    "smoke": "pnpm --filter @closeup/api smoke"
+    "smoke": "pnpm --filter @closeup/api smoke",
+    "bot": "pnpm --filter @closeup/api bot"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",

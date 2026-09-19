@@ -7,9 +7,11 @@ races to guess what it is. `closeup` is a codename; the player-facing name lives
 - The brief: [docs/brief.md](docs/brief.md)
 - The validated solo prototype: [docs/prototype/gros-plan.html](docs/prototype/gros-plan.html)
 
-**Status: phase 1 (game engine and solo mode) done.** You can play solo training from the home
-page: 22 original seed cards, free text or multiple choice, zoom-outs at 10 s and 20 s, reveal
-with the zone and the credit, personal best. No multiplayer yet (phase 2).
+**Status: phase 2 (private rooms, phones only) done.** From the home page you can create a game
+with friends (nickname, 5-character code, share link, QR code), join one by code or link, wait in
+a lobby where the host sets the rounds and the answer mode, play synced rounds with a live
+ranking, drop out and come back within 60 seconds, and play again with the same people. Solo
+training from phase 1 is still there: 22 original seed cards, free text or multiple choice.
 
 ## Run it
 
@@ -34,6 +36,11 @@ Scripts that check a running stack from the host:
 - `pnpm smoke` — REST, worker round trip, web shell, manifest, clock sync, refusal of a stale
   client, then **a whole solo game** in multiple-choice mode (guest cookie, room, crops served and
   forged URL refused, scoring, reveal, personal best). Exits 1 on a failure.
+  It then plays **a two-player party**: lobby, host-only settings, a synced round, a dropped
+  connection that resumes in the same round, early end, ranking, play again.
+- `pnpm bot AB2CD [nickname] [how many]` — stand-in players that join a room by its code, to try
+  a game with friends on your own. They answer by themselves in multiple-choice rooms; in
+  typed-answer rooms they cannot know and let the clock run. Ctrl+C makes them leave.
 - `node scripts/restart-check.mjs` (from `apps/api`) — restarts the API container in the middle
   of a round and expects the same round to still be playing afterwards.
 - `pnpm --filter @closeup/api seed:sheet` (after a build) — contact sheet of the seed
@@ -157,10 +164,37 @@ Added in phase 1:
   offline for the PWA.
 - **`sharp` only loads in the worker and the seed**, never in the API process.
 
-## Not done yet (after phase 1)
+Added in phase 2:
 
-- Multiplayer: private rooms, lobby, ranking, host migration (phase 2). The engine and the view
-  already handle several players and are tested that way, but nothing creates such a room.
+- **Joining again is how a player reconnects.** Same id, same seat, same score: there is no
+  separate "reconnect" path to get wrong. A player is offline when their _last_ socket in the
+  room closes (two tabs), keeps their seat for 60 s, then the lobby frees it while a running game
+  keeps their score and lets them back later.
+- **The host role goes to the longest-present connected player** once the host has been gone
+  for 60 s, or at once if they leave on purpose.
+- **Offline players never hold a round.** The early end waits for the connected players of that
+  round only; someone who joins mid-round watches it and plays from the next one.
+- **The deck is drawn when the game starts**, not when the room is created: the lobby can still
+  change the number of rounds.
+- **The nickname is asked when creating or joining a room**, stored on the player and in
+  `localStorage` so it is prefilled next time. Two players never read the same in a ranking
+  ("Awa", "Awa 2"): the first free suffix is used, whatever order they arrive in.
+- **Lobby settings are sent as a whole from a local draft.** Built from the store, two quick
+  choices overwrote each other, because the echo of the first had not come back yet.
+- **The QR code is an `<img>` with a data URL**, not injected markup.
+
+## Not done yet (after phase 2)
+
+- Games are not written to the database yet (`Game`, `GameParticipant`): nothing reads them
+  before stats and rankings in phase 6. Only the solo personal best is stored.
+- No nickname filter, reports or bans: phase 7, with public matchmaking.
+- The room language is the host's at creation time and cannot be changed in the lobby; packs,
+  categories and difficulty are not host settings yet (the seed has three small packs).
+- A room lives in one API process. That is the intended v1 deployment (one small VPS); several
+  instances would need the Socket.io Redis adapter and a lock per room.
+- Seen once while driving the browser by script and not reproduced since: a game that started
+  without a scripted click, and a "play again" click with no effect. Both server paths are
+  covered by `pnpm smoke`; worth keeping an eye on during review.
 - Bonuses, maluses, stealing (phase 3): the fourth zoom level exists as crops but no bonus reaches
   it yet, so the strip's last frame stays empty.
 - Big screen (4), admin and uploads (5), accounts (6), public matchmaking (7), player packs (8),
@@ -170,7 +204,6 @@ Added in phase 1:
   desktop Chromium at phone size.
 - The pick of rounds and cards is uniform: difficulty and category filters are in the data model,
   not in the room settings yet.
-- Nickname: solo guests are all called "Joueur"; the nickname field arrives with rooms.
 - Face landmark detection is not written; the seed has no people. It belongs to phase 5.
 - PWA: manifest and service worker registration only, with a placeholder SVG icon. Real icons,
   the offline screen and installability checks belong to phase 9.

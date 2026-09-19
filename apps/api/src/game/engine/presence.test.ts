@@ -71,6 +71,17 @@ describe('the lobby', () => {
     ]);
   });
 
+  it('never gives two players the same name, whatever order they arrive in', () => {
+    const room = new Room();
+    room.join('p2', 'Moussa 2');
+    room.join('p3', 'Moussa');
+    room.join('p4', 'Moussa');
+    room.join('p5', 'moussa 2');
+    const names = Object.values(room.state.players).map((p) => p.nickname.toLowerCase());
+    expect(names).toEqual(['awa', 'moussa 2', 'moussa', 'moussa 3', 'moussa 4']);
+    expect(new Set(names).size).toBe(names.length);
+  });
+
   it('holds 12 players and no more', () => {
     const room = new Room();
     for (let i = 2; i <= 12; i++) expect(room.join(`p${i}`, `Joueur ${i}`).ok).toBe(true);
