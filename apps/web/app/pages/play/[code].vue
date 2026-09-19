@@ -15,6 +15,8 @@ const countdown = ref(0);
 let countdownTimer: ReturnType<typeof setInterval> | undefined;
 
 const solo = computed(() => game.mode === 'solo');
+// Big-screen mode: the image is on the shared screen, this phone only answers and plays bonuses.
+const controller = computed(() => game.display === 'bigscreen');
 // A malus lasts a few seconds: a ticking clock makes it end on screen without a server event.
 const clock = ref(0);
 const malus = computed(() =>
@@ -55,7 +57,12 @@ async function replaySolo(): Promise<void> {
   try {
     const code = await game.createRoom(
       'solo',
-      { rounds: game.totalRounds, answerMode: game.answerMode, scoring: game.scoring },
+      {
+        rounds: game.totalRounds,
+        answerMode: game.answerMode,
+        scoring: game.scoring,
+        display: 'phones',
+      },
       locale.value as 'fr' | 'en',
     );
     // A new code is a new page: it mounts again and enters the room by itself.
@@ -94,8 +101,11 @@ async function quit(): Promise<void> {
     </template>
 
     <template v-else-if="(game.stage === 'countdown' || game.stage === 'playing') && game.round">
-      <section class="stage">
-        <ZoomStrip :crops="game.crops" :media-url="game.mediaUrl" />
+      <p v-if="controller && !game.screens" class="no-screen" role="status">
+        {{ t('play.screenGone') }}
+      </p>
+      <section class="stage" :class="{ controller }">
+        <ZoomStrip v-if="!controller" :crops="game.crops" :media-url="game.mediaUrl" />
         <div class="view">
           <div v-if="game.stage === 'countdown'" class="lens-box waiting">
             <span class="display">{{ countdown || '' }}</span>
@@ -114,7 +124,9 @@ async function quit(): Promise<void> {
             :server-now="game.serverNow"
             :media-url="game.mediaUrl"
             @value="worth = $event"
-          />
+          >
+            <span class="look-up">{{ t('play.lookUp') }}</span>
+          </LensTimer>
           <template v-if="game.stage === 'playing'">
             <div class="below">
               <p class="display worth">{{ worth }}</p>
@@ -146,8 +158,9 @@ async function quit(): Promise<void> {
       <EventFeed />
       <BonusBar />
 
+      <!-- On a controller the ranking is on the shared screen: the phone keeps to the controls. -->
       <RankingList
-        v-if="!solo"
+        v-if="!solo && !controller"
         class="live"
         :players="game.players"
         :you="game.you"
@@ -156,22 +169,26 @@ async function quit(): Promise<void> {
         :limit="3"
       />
 
-      <AnswerForm
-        v-if="game.answerMode === 'text'"
-        :feedback="game.feedback"
-        :disabled="!canAnswer"
-        @guess="game.guess"
-      />
-      <ChoiceGrid
-        v-else
-        :options="game.round.options ?? []"
-        :wrong-ids="game.wrongOptionIds"
-        :removed-ids="game.hints.removedOptionIds"
-        :locked-until="game.lockedUntil"
-        :disabled="!canAnswer"
-        :server-now="game.serverNow"
-        @pick="game.pick"
-      />
+      <!-- In big-screen mode a blur or a flip cannot touch the shared image: it hits the
+           target's own controls instead. -->
+      <div class="controls" :class="controller ? malus : null">
+        <AnswerForm
+          v-if="game.answerMode === 'text'"
+          :feedback="game.feedback"
+          :disabled="!canAnswer"
+          @guess="game.guess"
+        />
+        <ChoiceGrid
+          v-else
+          :options="game.round.options ?? []"
+          :wrong-ids="game.wrongOptionIds"
+          :removed-ids="game.hints.removedOptionIds"
+          :locked-until="game.lockedUntil"
+          :disabled="!canAnswer"
+          :server-now="game.serverNow"
+          @pick="game.pick"
+        />
+      </div>
     </template>
 
     <RevealPanel
@@ -270,6 +287,45 @@ async function quit(): Promise<void> {
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+/* Controller: no strip, a small lens that only keeps time (or shows a zoom-out bonus). */
+.stage.controller {
+  grid-template-columns: minmax(0, 1fr);
+}
+.stage.controller .lens-box {
+  flex-basis: 148px;
+  max-height: 148px;
+}
+.look-up {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--muted);
+}
+.no-screen {
+  margin: var(--space-2) var(--space-4) 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  background: var(--danger);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+}
+.controls {
+  transition:
+    filter 0.25s,
+    rotate 0.35s;
+}
+.controls.blur {
+  filter: blur(7px);
+}
+.controls.flip {
+  rotate: 180deg;
+}
+@media (prefers-reduced-motion: reduce) {
+  .controls {
+    transition: none;
+  }
 }
 .below {
   display: flex;

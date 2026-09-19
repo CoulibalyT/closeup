@@ -92,6 +92,8 @@ onBeforeUnmount(() => cancelAnimationFrame(frame));
         :style="imageStyle"
         draggable="false"
       />
+      <!-- A controller in big-screen mode has no image of its own: the ring still keeps time. -->
+      <div v-else class="empty"><slot /></div>
     </div>
   </div>
 </template>
@@ -100,7 +102,8 @@ onBeforeUnmount(() => cancelAnimationFrame(frame));
 .lens {
   --p: 1;
   aspect-ratio: 1;
-  padding: 9px;
+  /* The shared screen sets a thicker ring: it is read from across the room. */
+  padding: var(--ring-width, 9px);
   border-radius: 50%;
   background: conic-gradient(var(--ring) calc(var(--p) * 360deg), var(--ring-track) 0);
 }
@@ -122,6 +125,14 @@ onBeforeUnmount(() => cancelAnimationFrame(frame));
 }
 .glass.flip {
   rotate: 180deg;
+}
+.empty {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 12%;
+  text-align: center;
 }
 img {
   display: block;

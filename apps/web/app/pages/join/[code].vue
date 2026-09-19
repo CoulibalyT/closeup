@@ -61,7 +61,14 @@ async function join(): Promise<void> {
 
     <template v-else-if="summary">
       <p class="muted">{{ t('join.room', { code }) }}</p>
-      <h1 class="display">{{ t('join.invites', { host: summary.hostNickname }) }}</h1>
+      <!-- A room opened from a big screen has no host until its first player: that is them. -->
+      <h1 class="display">
+        {{
+          summary.hostNickname
+            ? t('join.invites', { host: summary.hostNickname })
+            : t('join.firstIn')
+        }}
+      </h1>
       <p class="muted">
         {{
           t('join.details', {

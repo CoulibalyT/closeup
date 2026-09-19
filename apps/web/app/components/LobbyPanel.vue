@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { type AnswerMode, ROOM, SCORING_MODES, type ScoringMode } from '@closeup/shared';
+import {
+  type AnswerMode,
+  DISPLAY_MODES,
+  type DisplayMode,
+  ROOM,
+  SCORING_MODES,
+  type ScoringMode,
+} from '@closeup/shared';
 import { renderSVG } from 'uqr';
 
 const { t } = useI18n();
@@ -14,6 +21,12 @@ const qrSrc = computed(() =>
   joinUrl.value
     ? `data:image/svg+xml;utf8,${encodeURIComponent(renderSVG(joinUrl.value, { border: 2 }))}`
     : '',
+);
+
+// What to open on the TV or the laptop. Shown without the scheme: it is typed by hand.
+const screenPath = computed(() => localePath(`/screen/${game.code}`));
+const screenUrl = computed(() =>
+  import.meta.client ? location.host + screenPath.value : screenPath.value,
 );
 
 const shared = ref(false);
@@ -38,11 +51,17 @@ const draft = reactive({
   rounds: game.totalRounds,
   answerMode: game.answerMode,
   scoring: game.scoring,
+  display: game.display,
 });
 watch(
-  () => [game.totalRounds, game.answerMode, game.scoring] as const,
-  ([rounds, answerMode, scoring]) => Object.assign(draft, { rounds, answerMode, scoring }),
+  () => [game.totalRounds, game.answerMode, game.scoring, game.display] as const,
+  ([rounds, answerMode, scoring, display]) =>
+    Object.assign(draft, { rounds, answerMode, scoring, display }),
 );
+function setDisplay(display: DisplayMode): void {
+  draft.display = display;
+  void game.updateSettings({ ...draft });
+}
 function setScoring(scoring: ScoringMode): void {
   draft.scoring = scoring;
   void game.updateSettings({ ...draft });
@@ -65,6 +84,9 @@ async function start(): Promise<void> {
 }
 
 const enoughPlayers = computed(() => game.presentCount >= ROOM.minPlayers);
+// Phones show no image in big-screen mode: the game waits for a screen (the server checks too).
+const bigScreen = computed(() => game.display === 'bigscreen');
+const screenMissing = computed(() => bigScreen.value && game.screens === 0);
 </script>
 
 <template>
@@ -80,6 +102,21 @@ const enoughPlayers = computed(() => game.presentCount >= ROOM.minPlayers);
           {{ shared ? t('lobby.copied') : canShareNatively ? t('lobby.share') : t('lobby.copy') }}
         </button>
       </div>
+    </div>
+
+    <div v-if="bigScreen" class="screen-status" :class="{ on: !screenMissing }" role="status">
+      <template v-if="screenMissing">
+        <p>
+          <b>{{ t('lobby.screenOpen') }}</b>
+        </p>
+        <p class="url">{{ screenUrl }}</p>
+        <NuxtLink class="here" :to="screenPath" target="_blank">{{
+          t('lobby.screenHere')
+        }}</NuxtLink>
+      </template>
+      <p v-else>
+        <b>{{ t('lobby.screenOn') }}</b>
+      </p>
     </div>
 
     <h2>{{ t('lobby.players', { n: game.players.length, max: ROOM.maxPlayers }) }}</h2>
@@ -103,6 +140,19 @@ const enoughPlayers = computed(() => game.presentCount >= ROOM.minPlayers);
     </ul>
 
     <template v-if="game.isHost">
+      <fieldset>
+        <legend>{{ t('home.display') }}</legend>
+        <label v-for="mode in DISPLAY_MODES" :key="mode">
+          <input
+            type="radio"
+            name="lobby-display"
+            :checked="draft.display === mode"
+            @change="setDisplay(mode)"
+          />
+          <span>{{ t(`home.displayMode.${mode}`) }}</span>
+        </label>
+        <p class="muted hint">{{ t(`home.displayHint.${draft.display}`) }}</p>
+      </fieldset>
       <fieldset>
         <legend>{{ t('home.rounds') }}</legend>
         <label v-for="n in ROOM.roundsOptions" :key="n">
@@ -159,17 +209,21 @@ const enoughPlayers = computed(() => game.presentCount >= ROOM.minPlayers);
         })
       }}
       {{ t(`home.scoringHint.${game.scoring}`) }}
+      <template v-if="bigScreen">{{ t('home.displayHint.bigscreen') }}</template>
     </p>
 
     <div class="actions">
       <p v-if="game.isHost && !enoughPlayers" class="muted">{{ t('lobby.needPlayers') }}</p>
+      <p v-else-if="game.isHost && screenMissing" class="muted">{{ t('lobby.needScreen') }}</p>
       <p v-else-if="!game.isHost" class="muted">{{ t('lobby.waitingHost') }}</p>
-      <p v-if="startError" class="error" role="alert">{{ t('lobby.startFailed') }}</p>
+      <p v-if="startError" class="error" role="alert">
+        {{ t(startError === 'NO_SCREEN' ? 'lobby.needScreen' : 'lobby.startFailed') }}
+      </p>
       <button
         v-if="game.isHost"
         type="button"
         class="button"
-        :disabled="!enoughPlayers || starting"
+        :disabled="!enoughPlayers || screenMissing || starting"
         @click="start"
       >
         {{ t('lobby.start') }}
@@ -191,6 +245,29 @@ const enoughPlayers = computed(() => game.presentCount >= ROOM.minPlayers);
 .code {
   font-size: clamp(44px, 16vw, 68px);
   letter-spacing: 0.04em;
+}
+.screen-status {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-4);
+  padding: var(--space-3);
+  border: 1.5px dashed var(--ink);
+  border-radius: var(--radius);
+}
+.screen-status.on {
+  border: 1.5px solid var(--good);
+  color: var(--good);
+}
+.screen-status .url {
+  font-size: 17px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.screen-status .here {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--accent);
 }
 .invite {
   display: grid;

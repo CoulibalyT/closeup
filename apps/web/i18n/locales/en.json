@@ -22,7 +22,19 @@
     "scoringHint": {
       "decay": "The faster you find it, the more it pays: from 1000 down to 200 points.",
       "fixed": "The first to find it gets 1000 points, the second 800, the third 600, everyone after 500. Time does not count."
-    }
+    },
+    "display": "Where the picture shows",
+    "displayMode": {
+      "phones": "On every phone",
+      "bigscreen": "On a big screen"
+    },
+    "displayHint": {
+      "phones": "Everyone sees the picture on their own phone.",
+      "bigscreen": "The picture goes on a TV or a laptop. Phones are controllers: answers and bonuses."
+    },
+    "bigScreen": "Big screen",
+    "bigScreenHint": "This device shows the picture to everyone, and everyone plays from their phone. The first person to join picks the settings.",
+    "bigScreenOpen": "Use this device as the screen"
   },
   "join": {
     "title": "Join a game, {appName}",
@@ -37,7 +49,8 @@
     "started": "The game has already started: you come in on the next round.",
     "nickname": "Your nickname",
     "nicknamePlaceholder": "2 to 16 characters",
-    "submit": "Join the game"
+    "submit": "Join the game",
+    "firstIn": "You open the game: you will pick the settings"
   },
   "lobby": {
     "codeLabel": "Game code",
@@ -59,7 +72,11 @@
     "waitingHost": "The host starts the game when everyone is here.",
     "startFailed": "The game could not start. Try again.",
     "start": "Start the game",
-    "leave": "Leave the game"
+    "leave": "Leave the game",
+    "screenOpen": "Open this address on the TV or the laptop:",
+    "screenHere": "Open the screen on this device",
+    "screenOn": "Big screen connected.",
+    "needScreen": "Open the big screen first: without it nobody sees the picture."
   },
   "ranking": {
     "found": "found it",
@@ -142,7 +159,9 @@
     "worthFixed": "points for the next one to find it",
     "frozen": "Your input is frozen for a few seconds.",
     "secondZoneAlt": "Another part of the same picture",
-    "categoryHint": "Category: {category}"
+    "categoryHint": "Category: {category}",
+    "lookUp": "The picture is on the big screen",
+    "screenGone": "The big screen is disconnected. Open it again to see the picture."
   },
   "reveal": {
     "found": "Found +{points}",
@@ -164,6 +183,26 @@
     "replay": "Play another game",
     "replayParty": "Play again with the same players",
     "waitingHost": "The host can start another game."
+  },
+  "screen": {
+    "title": "Big screen, {appName}",
+    "scan": "Scan to play",
+    "orCode": "or go to {host} and enter the code",
+    "joinChip": "Join at {host}, code",
+    "fullscreen": "Full screen",
+    "firstIsHost": "The first person to join picks the settings and starts the game.",
+    "hostStarts": "{host} starts the game from their phone.",
+    "phonesMode": "This game shows the picture on the phones. The host can pick “On a big screen” in the settings.",
+    "worthNote": "points for whoever finds it now",
+    "itWas": "It was",
+    "winner": "Winner",
+    "finalRanking": "Final ranking",
+    "replayHint": "{host} can start another game from their phone.",
+    "closed": "This game is closed",
+    "full": "Too many screens on this game",
+    "closedHint": "Everybody left, or nobody came. You can open another one on this screen.",
+    "reopen": "Open a new game",
+    "zone": "That was {zone}."
   },
   "status": {
     "title": "{appName} status",

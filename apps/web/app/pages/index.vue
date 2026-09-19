@@ -42,10 +42,23 @@ const createParty = () =>
     game.setNickname(nickname.value);
     const code = await game.createRoom(
       'private',
-      { rounds: ROOM.defaultRounds, answerMode: 'text', scoring: 'decay' },
+      { rounds: ROOM.defaultRounds, answerMode: 'text', scoring: 'decay', display: 'phones' },
       locale.value as 'fr' | 'en',
     );
     return `/play/${code}`;
+  });
+
+// --- big screen: this device shows the image, nobody plays on it. The first phone to join
+// becomes the host and picks the settings from there. ---
+const openScreen = () =>
+  go(async () => {
+    const code = await game.createRoom(
+      'private',
+      { rounds: ROOM.defaultRounds, answerMode: 'text', scoring: 'decay', display: 'bigscreen' },
+      locale.value as 'fr' | 'en',
+      'screen',
+    );
+    return `/screen/${code}`;
   });
 
 const joinCode = ref('');
@@ -62,6 +75,7 @@ const playSolo = () =>
       rounds: rounds.value,
       answerMode: answerMode.value,
       scoring: scoring.value,
+      display: 'phones' as const,
     };
     return `/play/${await game.createRoom('solo', settings, locale.value as 'fr' | 'en')}`;
   });
@@ -118,6 +132,14 @@ const playSolo = () =>
           {{ t('home.join') }}
         </button>
       </form>
+    </section>
+
+    <section class="block stack">
+      <h2>{{ t('home.bigScreen') }}</h2>
+      <p class="muted">{{ t('home.bigScreenHint') }}</p>
+      <button type="button" class="button quiet" :disabled="busy" @click="openScreen">
+        {{ t('home.bigScreenOpen') }}
+      </button>
     </section>
 
     <form class="block stack" @submit.prevent="playSolo">

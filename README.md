@@ -7,12 +7,12 @@ races to guess what it is. `closeup` is a codename; the player-facing name lives
 - The brief: [docs/brief.md](docs/brief.md)
 - The validated solo prototype: [docs/prototype/gros-plan.html](docs/prototype/gros-plan.html)
 
-**Status: phase 3 (bonuses, maluses, shield, stealing) done.** On top of private rooms (code,
-link, QR code, lobby, live ranking, 60-second reconnection, play again) and solo training, players
-now earn bonuses by playing and throw them at each other: zoom out, second zone, initials,
-category, remove two options, shield, blur, flip, freeze, steal a bonus, steal points. The host
-can also choose **fixed points** (paid by order of arrival) instead of points that decay with the
-clock. 22 original seed cards, free text or multiple choice.
+**Status: phase 4 (big screen + phones) done.** A TV or a laptop opens `/screen/CODE` and shows
+the close-up, the timer, the live ranking and the code to join; phones become controllers, with
+the answer input and the bonuses only. That comes on top of private rooms (code, link, QR code,
+lobby, 60-second reconnection, play again), solo training, the eleven bonuses, maluses and steals
+of phase 3, and the choice between points that decay with the clock and **fixed points**. 22
+original seed cards, free text or multiple choice.
 
 ## Run it
 
@@ -25,7 +25,9 @@ docker compose up --build
 ```
 
 Open `http://localhost:3000` (or your `WEB_PORT`), pick a number of rounds and how you answer, and
-play. On first start the API seeds the cards and the worker cuts their crops (about 20 s); the
+play. For a party around one screen, open the site on the TV or the laptop and choose "Use this
+device as the screen": it shows a QR code, and the first phone to join holds the room. A host
+who already has a room can also pick "On a big screen" in the lobby and open the address shown. On first start the API seeds the cards and the worker cuts their crops (about 20 s); the
 files land in `data/media/`, a plain folder you can browse. `/status` is the technical page from
 phase 0: six rows that must read "en ligne"; stop Redis and it says so within five seconds.
 
@@ -38,10 +40,14 @@ Scripts that check a running stack from the host:
   client, then **a whole solo game** in multiple-choice mode (guest cookie, room, crops served and
   forged URL refused, scoring, reveal, personal best). Exits 1 on a failure.
   It then plays **a two-player party**: lobby, host-only settings, a synced round, a dropped
-  connection that resumes in the same round, early end, ranking, play again.
+  connection that resumes in the same round, early end, ranking, play again; a three-player
+  round where the fastest earns a bonus and plays it; and **a big-screen game**: room opened from
+  the screen, first phone holds it, no start without a screen, image to the screen only.
 - `pnpm bot AB2CD [nickname] [how many]` — stand-in players that join a room by its code, to try
   a game with friends on your own. They answer by themselves in multiple-choice rooms; in
-  typed-answer rooms they cannot know and let the clock run. Ctrl+C makes them leave.
+  typed-answer rooms they cannot know and let the clock run. Ctrl+C makes them leave. With
+  `--host`, in a room they are the first to enter (one opened from a big screen), the bot that
+  holds the room picks multiple choice and starts: enough to watch `/screen/CODE` on your own.
 - `node scripts/restart-check.mjs` (from `apps/api`) — restarts the API container in the middle
   of a round and expects the same round to still be playing afterwards.
 - `pnpm --filter @closeup/api seed:sheet` (after a build) — contact sheet of the seed
@@ -218,10 +224,43 @@ Added in phase 3:
   clock says. Penalties and the floor of 100 still apply. A host setting next to the rounds and
   the answer mode; the live value then shows what the _next_ finder gets.
 
-## Not done yet (after phase 3)
+Added in phase 4:
 
-- Big-screen mode (phase 4): maluses hit the lens for now; on a shared screen they will have to
-  hit the phone's controls instead, and visual bonuses will show in a mini-lens on the phone.
+- **A shared screen is a spectator, not a player.** It joins with `role: 'screen'`, never reaches
+  the game engine, needs no nickname, and every game command from its socket is refused. The
+  engine still does not know what a screen is; the display mode only changes who receives what.
+- **The image goes to the screens only.** In big-screen mode `round:start` and `round:level` are
+  built twice, with the crop for `room:CODE:screens` and without it for `room:CODE:players`. The
+  phone payload is built without the crop, never stripped of it afterwards. This is the contract
+  of the mode, not a secret: anyone with the code may open a screen.
+- **`display` is a lobby setting** like the rounds, so a host can create a room on their phone
+  and move it to the TV afterwards. A big-screen game does not start without a connected screen
+  (`NO_SCREEN`, checked on the server and shown in the lobby), and a controller says so when the
+  screen drops mid-game. Up to four screens per room.
+- **A room can be opened from the screen itself** (addition to the brief, easy to remove: see
+  `openedBy` in `POST /api/rooms`). Nobody plays on that device, so the room starts without a
+  host and **the first player to join holds it**. Its empty lobby survives 15 minutes (the TV
+  still shows the code) where a normal room is dropped at once; when it is dropped the screen
+  hears `room:closed` and offers to open another. Without this, a host creating the room on the
+  laptop became a player on the laptop, which is the one device they do not want to play on.
+- **Private visual bonuses show in a small lens on the phone** (owner's decision): a zoom-out
+  puts its owner one level ahead in their own lens while the shared screen keeps the room's
+  level. The controller's lens is otherwise empty and only keeps time.
+- **Maluses hit the controls**: on a controller, blur and flip apply to the answer input or the
+  option grid, never to the shared screen. Freeze was already enforced on the server.
+- **The ranking is live**: the scorer's new total (and the thief's) is broadcast when the answer
+  lands, not only at the reveal. Found by looking at the big screen, where a "+630" next to a
+  total of 0 was plain to see.
+- The screen asks for a wake lock (a TV that sleeps mid-round ends the party) and offers full
+  screen. `PROTOCOL_VERSION` is now 2: a cached client from before gets "reload".
+
+## Not done yet (after phase 4)
+
+- Big screen: driven by script and bots in desktop Chromium (1280×720 for the screen, phone size
+  for a controller). **Not tried on a real TV**, through a cast, or with real phones; text sizes
+  use viewport units and were only judged on a laptop screen.
+- The host's controls stay on their phone: the shared screen has no "start" or "skip" button,
+  on purpose (nobody holds the TV's mouse). A keyboard shortcut on the screen could come later.
 - The "category" bonus is always in the draw: rooms cannot be limited to one category yet, which
   is the only case where it should be left out.
 - Bonus UI was driven by script in desktop Chromium at phone size, with bots as opponents: not
@@ -237,8 +276,8 @@ Added in phase 3:
 - Seen once while driving the browser by script and not reproduced since: a game that started
   without a scripted click, and a "play again" click with no effect. Both server paths are
   covered by `pnpm smoke`; worth keeping an eye on during review.
-- Big screen (4), admin and uploads (5), accounts (6), public matchmaking (7), player packs (8),
-  deployment (9), Wikimedia importer (10).
+- Admin and uploads (5), accounts (6), public matchmaking (7), player packs (8), deployment (9),
+  Wikimedia importer (10).
 - **Not verified on a real iPhone.** The keyboard handling (`visualViewport` sets the screen
   height, 17 px input so Safari does not zoom) follows the known recipe but was only exercised in
   desktop Chromium at phone size.

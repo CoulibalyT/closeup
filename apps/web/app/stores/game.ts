@@ -6,6 +6,7 @@ import {
   type BonusUseReply,
   brand,
   ClientEvent,
+  type DisplayMode,
   type Hints,
   type Malus,
   roundBlockedSchema,
@@ -28,6 +29,7 @@ import {
   roomLobbySchema,
   roomPlayerLeftSchema,
   roomPlayerSchema,
+  roomScreensSchema,
   roomSettingsEventSchema,
   roomSummarySchema,
   type RoundEnd,
@@ -46,6 +48,7 @@ type Ack<T> = { ok: true; data: T } | { ok: false; error: { code: string; messag
 export type Stage = 'connecting' | RoomStateView['phase'] | 'lost' | 'full' | 'kicked';
 export type Feedback = 'close' | 'wrong' | 'rate_limited' | null;
 export type RoomMode = RoomStateView['mode'];
+export type Role = RoomStateView['role'];
 
 /** An announcement for the event feed. Ids are player ids; the component resolves names. */
 export interface FeedEntry {
@@ -75,6 +78,12 @@ export const useGameStore = defineStore('game', () => {
   const stage = ref<Stage>('connecting');
   const code = ref('');
   const mode = ref<RoomMode>('solo');
+  /** `screen`: this device is the shared screen of a big-screen room. It watches, it never plays. */
+  const role = ref<Role>('player');
+  /** `bigscreen`: the image is on the shared screen and this phone is a controller. */
+  const display = ref<DisplayMode>('phones');
+  /** How many shared screens the room has right now. */
+  const screens = ref(0);
   const you = ref('');
   const hostId = ref('');
   const players = ref<Player[]>([]);
@@ -154,18 +163,24 @@ export const useGameStore = defineStore('game', () => {
     if (!guest.ok) throw new Error('identity');
   }
 
-  /** Guest first, then the room. Returns the room code. */
+  /**
+   * Guest first, then the room. Returns the room code. `openedBy: 'screen'` opens a big-screen
+   * room from the screen itself: this device will not play, the first phone to join is the host.
+   */
   async function createRoom(
     roomMode: 'solo' | 'private',
     settings: RoomSettings,
     language: 'fr' | 'en',
+    openedBy: Role = 'player',
   ): Promise<string> {
     await ensureGuest();
+    const asPlayer = roomMode === 'private' && openedBy === 'player';
     const room = await post('/api/rooms', {
       mode: roomMode,
       language,
       settings,
-      nickname: roomMode === 'private' ? rememberedNickname() : undefined,
+      openedBy,
+      nickname: asPlayer ? rememberedNickname() : undefined,
     });
     if (!room.ok) throw new Error('room');
     return roomCreatedSchema.parse(await room.json()).code;
@@ -214,8 +229,11 @@ export const useGameStore = defineStore('game', () => {
   function hydrate(view: RoomStateView): void {
     stage.value = view.phase;
     mode.value = view.mode;
-    you.value = view.you;
-    hostId.value = view.hostId;
+    role.value = view.role;
+    display.value = view.display;
+    screens.value = view.screens;
+    you.value = view.you ?? '';
+    hostId.value = view.hostId ?? '';
     players.value = view.players;
     answerMode.value = view.answerMode;
     scoring.value = view.scoring;
@@ -229,6 +247,7 @@ export const useGameStore = defineStore('game', () => {
       if (round.value?.roundId !== roundId) resetRound();
       round.value = { roundId, index, startsAt, endsAt, options };
       if (crop) addCrop(crop);
+      answeredIds.value = view.round.foundIds;
       hints.value = view.round.hints;
       effect.value = view.round.effect ?? null;
       seated.value = view.round.seated;
@@ -266,7 +285,16 @@ export const useGameStore = defineStore('game', () => {
       const settings = roomSettingsEventSchema.parse(raw);
       answerMode.value = settings.answerMode;
       scoring.value = settings.scoring;
+      display.value = settings.display;
       totalRounds.value = settings.rounds;
+    });
+    io.on(ServerEvent.roomScreens, (raw) => {
+      screens.value = roomScreensSchema.parse(raw).count;
+    });
+    // Everyone left, or nobody ever came. A shared screen offers to open another room.
+    io.on(ServerEvent.roomClosed, () => {
+      stage.value = 'lost';
+      io.disconnect();
     });
     io.on(ServerEvent.roomLobby, (raw) => {
       players.value = roomLobbySchema.parse(raw).players;
@@ -282,6 +310,7 @@ export const useGameStore = defineStore('game', () => {
       const started = gameStartedSchema.parse(raw);
       totalRounds.value = started.totalRounds;
       answerMode.value = started.answerMode;
+      display.value = started.display;
     });
 
     io.on(ServerEvent.roundPrepare, (raw) => {
@@ -295,13 +324,14 @@ export const useGameStore = defineStore('game', () => {
     io.on(ServerEvent.roundStart, (raw) => {
       const payload = roundStartSchema.parse(raw);
       round.value = { ...payload };
-      crops.value = [payload.crop];
+      // No crop on a phone in big-screen mode: the image is on the shared screen.
+      crops.value = payload.crop ? [payload.crop] : [];
       stage.value = 'playing';
     });
     io.on(ServerEvent.roundLevel, (raw) => {
       const payload = roundLevelSchema.parse(raw);
       if (payload.roundId !== round.value?.roundId) return;
-      addCrop(payload.crop);
+      if (payload.crop) addCrop(payload.crop);
     });
 
     // Private: only the owner hears what they were given.
@@ -365,11 +395,14 @@ export const useGameStore = defineStore('game', () => {
   async function rejoin(io: Socket): Promise<void> {
     const clock = await measureClock(io).catch(() => null);
     if (clock) clockOffsetMs.value = clock.offsetMs;
-    const ack: Ack<RoomStateView> = await io.timeout(5_000).emitWithAck(ClientEvent.roomJoin, {
-      code: code.value,
-      nickname: rememberedNickname() || SOLO_NICKNAME,
-      role: 'player',
-    });
+    const ack: Ack<RoomStateView> = await io
+      .timeout(5_000)
+      .emitWithAck(
+        ClientEvent.roomJoin,
+        role.value === 'screen'
+          ? { code: code.value, role: 'screen' }
+          : { code: code.value, nickname: rememberedNickname() || SOLO_NICKNAME, role: 'player' },
+      );
     if (!ack.ok) {
       stage.value = ack.error.code === 'ROOM_FULL' ? 'full' : 'lost';
       return;
@@ -381,8 +414,9 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
-  async function enter(roomCode: string): Promise<void> {
+  async function enter(roomCode: string, as: Role = 'player'): Promise<void> {
     code.value = roomCode;
+    role.value = as;
     stage.value = 'connecting';
     end.value = null;
     reveal.value = null;
@@ -482,6 +516,9 @@ export const useGameStore = defineStore('game', () => {
     stage,
     code,
     mode,
+    role,
+    display,
+    screens,
     you,
     hostId,
     isHost,

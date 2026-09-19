@@ -22,7 +22,19 @@
     "scoringHint": {
       "decay": "Plus tu trouves vite, plus ça rapporte : de 1000 à 200 points.",
       "fixed": "Le premier à trouver gagne 1000 points, le deuxième 800, le troisième 600, les suivants 500. Le temps ne compte pas."
-    }
+    },
+    "display": "Où s'affiche l'image",
+    "displayMode": {
+      "phones": "Sur chaque téléphone",
+      "bigscreen": "Sur un grand écran"
+    },
+    "displayHint": {
+      "phones": "Chacun voit l'image sur son téléphone.",
+      "bigscreen": "L'image passe sur une télé ou un ordi. Les téléphones servent de manette : réponse et bonus."
+    },
+    "bigScreen": "Grand écran",
+    "bigScreenHint": "Cet appareil affiche l'image pour tout le monde, chacun joue depuis son téléphone. La première personne qui rejoint choisit les réglages.",
+    "bigScreenOpen": "Utiliser cet appareil comme écran"
   },
   "join": {
     "title": "Rejoindre une partie, {appName}",
@@ -37,7 +49,8 @@
     "started": "La partie a déjà commencé : tu entres à la prochaine manche.",
     "nickname": "Ton pseudo",
     "nicknamePlaceholder": "2 à 16 caractères",
-    "submit": "Rejoindre la partie"
+    "submit": "Rejoindre la partie",
+    "firstIn": "Tu ouvres la partie : tu choisiras les réglages"
   },
   "lobby": {
     "codeLabel": "Code de la partie",
@@ -59,7 +72,11 @@
     "waitingHost": "L'hôte lance la partie quand tout le monde est là.",
     "startFailed": "La partie n'a pas pu démarrer. Réessaie.",
     "start": "Lancer la partie",
-    "leave": "Quitter la partie"
+    "leave": "Quitter la partie",
+    "screenOpen": "Ouvre cette adresse sur la télé ou l'ordi :",
+    "screenHere": "Ouvrir l'écran sur cet appareil",
+    "screenOn": "Grand écran connecté.",
+    "needScreen": "Ouvre d'abord le grand écran : sans lui, personne ne voit l'image."
   },
   "ranking": {
     "found": "a trouvé",
@@ -142,7 +159,9 @@
     "worthFixed": "points pour le prochain qui trouve",
     "frozen": "Ta saisie est gelée quelques secondes.",
     "secondZoneAlt": "Une autre zone de la même image",
-    "categoryHint": "Catégorie : {category}"
+    "categoryHint": "Catégorie : {category}",
+    "lookUp": "L'image est sur le grand écran",
+    "screenGone": "Le grand écran est déconnecté. Rouvre-le pour voir l'image."
   },
   "reveal": {
     "found": "Trouvé +{points}",
@@ -164,6 +183,26 @@
     "replay": "Rejouer une partie",
     "replayParty": "Rejouer avec les mêmes joueurs",
     "waitingHost": "L'hôte peut relancer une partie."
+  },
+  "screen": {
+    "title": "Grand écran, {appName}",
+    "scan": "Scanne pour jouer",
+    "orCode": "ou va sur {host} et entre le code",
+    "joinChip": "Rejoindre sur {host}, code",
+    "fullscreen": "Plein écran",
+    "firstIsHost": "La première personne qui rejoint choisit les réglages et lance la partie.",
+    "hostStarts": "{host} lance la partie depuis son téléphone.",
+    "phonesMode": "Cette partie affiche l'image sur les téléphones. L'hôte peut choisir « Sur un grand écran » dans ses réglages.",
+    "worthNote": "points pour qui trouve maintenant",
+    "itWas": "C'était",
+    "winner": "Victoire de",
+    "finalRanking": "Classement final",
+    "replayHint": "{host} peut relancer une partie depuis son téléphone.",
+    "closed": "Cette partie est fermée",
+    "full": "Trop d'écrans sur cette partie",
+    "closedHint": "Tout le monde est parti, ou personne n'est venu. Tu peux en ouvrir une autre sur cet écran.",
+    "reopen": "Ouvrir une nouvelle partie",
+    "zone": "On voyait {zone}."
   },
   "status": {
     "title": "État de {appName}",
