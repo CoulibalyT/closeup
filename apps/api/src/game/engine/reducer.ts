@@ -15,7 +15,6 @@ import { matchAnswer } from './matching.js';
 import type {
   Command,
   Context,
-  Display,
   Effect,
   EngineEvent,
   PlayerState,
@@ -37,9 +36,8 @@ import type {
 export function createRoom(init: {
   code: string;
   mode: RoomMode;
-  display: Display;
-  hostId: string;
-  nickname: string;
+  /** Without a host the room was opened from a shared screen: the first to join becomes host. */
+  host?: { id: string; nickname: string };
   language: Locale;
   settings: RoomSettings;
   lexicon: string[];
@@ -48,12 +46,14 @@ export function createRoom(init: {
   return {
     code: init.code,
     mode: init.mode,
-    display: init.display,
-    hostId: init.hostId,
+    hostId: init.host?.id ?? null,
+    ...(init.host ? {} : { openedByScreen: true as const, emptySince: init.now ?? 0 }),
     language: init.language,
     settings: init.settings,
     phase: 'lobby',
-    players: { [init.hostId]: newPlayer(init.hostId, init.nickname, init.now ?? 0) },
+    players: init.host
+      ? { [init.host.id]: newPlayer(init.host.id, init.host.nickname, init.now ?? 0) }
+      : {},
     roundIndex: 0,
     totalRounds: init.settings.rounds,
     lexicon: init.lexicon,
@@ -72,6 +72,9 @@ const newPlayer = (id: string, nickname: string, joinedAt: number): PlayerState 
   connected: true,
   joinedAt,
 });
+
+const hostOf = (state: RoomState): PlayerState | undefined =>
+  state.hostId === null ? undefined : state.players[state.hostId];
 
 const OK: Reply = { ok: true, data: {} };
 const refuse = (code: ErrorCode, message: string): Reply => ({
@@ -96,6 +99,7 @@ function advance(state: RoomState, ctx: Context, effects: Effect[]): void {
   const emit = (event: EngineEvent) => effects.push({ type: 'emit', event });
 
   expireGrace(state, ctx.now, effects, emit);
+  expireEmptyRoom(state, ctx.now, effects);
   for (let guard = 0; guard < 16; guard++) {
     const round = state.round;
 
@@ -144,7 +148,8 @@ function nextWake(state: RoomState): number | null {
   const grace = Object.values(state.players)
     .filter((p) => p.disconnectedAt !== undefined && !p.gone)
     .map((p) => p.disconnectedAt! + ROOM.reconnectGraceMs);
-  const next = Math.min(game ?? Infinity, ...grace);
+  const empty = state.emptySince === undefined ? Infinity : state.emptySince + ROOM.emptyRoomTtlMs;
+  const next = Math.min(game ?? Infinity, empty, ...grace);
   return Number.isFinite(next) ? next : null;
 }
 
@@ -193,7 +198,7 @@ function dispatch(
         known.connected = true;
         known.disconnectedAt = undefined;
         known.gone = undefined;
-        if (!state.players[state.hostId]?.connected) migrateHost(state, emit);
+        if (!hostOf(state)?.connected) migrateHost(state, emit);
         emit({ type: 'playerUpdated', playerId: known.id });
         return OK;
       }
@@ -208,7 +213,10 @@ function dispatch(
         uniqueNickname(state, command.nickname),
         ctx.now,
       );
+      state.emptySince = undefined;
       emit({ type: 'playerJoined', playerId: command.playerId });
+      // Nobody holds the room (it was opened from a shared screen, or its host is gone for good).
+      if (!hostOf(state)) migrateHost(state, emit);
       return OK;
     }
 
@@ -443,6 +451,9 @@ function score(
   player.streak += 1;
   player.bestStreak = Math.max(player.bestStreak, player.streak);
   emit({ type: 'playerAnswered', playerId, points, order: round.answerOrder.length });
+  // The ranking is live (it is what a shared screen shows): totals follow at once, the thief's too.
+  emit({ type: 'playerUpdated', playerId });
+  if (thief && stolen > 0) emit({ type: 'playerUpdated', playerId: thief.id });
 
   // Bonuses are earned by playing: a streak, or being the fastest of a big enough round.
   if (player.streak % BONUS.streakLength === 0) grant(state, playerId, 'streak', ctx, effects);
@@ -509,7 +520,20 @@ function removePlayer(
 
   if (state.hostId === playerId) migrateHost(state, emit);
   if (state.phase === 'playing' && state.round) checkEarlyEnd(state, state.round, now, emit);
-  if (!Object.values(state.players).some((p) => !p.gone)) effects.push({ type: 'abandoned' });
+  if (Object.values(state.players).some((p) => !p.gone)) return;
+  // A shared screen still shows the code: its lobby waits for the next players, for a while.
+  if (state.openedByScreen && state.phase === 'lobby') {
+    state.hostId = null;
+    state.emptySince = now;
+    // They may have left right after "start": the card still loading has nobody to be shown to.
+    state.awaitingCard = false;
+  } else effects.push({ type: 'abandoned' });
+}
+
+function expireEmptyRoom(state: RoomState, now: number, effects: Effect[]): void {
+  if (state.emptySince === undefined || now < state.emptySince + ROOM.emptyRoomTtlMs) return;
+  state.emptySince = undefined;
+  effects.push({ type: 'abandoned' });
 }
 
 /** Players whose 60 seconds ran out: the lobby frees their seat, a game keeps their score. */

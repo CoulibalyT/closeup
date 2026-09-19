@@ -37,7 +37,13 @@ export class RoomsController {
 
     const request = createRoomSchema.safeParse(body);
     if (!request.success) throw new BadRequestException(request.error.issues);
-    const { mode, settings, language, nickname } = request.data;
+    const { mode, settings, language, nickname, openedBy } = request.data;
+    // This device is the shared screen, not a player: the first phone to join will be the host.
+    if (openedBy === 'screen') {
+      return {
+        code: await this.rooms.create(mode, null, { ...settings, display: 'bigscreen' }, language),
+      };
+    }
 
     // The nickname typed for this room becomes the player's, so it is prefilled next time.
     if (nickname && nickname !== identity.nickname) {

@@ -15,9 +15,7 @@ class Room {
     this.state = createRoom({
       code: 'AB2CD',
       mode,
-      display: 'phones',
-      hostId: 'p1',
-      nickname: 'Awa',
+      host: { id: 'p1', nickname: 'Awa' },
       language: 'fr',
       settings: { rounds: 3, answerMode: 'text' },
       lexicon: [],

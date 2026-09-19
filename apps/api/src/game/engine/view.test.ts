@@ -18,9 +18,7 @@ function record(answerMode: 'text' | 'mcq') {
   let state: RoomState = createRoom({
     code: 'AB2CD',
     mode: 'private',
-    display: 'phones',
-    hostId: 'p1',
-    nickname: 'Awa',
+    host: { id: 'p1', nickname: 'Awa' },
     language: 'fr',
     settings: { rounds: 1, answerMode },
     lexicon: [],
@@ -100,9 +98,7 @@ describe('nothing secret reaches a client before the reveal', () => {
     let state = createRoom({
       code: 'AB2CD',
       mode: 'solo',
-      display: 'phones',
-      hostId: 'p1',
-      nickname: 'Awa',
+      host: { id: 'p1', nickname: 'Awa' },
       language: 'fr',
       settings: { rounds: 1, answerMode: 'mcq' },
       lexicon: [],
@@ -150,9 +146,7 @@ describe('a snapshot for someone who reconnects mid-round', () => {
     let live = createRoom({
       code: state().code,
       mode: 'private',
-      display: 'phones',
-      hostId: 'p1',
-      nickname: 'Awa',
+      host: { id: 'p1', nickname: 'Awa' },
       language: 'fr',
       settings: { rounds: 1, answerMode: 'mcq' },
       lexicon: [],

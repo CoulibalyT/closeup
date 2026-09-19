@@ -22,9 +22,7 @@ class Game {
     this.state = createRoom({
       code: 'AB2CD',
       mode: options.mode ?? 'solo',
-      display: 'phones',
-      hostId: 'p1',
-      nickname: 'Awa',
+      host: { id: 'p1', nickname: 'Awa' },
       language: 'fr',
       settings: { rounds: options.rounds ?? 2, answerMode: options.answerMode ?? 'text' },
       lexicon: [],

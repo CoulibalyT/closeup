@@ -42,6 +42,13 @@ export const SCORING = {
 export const SCORING_MODES = ['decay', 'fixed'] as const;
 export type ScoringMode = (typeof SCORING_MODES)[number];
 
+/**
+ * `phones`: everyone sees the image on their own phone. `bigscreen`: one shared screen shows it
+ * (`/screen/:code`) and phones are controllers, with the answer input and the bonuses only.
+ */
+export const DISPLAY_MODES = ['phones', 'bigscreen'] as const;
+export type DisplayMode = (typeof DISPLAY_MODES)[number];
+
 export const FREE_TEXT = {
   minGuessIntervalMs: 700,
   maxGuessLength: 80,
@@ -123,6 +130,10 @@ export const ROOM = {
   minPlayers: 2,
   maxPlayers: 12,
   reconnectGraceMs: 60_000,
+  /** Shared screens are spectators, not players. A few are allowed (a TV and a laptop). */
+  maxScreens: 4,
+  /** A room opened from a big screen waits this long for its first player. */
+  emptyRoomTtlMs: 15 * 60_000,
   roundsOptions: [5, 10, 15],
   defaultRounds: 10,
 } as const;

@@ -350,6 +350,121 @@ async function playBonuses() {
   for (const p of [host, fast, third]) p.socket.disconnect();
 }
 
+/**
+ * Big screen + phones: the room is opened from the shared screen, the first phone to join holds
+ * it, the image only goes to the screen and the game will not start without one.
+ */
+async function playBigScreen() {
+  const tv = await guest();
+  const created = await fetch(`${api}/api/rooms`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: tv.cookie },
+    body: JSON.stringify({
+      mode: 'private',
+      language: 'fr',
+      openedBy: 'screen',
+      settings: { rounds: 5, answerMode: 'mcq' },
+    }),
+  });
+  const { code } = await created.json();
+  const summary = await getJson(`${api}/api/rooms/${code}`);
+  check(
+    'a room opened from a screen is in big-screen mode and has no host yet',
+    summary.body.display === 'bigscreen' && summary.body.hostNickname === '',
+    code,
+  );
+
+  const [awa, moussa] = await Promise.all([guest('Awa'), guest('Moussa')]);
+  const host = player(awa.cookie);
+  const friend = player(moussa.cookie);
+  const screen = player(tv.cookie);
+  await Promise.all([host.ready, friend.ready, screen.ready]);
+
+  const first = await host.socket.emitWithAck('room:join', {
+    code,
+    nickname: 'Awa',
+    role: 'player',
+  });
+  check(
+    'the first phone to join holds the room',
+    first.data?.hostId === awa.playerId && first.data.display === 'bigscreen',
+  );
+  await friend.socket.emitWithAck('room:join', { code, nickname: 'Moussa', role: 'player' });
+  await host.socket.emitWithAck('room:settings:update', {
+    rounds: 1,
+    answerMode: 'mcq',
+    display: 'bigscreen',
+  });
+
+  const blind = await host.socket.emitWithAck('game:start');
+  check('a big-screen game does not start without a screen', blind.error?.code === 'NO_SCREEN');
+
+  const counted = host.once('room:screens');
+  const watching = await screen.socket.emitWithAck('room:join', { code, role: 'screen' });
+  check(
+    'the shared screen joins as nobody and sees the lobby',
+    watching.data?.role === 'screen' &&
+      watching.data.you === null &&
+      watching.data.players.length === 2 &&
+      watching.data.inventory.length === 0,
+  );
+  check('the phones learn that a screen is there', (await counted).count === 1);
+
+  const refused = await screen.socket.emitWithAck('game:start');
+  check('a screen cannot send game commands', refused.ok === false);
+
+  const onScreen = screen.once('round:start', 20_000);
+  const onPhones = [host, friend].map((p) => p.once('round:start', 20_000));
+  const started = await host.socket.emitWithAck('game:start');
+  check(
+    'the host starts from their phone',
+    started.ok === true,
+    JSON.stringify(started.error ?? ''),
+  );
+
+  const shown = await onScreen;
+  const rounds = await Promise.all(onPhones);
+  check('the screen gets the image', Boolean(shown.crop?.url));
+  check(
+    'the phones get the same round without the image',
+    rounds.every(
+      (r) => r.roundId === shown.roundId && r.crop === undefined && r.options.length === 4,
+    ),
+  );
+  const crop = await fetch(api + shown.crop.url);
+  check(
+    'the screen can load its crop',
+    crop.ok && crop.headers.get('content-type') === 'image/webp',
+  );
+
+  const revealed = [screen, host, friend].map((p) => p.once('round:end', 45_000));
+  const over = screen.once('game:end', 60_000);
+  const answeredOnScreen = screen.once('round:player:answered', 45_000);
+  const points = await Promise.all([
+    answer(host.socket, rounds[0]),
+    answer(friend.socket, rounds[1]),
+  ]);
+  check(
+    'both phones score from their controller',
+    points.every((p) => p > 0),
+    points.join(' / '),
+  );
+  check('the screen sees who found', Boolean((await answeredOnScreen).playerId));
+
+  const reveals = await Promise.all(revealed);
+  check(
+    'the reveal reaches the screen and the phones alike',
+    reveals.every((r) => r.reveal.answer === reveals[0].reveal.answer && r.ranking.length === 2),
+  );
+  await host.socket.emitWithAck('reveal:skip', { roundId: shown.roundId });
+  check('the final ranking is shown on the screen', (await over).ranking.length === 2);
+
+  const gone = host.once('room:screens');
+  screen.socket.disconnect();
+  check('the phones learn that the screen went away', (await gone).count === 0);
+  for (const p of [host, friend]) p.socket.disconnect();
+}
+
 try {
   const live = await getJson(`${api}/api/health`);
   check('API is alive', live.status === 200);
@@ -397,6 +512,7 @@ try {
   await playSolo();
   await playParty();
   await playBonuses();
+  await playBigScreen();
 } catch (error) {
   check('stack reachable', false, error.message);
 }

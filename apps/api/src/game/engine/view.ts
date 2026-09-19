@@ -39,10 +39,16 @@ import type { EngineEvent, RoomState, RoundState } from './types.js';
 /** Turns a server-side id into an opaque, short-lived URL. */
 export type Sign = (kind: 'crop' | 'image', id: string) => string;
 
+/** Phones and shared screens do not always hear the same thing. Without it: the whole room. */
+export type Audience = 'players' | 'screens';
+
 export interface WireMessage {
   event: string;
   payload: unknown;
+  audience?: Audience;
 }
+
+const displayOf = (state: RoomState) => state.settings.display ?? 'phones';
 
 /** Events that are only ever sent to one player carry their id themselves. */
 export const recipientOf = (event: EngineEvent): string | undefined =>
@@ -149,8 +155,37 @@ export function gameEnd(state: RoomState, personalBest?: GameEnd['personalBest']
   return gameEndSchema.parse({ ranking: ranking(state), personalBest });
 }
 
-/** Room-wide message for an engine event. Returns `null` when the event has no round to show. */
-export function eventToWire(state: RoomState, event: EngineEvent, sign: Sign): WireMessage | null {
+/**
+ * One engine event as the messages that leave the server. In big-screen mode the image goes to
+ * the shared screens only: phones get the same event built again without the crop, never a
+ * payload that had its crop taken out afterwards.
+ */
+export function broadcast(state: RoomState, event: EngineEvent, sign: Sign): WireMessage[] {
+  const shared = event.type === 'roundStart' || event.type === 'roundLevel';
+  if (!shared || displayOf(state) === 'phones') {
+    const message = eventToWire(state, event, sign);
+    return message ? [message] : [];
+  }
+  const forScreens = eventToWire(state, event, sign);
+  const forPhones = eventToWire(state, event, sign, false);
+  return forScreens && forPhones
+    ? [
+        { ...forScreens, audience: 'screens' },
+        { ...forPhones, audience: 'players' },
+      ]
+    : [];
+}
+
+/**
+ * Message for an engine event. Returns `null` when the event has no round to show.
+ * `withImage: false` leaves the crop out of the two events that carry the shared image.
+ */
+export function eventToWire(
+  state: RoomState,
+  event: EngineEvent,
+  sign: Sign,
+  withImage = true,
+): WireMessage | null {
   const round = state.round;
 
   switch (event.type) {
@@ -186,6 +221,7 @@ export function eventToWire(state: RoomState, event: EngineEvent, sign: Sign): W
         payload: roomSettingsEventSchema.parse({
           ...state.settings,
           scoring: state.settings.scoring ?? 'decay',
+          display: displayOf(state),
         }),
       };
     case 'backToLobby':
@@ -199,6 +235,7 @@ export function eventToWire(state: RoomState, event: EngineEvent, sign: Sign): W
         payload: gameStartedSchema.parse({
           totalRounds: state.totalRounds,
           answerMode: state.settings.answerMode,
+          display: displayOf(state),
         }),
       };
     case 'gameEnd':
@@ -233,7 +270,7 @@ export function eventToWire(state: RoomState, event: EngineEvent, sign: Sign): W
           endsAt: round.endsAt,
           levelAt: levelTimes(round),
           answerMode: state.settings.answerMode,
-          crop: cropAt(round, 0, sign),
+          crop: withImage ? cropAt(round, 0, sign) : undefined,
           options: round.card.options,
         }),
       };
@@ -243,7 +280,7 @@ export function eventToWire(state: RoomState, event: EngineEvent, sign: Sign): W
         payload: roundLevelSchema.parse({
           roundId: round.id,
           level: event.level,
-          crop: cropAt(round, event.level, sign),
+          crop: withImage ? cropAt(round, event.level, sign) : undefined,
           at: round.startsAt + (ZOOM.autoLevelAtMs[event.level] ?? 0),
         }),
       };
@@ -305,17 +342,27 @@ export function eventToWire(state: RoomState, event: EngineEvent, sign: Sign): W
   }
 }
 
-/** What a client needs to draw the room from nothing: on join, and after a reconnection. */
+/**
+ * What a client needs to draw the room from nothing: on join, and after a reconnection.
+ * `viewerId: null` is a shared screen: it sees the room's image and owns nothing.
+ */
 export function toSnapshot(
   state: RoomState,
-  viewerId: string,
+  viewerId: string | null,
   sign: Sign,
   now: number = Date.now(),
+  screens = 0,
 ): RoomStateView {
   const round = state.round;
-  const mine = round?.perPlayer[viewerId];
+  const mine = viewerId === null ? undefined : round?.perPlayer[viewerId];
   const live = state.phase === 'playing';
   const showRound = round && (state.phase === 'countdown' || live);
+  const me = viewerId === null ? undefined : state.players[viewerId];
+
+  // In big-screen mode a phone only ever gets an image of its own: the zoom-out bonus, shown in
+  // a small private lens while the shared screen keeps the room's level.
+  const seesImage =
+    viewerId === null || displayOf(state) === 'phones' || (mine?.bonusLevels ?? 0) > 0;
 
   return roomStateSchema.parse({
     code: state.code,
@@ -323,12 +370,15 @@ export function toSnapshot(
     answerMode: state.settings.answerMode,
     phase: state.phase,
     hostId: state.hostId,
+    role: viewerId === null ? 'screen' : 'player',
     you: viewerId,
+    screens,
     players: ranking(state),
     totalRounds: state.totalRounds,
     scoring: state.settings.scoring ?? 'decay',
-    inventory: state.players[viewerId]?.inventory ?? [],
-    shielded: state.players[viewerId]?.shielded ?? false,
+    display: displayOf(state),
+    inventory: me?.inventory ?? [],
+    shielded: me?.shielded ?? false,
     round: showRound
       ? {
           roundId: round.id,
@@ -337,8 +387,9 @@ export function toSnapshot(
           endsAt: round.endsAt,
           levelAt: levelTimes(round),
           // Nothing of the card before the countdown is over.
-          crop: live ? cropAt(round, levelOf(round, viewerId), sign) : undefined,
-          hints: hintsOf(round, viewerId, sign),
+          crop: live && seesImage ? cropAt(round, levelOf(round, viewerId ?? ''), sign) : undefined,
+          hints: hintsOf(round, viewerId ?? '', sign),
+          foundIds: round.answerOrder,
           effect: mine?.effect && mine.effect.until > now ? mine.effect : undefined,
           options: live ? round.card.options : undefined,
           // Someone who joined mid-round watches it and plays from the next one.

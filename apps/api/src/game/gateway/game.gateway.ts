@@ -15,9 +15,11 @@ import {
   ok,
   PROTOCOL_VERSION,
   revealSkipSchema,
+  ROOM,
   roomJoinSchema,
   roomKickSchema,
   type RoomPlayerLeft,
+  roomScreensSchema,
   roomSettingsSchema,
   type RoomStateView,
   roundGuessSchema,
@@ -37,10 +39,15 @@ import { RoomService } from '../rooms/room.service.js';
 interface SocketData {
   identity?: Identity;
   roomCode?: string;
+  /** Set on `room:join`. A shared screen watches; only a player may send game commands. */
+  role?: 'player' | 'screen';
 }
 type GameSocket = Socket<never, never, never, SocketData>;
 
+/** Everyone in the room, phones and shared screens alike. */
 const channel = (code: string) => `room:${code}`;
+const playersChannel = (code: string) => `room:${code}:players`;
+const screensChannel = (code: string) => `room:${code}:screens`;
 /** Every socket of one player in one room: where their private messages go (bonuses, hints). */
 const privateChannel = (code: string, playerId: string) => `room:${code}:player:${playerId}`;
 
@@ -77,8 +84,17 @@ export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
 
     this.namespace = namespace;
     this.rooms.onMessage((code, message, to) => {
-      const audience = to ? privateChannel(code, to) : channel(code);
+      const audience = to
+        ? privateChannel(code, to)
+        : message.audience === 'screens'
+          ? screensChannel(code)
+          : message.audience === 'players'
+            ? playersChannel(code)
+            : channel(code);
       namespace.to(audience).emit(message.event, message.payload);
+      if (message.event === ServerEvent.roomClosed) {
+        namespace.in(channel(code)).socketsLeave([channel(code), screensChannel(code)]);
+      }
       // Whoever left or was removed hears it (above), then stops receiving the room's events.
       if (message.event === ServerEvent.roomPlayerLeft) {
         const { playerId, removed } = message.payload as RoomPlayerLeft;
@@ -87,14 +103,27 @@ export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
     });
   }
 
+  // The players' channel, not the room's: a shared screen opened in the host's own browser
+  // carries the host's identity, and must not count as the host being online.
   private async socketsOf(code: string, playerId: string) {
-    const sockets = await this.namespace.in(channel(code)).fetchSockets();
+    const sockets = await this.namespace.in(playersChannel(code)).fetchSockets();
     return sockets.filter((s) => (s.data as SocketData).identity?.playerId === playerId);
+  }
+
+  /** Tells the room how many shared screens it has. `leaving` is a socket on its way out. */
+  private async announceScreens(code: string, leaving?: string): Promise<number> {
+    const sockets = await this.namespace.in(screensChannel(code)).fetchSockets();
+    const count = sockets.filter((s) => s.id !== leaving).length;
+    this.namespace
+      .to(channel(code))
+      .emit(ServerEvent.roomScreens, roomScreensSchema.parse({ count }));
+    return count;
   }
 
   private async detach(code: string, playerId: string): Promise<void> {
     for (const socket of await this.socketsOf(code, playerId)) {
       socket.leave(channel(code));
+      socket.leave(playersChannel(code));
       socket.leave(privateChannel(code, playerId));
       (socket.data as SocketData).roomCode = undefined;
     }
@@ -102,7 +131,11 @@ export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
 
   /** A player is offline when their *last* socket in the room closes (think of two tabs). */
   async handleDisconnect(socket: GameSocket): Promise<void> {
-    const { identity, roomCode } = socket.data;
+    const { identity, roomCode, role } = socket.data;
+    if (roomCode && role === 'screen') {
+      await this.announceScreens(roomCode, socket.id);
+      return;
+    }
     if (!identity || !roomCode) return;
     const others = await this.socketsOf(roomCode, identity.playerId);
     if (others.some((s) => s.id !== socket.id)) return;
@@ -122,11 +155,12 @@ export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
     @ConnectedSocket() socket: GameSocket,
     @MessageBody() body: unknown,
   ): Promise<Ack<RoomStateView>> {
-    const { identity } = socket.data;
-    if (!identity) return fail('UNAUTHENTICATED', 'Unknown device');
     const join = roomJoinSchema.safeParse(body);
     if (!join.success) return fail('INVALID_PAYLOAD', 'room:join expects { code, nickname, role }');
+    if (join.data.role === 'screen') return this.joinAsScreen(socket, join.data.code);
 
+    const { identity } = socket.data;
+    if (!identity) return fail('UNAUTHENTICATED', 'Unknown device');
     const { code, nickname } = join.data;
 
     // The nickname typed here becomes the player's, so it is prefilled next time.
@@ -138,25 +172,54 @@ export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
     // Join the channel first: the reply to `join` is broadcast and they must hear it too.
     if (socket.data.roomCode && socket.data.roomCode !== code) {
       await socket.leave(channel(socket.data.roomCode));
+      await socket.leave(playersChannel(socket.data.roomCode));
     }
-    await socket.join([channel(code), privateChannel(code, identity.playerId)]);
+    const mine = [channel(code), playersChannel(code), privateChannel(code, identity.playerId)];
+    await socket.join(mine);
     const reply = await this.rooms.dispatch(code, {
       type: 'join',
       playerId: identity.playerId,
       nickname,
     });
-    const snapshot = reply.ok ? this.rooms.snapshot(code, identity.playerId) : null;
+    const screens = await this.namespace.in(screensChannel(code)).fetchSockets();
+    const snapshot = reply.ok ? this.rooms.snapshot(code, identity.playerId, screens.length) : null;
     if (!reply.ok || !snapshot) {
-      await socket.leave(channel(code));
-      await socket.leave(privateChannel(code, identity.playerId));
+      for (const left of mine) await socket.leave(left);
       return reply.ok ? fail('ROOM_NOT_FOUND', 'This room does not exist') : reply;
     }
     socket.data.roomCode = code;
+    socket.data.role = 'player';
     return ok(snapshot);
+  }
+
+  /**
+   * A shared screen never reaches the engine: it is not a player. It needs no identity either,
+   * a TV browser only watches. Solo rooms have no summary, so they cannot be watched.
+   */
+  private async joinAsScreen(socket: GameSocket, code: string): Promise<Ack<RoomStateView>> {
+    if (!this.rooms.summary(code)) return fail('ROOM_NOT_FOUND', 'This room does not exist');
+    const already = await this.namespace.in(screensChannel(code)).fetchSockets();
+    const others = already.filter((s) => s.id !== socket.id);
+    if (others.length >= ROOM.maxScreens) return fail('ROOM_FULL', 'Too many screens on this room');
+
+    await socket.join([channel(code), screensChannel(code)]);
+    socket.data.roomCode = code;
+    socket.data.role = 'screen';
+    const count = await this.announceScreens(code);
+    const snapshot = this.rooms.snapshot(code, null, count);
+    return snapshot ? ok(snapshot) : fail('ROOM_NOT_FOUND', 'This room does not exist');
   }
 
   @SubscribeMessage(ClientEvent.roomLeave)
   async onRoomLeave(@ConnectedSocket() socket: GameSocket): Promise<Reply> {
+    if (socket.data.role === 'screen' && socket.data.roomCode) {
+      const code = socket.data.roomCode;
+      await socket.leave(channel(code));
+      await socket.leave(screensChannel(code));
+      socket.data.roomCode = undefined;
+      await this.announceScreens(code);
+      return { ok: true, data: {} };
+    }
     const reply = await this.inRoom(socket, (playerId) => ({ type: 'leave', playerId }));
     const { identity, roomCode } = socket.data;
     if (identity && roomCode) await this.detach(roomCode, identity.playerId);
@@ -183,9 +246,14 @@ export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
 
   @SubscribeMessage(ClientEvent.gameStart)
   async onGameStart(@ConnectedSocket() socket: GameSocket): Promise<Reply> {
-    const { identity, roomCode } = socket.data;
+    const { identity, roomCode, role } = socket.data;
     if (!identity) return fail('UNAUTHENTICATED', 'Unknown device');
-    if (!roomCode) return fail('ROOM_NOT_FOUND', 'Join a room first');
+    if (!roomCode || role !== 'player') return fail('ROOM_NOT_FOUND', 'Join a room first');
+    // Phones show no image in big-screen mode: without a screen nobody would see the round.
+    if (this.rooms.needsScreen(roomCode)) {
+      const screens = await this.namespace.in(screensChannel(roomCode)).fetchSockets();
+      if (!screens.length) return fail('NO_SCREEN', 'Open the shared screen first');
+    }
     return this.rooms.start(roomCode, identity.playerId);
   }
 
@@ -219,9 +287,9 @@ export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
 
   @SubscribeMessage(ClientEvent.bonusUse)
   async onBonusUse(@ConnectedSocket() socket: GameSocket, @MessageBody() body: unknown) {
-    const { identity, roomCode } = socket.data;
+    const { identity, roomCode, role } = socket.data;
     if (!identity) return fail('UNAUTHENTICATED', 'Unknown device');
-    if (!roomCode) return fail('ROOM_NOT_FOUND', 'Join a room first');
+    if (!roomCode || role !== 'player') return fail('ROOM_NOT_FOUND', 'Join a room first');
     const use = bonusUseSchema.safeParse(body);
     if (!use.success) return fail('INVALID_PAYLOAD', 'bonus:use expects { roundId, itemId }');
     return this.rooms.useBonus(roomCode, {
@@ -250,9 +318,9 @@ export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
     toCommand: (playerId: string, body: z.infer<S>) => Command,
     validate?: [schema: S, body: unknown],
   ): Promise<Reply> {
-    const { identity, roomCode } = socket.data;
+    const { identity, roomCode, role } = socket.data;
     if (!identity) return fail('UNAUTHENTICATED', 'Unknown device');
-    if (!roomCode) return fail('ROOM_NOT_FOUND', 'Join a room first');
+    if (!roomCode || role !== 'player') return fail('ROOM_NOT_FOUND', 'Join a room first');
 
     let payload = undefined as z.infer<S>;
     if (validate) {

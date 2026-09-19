@@ -1,6 +1,8 @@
 // A stand-in player, to try a game with friends on your own:
 //   pnpm bot AB2CD            joins room AB2CD as "Bot"
 //   pnpm bot AB2CD Moussa 3   three bots: Moussa, Moussa 2, Moussa 3
+//   pnpm bot AB2CD Awa 3 --host   for a room opened from a big screen, where the first to join
+//                                 holds the room: the first bot picks multiple choice and starts
 // In multiple-choice rooms it picks options after a few seconds (and is sometimes wrong). In
 // typed-answer rooms it cannot know the answer: it sends a wrong guess and lets the clock run.
 import { existsSync } from 'node:fs';
@@ -11,7 +13,9 @@ for (const file of ['.env', '../../.env']) {
   if (existsSync(file)) process.loadEnvFile(file);
 }
 const api = `http://localhost:${process.env.API_PORT ?? 3001}`;
-const [code, name = 'Bot', count = '1'] = process.argv.slice(2);
+const args = process.argv.slice(2);
+const hosting = args.includes('--host');
+const [code, name = 'Bot', count = '1'] = args.filter((arg) => !arg.startsWith('--'));
 if (!code) {
   console.error('usage: pnpm bot <ROOM_CODE> [nickname] [how many]');
   process.exit(1);
@@ -39,17 +43,20 @@ async function play(nickname) {
   });
   const log = (text) => console.log(`[${nickname}] ${text}`);
 
-  socket.on('connect', async () => {
-    const ack = await socket.emitWithAck('room:join', {
-      code: code.toUpperCase(),
-      nickname,
-      role: 'player',
+  const joined = new Promise((resolve) => {
+    socket.on('connect', async () => {
+      const ack = await socket.emitWithAck('room:join', {
+        code: code.toUpperCase(),
+        nickname,
+        role: 'player',
+      });
+      if (ack.ok) log(`in room ${ack.data.code} (${ack.data.phase})`);
+      else {
+        log(`could not join: ${ack.error.code}`);
+        socket.disconnect();
+      }
+      resolve(ack.data);
     });
-    if (ack.ok) log(`in room ${ack.data.code} (${ack.data.phase})`);
-    else {
-      log(`could not join: ${ack.error.code}`);
-      socket.disconnect();
-    }
   });
 
   socket.on('round:start', async (round) => {
@@ -78,7 +85,26 @@ async function play(nickname) {
     if (left.reason === 'kicked') log('someone was removed by the host');
   });
   socket.on('disconnect', (reason) => log(`disconnected (${reason})`));
+  return { socket, joined, log };
 }
 
-for (let i = 1; i <= Number(count); i++) await play(i === 1 ? name : `${name} ${i}`);
+const bots = [];
+for (let i = 1; i <= Number(count); i++) bots.push(await play(i === 1 ? name : `${name} ${i}`));
+const rooms = await Promise.all(bots.map((bot) => bot.joined));
 console.log('Bots are in. Ctrl+C to make them leave.');
+
+// Whoever joins an empty room holds it (a room opened from a big screen). The bots connect side
+// by side, so it is not always the first of the list.
+const holder = rooms.findIndex((room) => room && room.hostId === room.you);
+if (hosting && holder !== -1) {
+  const { socket, log } = bots[holder];
+  const { display } = rooms[holder];
+  await socket.emitWithAck('room:settings:update', {
+    rounds: 5,
+    answerMode: 'mcq',
+    scoring: 'decay',
+    display,
+  });
+  const started = await socket.emitWithAck('game:start');
+  log(started.ok ? 'I hold the room: game started' : `could not start: ${started.error.code}`);
+} else if (hosting) console.log('--host ignored: somebody else holds this room.');

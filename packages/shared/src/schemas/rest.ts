@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SCORING_MODES } from '../constants/game.js';
+import { DISPLAY_MODES, SCORING_MODES } from '../constants/game.js';
 import { idSchema, localeSchema, nicknameSchema, roomCodeSchema } from './common.js';
 import { answerModeSchema, phaseSchema } from './events.js';
 
@@ -32,6 +32,8 @@ export const roomSettingsSchema = z.strictObject({
   answerMode: answerModeSchema,
   /** `decay`: 1000 down to 200 over the round. `fixed`: paid by order of arrival, no clock. */
   scoring: z.enum(SCORING_MODES).default('decay'),
+  /** The host may still change it in the lobby, like the rest. */
+  display: z.enum(DISPLAY_MODES).default('phones'),
 });
 export type RoomSettings = z.infer<typeof roomSettingsSchema>;
 
@@ -42,10 +44,19 @@ export const createRoomSchema = z
     language: localeSchema,
     settings: roomSettingsSchema,
     nickname: nicknameSchema.optional(),
+    /**
+     * `screen`: the device creating the room is the shared screen, not a player. The room has no
+     * host until the first phone joins, and that player becomes the host.
+     */
+    openedBy: z.enum(['player', 'screen']).default('player'),
   })
-  .refine((room) => room.mode === 'solo' || room.nickname !== undefined, {
-    path: ['nickname'],
-    message: 'A nickname is required to play with other people',
+  .refine(
+    (room) => room.mode === 'solo' || room.openedBy === 'screen' || room.nickname !== undefined,
+    { path: ['nickname'], message: 'A nickname is required to play with other people' },
+  )
+  .refine((room) => room.openedBy === 'player' || room.mode === 'private', {
+    path: ['openedBy'],
+    message: 'Only a room for several players can be opened from a shared screen',
   });
 export type CreateRoom = z.infer<typeof createRoomSchema>;
 
@@ -53,7 +64,9 @@ export type CreateRoom = z.infer<typeof createRoomSchema>;
 export const roomSummarySchema = z.strictObject({
   code: roomCodeSchema,
   phase: phaseSchema,
+  /** Empty while a room opened from a big screen waits for its first player. */
   hostNickname: z.string(),
+  display: z.enum(DISPLAY_MODES),
   playerCount: z.int().min(0),
   maxPlayers: z.int().positive(),
   rounds: z.int().positive(),

@@ -1,4 +1,12 @@
-import type { BonusItem, BonusType, ErrorCode, Locale, Malus, ScoringMode } from '@closeup/shared';
+import type {
+  BonusItem,
+  BonusType,
+  DisplayMode,
+  ErrorCode,
+  Locale,
+  Malus,
+  ScoringMode,
+} from '@closeup/shared';
 import type { CardAnswers, Verdict } from './matching.js';
 
 /**
@@ -8,7 +16,6 @@ import type { CardAnswers, Verdict } from './matching.js';
 
 export type Phase = 'lobby' | 'countdown' | 'playing' | 'reveal' | 'ended';
 export type RoomMode = 'solo' | 'private' | 'public';
-export type Display = 'phones' | 'bigscreen';
 export type AnswerMode = 'text' | 'mcq';
 
 export interface RoomSettings {
@@ -16,6 +23,11 @@ export interface RoomSettings {
   answerMode: AnswerMode;
   /** `decay` (default): worth less as time passes. `fixed`: paid by order of arrival. */
   scoring?: ScoringMode;
+  /**
+   * Where the image is shown. The reducer never reads it: a shared screen is not a player, so
+   * this only changes who receives which payload (`view.ts`).
+   */
+  display?: DisplayMode;
 }
 
 export interface McqOption {
@@ -120,8 +132,12 @@ export interface RoundState {
 export interface RoomState {
   code: string;
   mode: RoomMode;
-  display: Display;
-  hostId: string;
+  /** `null` while a room opened from a shared screen waits for its first player. */
+  hostId: string | null;
+  /** The room belongs to a shared screen: it survives being empty, for a while. */
+  openedByScreen?: true;
+  /** Since when nobody is in. Past `ROOM.emptyRoomTtlMs` the room is abandoned. */
+  emptySince?: number;
   language: Locale;
   settings: RoomSettings;
   phase: Phase;

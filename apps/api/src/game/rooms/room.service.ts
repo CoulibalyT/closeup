@@ -10,8 +10,10 @@ import {
   type BonusUseReply,
   type Locale,
   ROOM,
+  roomClosedSchema,
   type RoomStateView,
   type RoomSummary,
+  ServerEvent,
 } from '@closeup/shared';
 import type { Redis } from 'ioredis';
 import { withTimeout } from '../../common/with-timeout.js';
@@ -24,7 +26,7 @@ import { createRoom, reduce } from '../engine/reducer.js';
 import type { Command, Effect, Reply, RoomSettings, RoomState } from '../engine/types.js';
 import {
   bonusReply,
-  eventToWire,
+  broadcast,
   gameEnd,
   recipientOf,
   type Sign,
@@ -104,9 +106,10 @@ export class RoomService implements OnApplicationBootstrap, OnModuleDestroy {
     for (const actor of this.actors.values()) clearTimeout(actor.timer);
   }
 
+  /** `host: null` opens the room from a shared screen: the first player to join will hold it. */
   async create(
     mode: 'solo' | 'private',
-    host: Identity,
+    host: Identity | null,
     settings: RoomSettings,
     language: Locale,
   ): Promise<string> {
@@ -114,17 +117,17 @@ export class RoomService implements OnApplicationBootstrap, OnModuleDestroy {
     const state = createRoom({
       code,
       mode,
-      display: 'phones',
-      hostId: host.playerId,
-      nickname: host.nickname,
+      host: host ? { id: host.playerId, nickname: host.nickname } : undefined,
       language,
       settings,
       lexicon: [],
       now: Date.now(),
     });
     // The host is only present once their socket joins; until then the seat is held for them.
-    state.players[host.playerId]!.connected = false;
-    state.players[host.playerId]!.disconnectedAt = Date.now();
+    if (host) {
+      state.players[host.playerId]!.connected = false;
+      state.players[host.playerId]!.disconnectedAt = Date.now();
+    }
     const actor: Actor = { record: { state, deck: [] }, queue: Promise.resolve() };
     this.actors.set(code, actor);
     await this.persist(code, actor);
@@ -161,9 +164,16 @@ export class RoomService implements OnApplicationBootstrap, OnModuleDestroy {
     return data ? { ok: true, data } : reply;
   }
 
-  snapshot(code: string, playerId: string): RoomStateView | null {
+  /** `viewerId: null` is a shared screen. `screens` is how many of them the gateway counts. */
+  snapshot(code: string, viewerId: string | null, screens: number): RoomStateView | null {
     const state = this.actors.get(code)?.record.state;
-    return state?.players[playerId] ? toSnapshot(state, playerId, this.sign) : null;
+    if (!state || (viewerId !== null && !state.players[viewerId])) return null;
+    return toSnapshot(state, viewerId, this.sign, Date.now(), screens);
+  }
+
+  /** Big-screen rooms cannot start blind: the gateway checks that a screen is there. */
+  needsScreen(code: string): boolean {
+    return this.actors.get(code)?.record.state.settings.display === 'bigscreen';
   }
 
   /** What anyone holding the code may know before joining. */
@@ -173,7 +183,8 @@ export class RoomService implements OnApplicationBootstrap, OnModuleDestroy {
     return {
       code,
       phase: state.phase,
-      hostNickname: state.players[state.hostId]?.nickname ?? '',
+      hostNickname: (state.hostId && state.players[state.hostId]?.nickname) || '',
+      display: state.settings.display ?? 'phones',
       playerCount: Object.values(state.players).filter((p) => !p.gone).length,
       maxPlayers: ROOM.maxPlayers,
       rounds: state.settings.rounds,
@@ -212,12 +223,13 @@ export class RoomService implements OnApplicationBootstrap, OnModuleDestroy {
     const { state } = actor.record;
     switch (effect.type) {
       case 'emit': {
-        const message =
+        const messages =
           effect.event.type === 'gameEnd' && state.mode === 'solo'
-            ? { event: 'game:end', payload: gameEnd(state, await this.personalBest(state)) }
-            : eventToWire(state, effect.event, this.sign);
+            ? [{ event: 'game:end', payload: gameEnd(state, await this.personalBest(state)) }]
+            : broadcast(state, effect.event, this.sign);
         // Private events name their recipient twice over: on the effect, and by their type.
-        if (message) this.listener(code, message, effect.to ?? recipientOf(effect.event));
+        const to = effect.to ?? recipientOf(effect.event);
+        for (const message of messages) this.listener(code, message, to);
         return;
       }
       case 'needCard':
@@ -276,12 +288,14 @@ export class RoomService implements OnApplicationBootstrap, OnModuleDestroy {
 
   private async forget(code: string): Promise<void> {
     clearTimeout(this.actors.get(code)?.timer);
-    this.actors.delete(code);
+    if (!this.actors.delete(code)) return;
+    // A shared screen may still be showing this room: it offers to open another one.
+    this.listener(code, { event: ServerEvent.roomClosed, payload: roomClosedSchema.parse({}) });
     await this.redis.multi().del(roomKey(code)).srem(ACTIVE_ROOMS, code).exec();
   }
 
   private async personalBest(state: RoomState): Promise<{ score: number; isNew: boolean }> {
-    const player = state.players[state.hostId]!;
+    const player = state.players[state.hostId!]!;
     const configKey = `${state.settings.answerMode}:${state.totalRounds}`;
     const where = { playerId_configKey: { playerId: player.id, configKey } };
     const previous = await this.prisma.soloBest.findUnique({ where });

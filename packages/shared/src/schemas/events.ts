@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { BONUS_TYPES, FREE_TEXT, SCORING_MODES } from '../constants/game.js';
+import { BONUS_TYPES, DISPLAY_MODES, FREE_TEXT, SCORING_MODES } from '../constants/game.js';
 import { idSchema, nicknameSchema, roomCodeSchema } from './common.js';
 
 /**
@@ -34,6 +34,7 @@ export const ServerEvent = {
   roomSettings: 'room:settings',
   roomHostChanged: 'room:host:changed',
   roomClosed: 'room:closed',
+  roomScreens: 'room:screens',
   roomLobby: 'room:lobby',
   gameStarted: 'game:started',
   roundPrepare: 'round:prepare',
@@ -63,11 +64,11 @@ export const timePongSchema = z.object({ t0: z.number(), t1: z.number() });
 export type TimePing = z.infer<typeof timePingSchema>;
 export type TimePong = z.infer<typeof timePongSchema>;
 
-export const roomJoinSchema = z.object({
-  code: roomCodeSchema,
-  nickname: nicknameSchema,
-  role: z.enum(['player', 'screen']),
-});
+/** A shared screen is a spectator: it has no nickname, no seat, and never sends a game command. */
+export const roomJoinSchema = z.discriminatedUnion('role', [
+  z.object({ role: z.literal('player'), code: roomCodeSchema, nickname: nicknameSchema }),
+  z.object({ role: z.literal('screen'), code: roomCodeSchema }),
+]);
 export type RoomJoin = z.infer<typeof roomJoinSchema>;
 
 export const roomKickSchema = z.object({ playerId: idSchema });
@@ -104,6 +105,7 @@ export const answerModeSchema = z.enum(['text', 'mcq']);
 export type AnswerMode = z.infer<typeof answerModeSchema>;
 
 export const scoringModeSchema = z.enum(SCORING_MODES);
+export const displayModeSchema = z.enum(DISPLAY_MODES);
 
 export const phaseSchema = z.enum(['lobby', 'countdown', 'playing', 'reveal', 'ended']);
 
@@ -148,7 +150,8 @@ export const roundStartSchema = z.strictObject({
   /** Server times of the automatic zoom-outs. */
   levelAt: z.array(z.number()),
   answerMode: answerModeSchema,
-  crop: cropSchema,
+  /** Absent on phones in big-screen mode: the image is on the shared screen only. */
+  crop: cropSchema.optional(),
   options: z.array(mcqOptionSchema).optional(),
 });
 export type RoundStart = z.infer<typeof roundStartSchema>;
@@ -156,7 +159,8 @@ export type RoundStart = z.infer<typeof roundStartSchema>;
 export const roundLevelSchema = z.strictObject({
   roundId: idSchema,
   level: z.int().min(0).max(3),
-  crop: cropSchema,
+  /** Absent on phones in big-screen mode, unless the level is their own (zoom-out bonus). */
+  crop: cropSchema.optional(),
   at: z.number(),
 });
 export type RoundLevel = z.infer<typeof roundLevelSchema>;
@@ -205,6 +209,7 @@ export type RoundEnd = z.infer<typeof roundEndSchema>;
 export const gameStartedSchema = z.strictObject({
   totalRounds: z.int().positive(),
   answerMode: answerModeSchema,
+  display: displayModeSchema,
 });
 
 export const gameEndSchema = z.strictObject({
@@ -286,9 +291,15 @@ export const roomStateSchema = z.strictObject({
   mode: z.enum(['solo', 'private', 'public']),
   answerMode: answerModeSchema,
   scoring: scoringModeSchema,
+  display: displayModeSchema,
   phase: phaseSchema,
-  hostId: idSchema,
-  you: idSchema,
+  /** `null` while a room opened from a big screen waits for its first player. */
+  hostId: idSchema.nullable(),
+  role: z.enum(['player', 'screen']),
+  /** `null` for a shared screen: it is nobody. */
+  you: idSchema.nullable(),
+  /** How many shared screens are connected. Phones in big-screen mode need at least one. */
+  screens: z.int().min(0),
   players: z.array(playerSchema),
   totalRounds: z.int().positive(),
   /** The viewer's own bonuses. Nobody else's are ever sent. */
@@ -303,6 +314,8 @@ export const roomStateSchema = z.strictObject({
       levelAt: z.array(z.number()),
       crop: cropSchema.optional(),
       options: z.array(mcqOptionSchema).optional(),
+      /** Who has found so far, in order. Public: it was broadcast as it happened. */
+      foundIds: z.array(idSchema),
       /** False for someone who joined mid-round: they play from the next one. */
       seated: z.boolean(),
       answered: z.boolean(),
@@ -347,10 +360,17 @@ export type RoomPlayerLeft = z.infer<typeof roomPlayerLeftSchema>;
 
 export const roomHostChangedSchema = z.strictObject({ hostId: idSchema });
 
+export const roomScreensSchema = z.strictObject({ count: z.int().min(0) });
+export type RoomScreens = z.infer<typeof roomScreensSchema>;
+
+/** The room is gone (everyone left, or nobody ever came). Screens offer to open a new one. */
+export const roomClosedSchema = z.strictObject({});
+
 export const roomSettingsEventSchema = z.strictObject({
   rounds: z.int().positive(),
   answerMode: answerModeSchema,
   scoring: scoringModeSchema,
+  display: displayModeSchema,
 });
 export type RoomSettingsEvent = z.infer<typeof roomSettingsEventSchema>;
 

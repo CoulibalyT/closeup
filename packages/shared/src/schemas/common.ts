@@ -20,6 +20,7 @@ export const ERROR_CODES = [
   'ROOM_NOT_FOUND',
   'ROOM_FULL',
   'NOT_ENOUGH_PLAYERS',
+  'NO_SCREEN',
   'NOT_HOST',
   'BAD_PHASE',
   'RATE_LIMITED',

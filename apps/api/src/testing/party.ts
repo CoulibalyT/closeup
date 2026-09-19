@@ -10,6 +10,7 @@ export interface PartyOptions {
   mode?: 'solo' | 'private';
   mcq?: boolean;
   fixed?: boolean;
+  bigscreen?: boolean;
   secret?: boolean;
 }
 
@@ -27,14 +28,13 @@ export class Party {
     this.state = createRoom({
       code: 'AB2CD',
       mode,
-      display: 'phones',
-      hostId: 'p1',
-      nickname: 'Awa',
+      host: { id: 'p1', nickname: 'Awa' },
       language: 'fr',
       settings: {
         rounds: 9,
         answerMode: options.mcq ? 'mcq' : 'text',
         scoring: options.fixed ? 'fixed' : 'decay',
+        display: options.bigscreen ? 'bigscreen' : 'phones',
       },
       lexicon: [],
       now: PARTY_T0,
