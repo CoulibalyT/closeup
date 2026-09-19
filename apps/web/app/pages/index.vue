@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { type AnswerMode, NICKNAME, ROOM, roomCodeSchema } from '@closeup/shared';
+import {
+  type AnswerMode,
+  NICKNAME,
+  ROOM,
+  roomCodeSchema,
+  SCORING_MODES,
+  type ScoringMode,
+} from '@closeup/shared';
 
 const { t, locale, locales } = useI18n();
 const localePath = useLocalePath();
@@ -35,7 +42,7 @@ const createParty = () =>
     game.setNickname(nickname.value);
     const code = await game.createRoom(
       'private',
-      { rounds: ROOM.defaultRounds, answerMode: 'text' },
+      { rounds: ROOM.defaultRounds, answerMode: 'text', scoring: 'decay' },
       locale.value as 'fr' | 'en',
     );
     return `/play/${code}`;
@@ -48,9 +55,14 @@ const joinParty = () => go(async () => `/join/${roomCodeSchema.parse(joinCode.va
 // --- solo training ---
 const rounds = ref<number>(ROOM.roundsOptions[0]);
 const answerMode = ref<AnswerMode>('text');
+const scoring = ref<ScoringMode>('decay');
 const playSolo = () =>
   go(async () => {
-    const settings = { rounds: rounds.value, answerMode: answerMode.value };
+    const settings = {
+      rounds: rounds.value,
+      answerMode: answerMode.value,
+      scoring: scoring.value,
+    };
     return `/play/${await game.createRoom('solo', settings, locale.value as 'fr' | 'en')}`;
   });
 </script>
@@ -128,6 +140,14 @@ const playSolo = () =>
         <label class="choice">
           <input v-model="answerMode" type="radio" name="mode" value="mcq" />
           <span>{{ t('home.mcq') }}</span>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>{{ t('home.scoring') }}</legend>
+        <label v-for="mode in SCORING_MODES" :key="mode" class="choice">
+          <input v-model="scoring" type="radio" name="scoring" :value="mode" />
+          <span>{{ t(`home.scoringMode.${mode}`) }}</span>
         </label>
       </fieldset>
 

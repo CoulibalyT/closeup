@@ -1,7 +1,17 @@
 import {
   type AnswerMode,
+  bonusGrantedSchema,
+  type BonusItem,
+  type BonusType,
+  type BonusUseReply,
   brand,
   ClientEvent,
+  type Hints,
+  type Malus,
+  roundBlockedSchema,
+  roundEffectSchema,
+  roundStealSchema,
+  type ScoringMode,
   type Crop,
   type GameEnd,
   gameEndSchema,
@@ -37,6 +47,17 @@ export type Stage = 'connecting' | RoomStateView['phase'] | 'lost' | 'full' | 'k
 export type Feedback = 'close' | 'wrong' | 'rate_limited' | null;
 export type RoomMode = RoomStateView['mode'];
 
+/** An announcement for the event feed. Ids are player ids; the component resolves names. */
+export interface FeedEntry {
+  id: number;
+  kind: 'malus' | 'stealBonus' | 'stealPoints' | 'stolenPoints' | 'blocked' | 'granted';
+  from?: string;
+  to?: string;
+  bonus?: BonusType;
+  amount?: number;
+  reason?: string;
+}
+
 interface LiveRound {
   roundId: string;
   index: number;
@@ -71,6 +92,16 @@ export const useGameStore = defineStore('game', () => {
   const answeredIds = ref<string[]>([]);
   /** Points each of them scored this round, as announced by the server. */
   const roundGains = ref<Record<string, number>>({});
+  const scoring = ref<ScoringMode>('decay');
+  /** The viewer's own bonuses. Other players only ever show a count. */
+  const inventory = ref<BonusItem[]>([]);
+  const shielded = ref(false);
+  /** What the viewer's self bonuses revealed this round. */
+  const hints = ref<Hints>({ removedOptionIds: [] });
+  /** The malus currently hitting the viewer. */
+  const effect = ref<{ type: Malus; from: string; until: number } | null>(null);
+  /** Who did what to whom: the last few announcements, newest last. */
+  const feed = ref<FeedEntry[]>([]);
   const penalty = ref(0);
   const lockedUntil = ref<number | null>(null);
   const wrongOptionIds = ref<string[]>([]);
@@ -152,10 +183,26 @@ export const useGameStore = defineStore('game', () => {
     answered.value = false;
     answeredIds.value = [];
     roundGains.value = {};
+    hints.value = { removedOptionIds: [] };
+    effect.value = null;
     penalty.value = 0;
     lockedUntil.value = null;
     wrongOptionIds.value = [];
     feedback.value = null;
+  }
+
+  /**
+   * Kept sorted: the lens shows the widest view received. A zoom-out bonus puts the player a
+   * level ahead, and the room's own (narrower) level still arrives afterwards.
+   */
+  function addCrop(crop: Crop): void {
+    if (crops.value.some((c) => c.level === crop.level)) return;
+    crops.value = [...crops.value, crop].sort((a, b) => a.level - b.level);
+  }
+
+  let feedId = 0;
+  function announce(entry: Omit<FeedEntry, 'id'>): void {
+    feed.value = [...feed.value, { ...entry, id: ++feedId }].slice(-4);
   }
 
   function upsertPlayer(player: Player): void {
@@ -171,6 +218,9 @@ export const useGameStore = defineStore('game', () => {
     hostId.value = view.hostId;
     players.value = view.players;
     answerMode.value = view.answerMode;
+    scoring.value = view.scoring;
+    inventory.value = view.inventory;
+    shielded.value = view.shielded;
     totalRounds.value = view.totalRounds;
     score.value = view.players.find((p) => p.id === view.you)?.score ?? 0;
     reveal.value = view.reveal ?? null;
@@ -178,7 +228,9 @@ export const useGameStore = defineStore('game', () => {
       const { roundId, index, startsAt, endsAt, options, crop } = view.round;
       if (round.value?.roundId !== roundId) resetRound();
       round.value = { roundId, index, startsAt, endsAt, options };
-      if (crop && !crops.value.some((c) => c.level === crop.level)) crops.value.push(crop);
+      if (crop) addCrop(crop);
+      hints.value = view.round.hints;
+      effect.value = view.round.effect ?? null;
       seated.value = view.round.seated;
       answered.value = view.round.answered;
       scoreAtRoundStart = score.value - (view.round.points ?? 0);
@@ -213,6 +265,7 @@ export const useGameStore = defineStore('game', () => {
     io.on(ServerEvent.roomSettings, (raw) => {
       const settings = roomSettingsEventSchema.parse(raw);
       answerMode.value = settings.answerMode;
+      scoring.value = settings.scoring;
       totalRounds.value = settings.rounds;
     });
     io.on(ServerEvent.roomLobby, (raw) => {
@@ -248,7 +301,39 @@ export const useGameStore = defineStore('game', () => {
     io.on(ServerEvent.roundLevel, (raw) => {
       const payload = roundLevelSchema.parse(raw);
       if (payload.roundId !== round.value?.roundId) return;
-      if (!crops.value.some((c) => c.level === payload.level)) crops.value.push(payload.crop);
+      addCrop(payload.crop);
+    });
+
+    // Private: only the owner hears what they were given.
+    io.on(ServerEvent.bonusGranted, (raw) => {
+      const { item, reason } = bonusGrantedSchema.parse(raw);
+      if (!inventory.value.some((owned) => owned.id === item.id)) {
+        inventory.value = [...inventory.value, item];
+      }
+      if (reason !== 'stolen') announce({ kind: 'granted', bonus: item.type, reason });
+    });
+    // Public: everyone sees who did what to whom. That is the fun part.
+    io.on(ServerEvent.roundEffect, (raw) => {
+      const malus = roundEffectSchema.parse(raw);
+      if (malus.to === you.value) effect.value = malus;
+      announce({ kind: 'malus', from: malus.from, to: malus.to, bonus: malus.type });
+    });
+    io.on(ServerEvent.roundSteal, (raw) => {
+      const steal = roundStealSchema.parse(raw);
+      const { from, to, amount, bonusType } = steal;
+      if (steal.kind === 'bonus') {
+        if (to === you.value && bonusType) {
+          const index = inventory.value.findIndex((owned) => owned.type === bonusType);
+          if (index !== -1) inventory.value = inventory.value.filter((_, i) => i !== index);
+        }
+        announce({ kind: 'stealBonus', from, to, bonus: bonusType });
+      } else if (amount === undefined) announce({ kind: 'stealPoints', from, to });
+      else announce({ kind: 'stolenPoints', from, to, amount });
+    });
+    io.on(ServerEvent.roundBlocked, (raw) => {
+      const blocked = roundBlockedSchema.parse(raw);
+      if (blocked.to === you.value) shielded.value = false;
+      announce({ kind: 'blocked', from: blocked.from, to: blocked.to, bonus: blocked.what });
     });
     io.on(ServerEvent.roundPlayerAnswered, (raw) => {
       const found = roundPlayerAnsweredSchema.parse(raw);
@@ -352,6 +437,23 @@ export const useGameStore = defineStore('game', () => {
     foundCount.value += 1;
   }
 
+  /** `null` on success, otherwise the error code (TARGET_BUSY, TARGET_INVALID, BAD_PHASE…). */
+  async function useBonus(itemId: string, targetPlayerId?: string): Promise<string | null> {
+    if (!round.value) return 'BAD_PHASE';
+    const ack = await send<BonusUseReply>(ClientEvent.bonusUse, {
+      roundId: round.value.roundId,
+      itemId,
+      targetPlayerId,
+    });
+    if (!ack) return 'INTERNAL';
+    if (!ack.ok) return ack.error.code;
+    inventory.value = ack.data.inventory;
+    penalty.value = ack.data.penalty;
+    shielded.value = ack.data.shielded;
+    hints.value = ack.data.hints;
+    return null;
+  }
+
   async function next(): Promise<void> {
     if (round.value) await send(ClientEvent.revealSkip, { roundId: round.value.roundId });
   }
@@ -395,6 +497,13 @@ export const useGameStore = defineStore('game', () => {
     answered,
     answeredIds,
     roundGains,
+    scoring,
+    inventory,
+    shielded,
+    hints,
+    effect,
+    feed,
+    useBonus,
     penalty,
     lockedUntil,
     wrongOptionIds,

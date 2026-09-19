@@ -13,7 +13,16 @@
     "create": "Créer une partie",
     "codeLabel": "Code de la partie",
     "codePlaceholder": "Code à 5 caractères",
-    "join": "Rejoindre"
+    "join": "Rejoindre",
+    "scoring": "Comptage des points",
+    "scoringMode": {
+      "decay": "Dégressifs",
+      "fixed": "Fixes"
+    },
+    "scoringHint": {
+      "decay": "Plus tu trouves vite, plus ça rapporte : de 1000 à 200 points.",
+      "fixed": "Le premier à trouver gagne 1000 points, le deuxième 800, le troisième 600, les suivants 500. Le temps ne compte pas."
+    }
   },
   "join": {
     "title": "Rejoindre une partie, {appName}",
@@ -53,7 +62,58 @@
     "leave": "Quitter la partie"
   },
   "ranking": {
-    "found": "a trouvé"
+    "found": "a trouvé",
+    "bonuses": "{n} bonus"
+  },
+  "bonus": {
+    "shieldUp": "Bouclier levé : il arrêtera la prochaine attaque.",
+    "pickTarget": "{bonus} : contre qui ?",
+    "noTarget": "Personne à viser pour l'instant.",
+    "name": {
+      "zoomOut": "Dézoomer",
+      "secondZone": "Autre zone",
+      "initials": "Initiales",
+      "category": "Catégorie",
+      "removeTwo": "Retirer 2 choix",
+      "shield": "Bouclier",
+      "blur": "Flouter",
+      "flip": "Retourner",
+      "freeze": "Geler",
+      "stealBonus": "Voler un bonus",
+      "stealPoints": "Voler des points"
+    },
+    "error": {
+      "TARGET_BUSY": "Quelqu'un s'occupe déjà de ce joueur. Tu gardes ton bonus.",
+      "TARGET_INVALID": "Ce joueur ne peut pas être visé. Tu gardes ton bonus.",
+      "BAD_PHASE": "Ce bonus ne servirait à rien maintenant. Tu le gardes.",
+      "other": "Le bonus n'a pas pu être joué."
+    }
+  },
+  "feed": {
+    "malus": {
+      "blur": "{from} floute l'image de {to}",
+      "flip": "{from} retourne l'image de {to}",
+      "freeze": "{from} gèle la saisie de {to}"
+    },
+    "stealBonus": "{from} vole à {to} son bonus « {bonus} »",
+    "stealPoints": "{from} prendra une part des points de {to}",
+    "stolenPoints": "{from} prend {amount} points à {to}",
+    "blocked": "Le bouclier de {to} arrête {from}",
+    "granted": {
+      "streak": "Bonus gagné : {bonus} (3 bonnes réponses d'affilée)",
+      "fastest": "Bonus gagné : {bonus} (le plus rapide)",
+      "catchup": "Bonus gagné : {bonus} (coup de pouce au dernier)"
+    }
+  },
+  "category": {
+    "CELEBRITY": "célébrité",
+    "CHARACTER": "personnage",
+    "OBJECT": "objet",
+    "ANIMAL": "animal",
+    "LANDMARK": "monument",
+    "FOOD": "nourriture",
+    "VEHICLE": "véhicule",
+    "OTHER": "autre"
   },
   "play": {
     "title": "Partie en cours, {appName}",
@@ -78,7 +138,11 @@
     },
     "nextRound": "Tu joues à la prochaine manche.",
     "full": "Cette partie est complète.",
-    "kicked": "L'hôte t'a retiré de la partie."
+    "kicked": "L'hôte t'a retiré de la partie.",
+    "worthFixed": "points pour le prochain qui trouve",
+    "frozen": "Ta saisie est gelée quelques secondes.",
+    "secondZoneAlt": "Une autre zone de la même image",
+    "categoryHint": "Catégorie : {category}"
   },
   "reveal": {
     "found": "Trouvé +{points}",

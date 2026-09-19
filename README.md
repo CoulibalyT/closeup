@@ -7,11 +7,12 @@ races to guess what it is. `closeup` is a codename; the player-facing name lives
 - The brief: [docs/brief.md](docs/brief.md)
 - The validated solo prototype: [docs/prototype/gros-plan.html](docs/prototype/gros-plan.html)
 
-**Status: phase 2 (private rooms, phones only) done.** From the home page you can create a game
-with friends (nickname, 5-character code, share link, QR code), join one by code or link, wait in
-a lobby where the host sets the rounds and the answer mode, play synced rounds with a live
-ranking, drop out and come back within 60 seconds, and play again with the same people. Solo
-training from phase 1 is still there: 22 original seed cards, free text or multiple choice.
+**Status: phase 3 (bonuses, maluses, shield, stealing) done.** On top of private rooms (code,
+link, QR code, lobby, live ranking, 60-second reconnection, play again) and solo training, players
+now earn bonuses by playing and throw them at each other: zoom out, second zone, initials,
+category, remove two options, shield, blur, flip, freeze, steal a bonus, steal points. The host
+can also choose **fixed points** (paid by order of arrival) instead of points that decay with the
+clock. 22 original seed cards, free text or multiple choice.
 
 ## Run it
 
@@ -183,7 +184,48 @@ Added in phase 2:
   choices overwrote each other, because the echo of the first had not come back yet.
 - **The QR code is an `<img>` with a data URL**, not injected markup.
 
-## Not done yet (after phase 2)
+Added in phase 3:
+
+- **Bonuses are earned, never bought with score**: every third correct answer in a row, being the
+  fastest of a round (from three players), being last at the end of a round (from the second
+  round, from three players, and only if someone is ahead). Three at most per player. Every
+  number is in `packages/shared/src/constants/game.ts`, draw weights included.
+- **Using a self bonus lowers what the current round is worth for that player** (owner's
+  decision, as in the prototype): zoom out 150, second zone 100, initials 200, category 100,
+  remove two 150. Points already scored are never touched. Shield, maluses and steals are free.
+- **The draw leaves out what makes no sense in the room**: attacks and steals in solo training,
+  "remove two" when answers are typed.
+- **A refused bonus stays in the inventory** (busy target, nothing to steal, already at the widest
+  view). The order is check, spend, apply: a stolen bonus needs the room that spending the steal
+  just made.
+- **One malus per target at a time; freeze is enforced on the server** (`FROZEN`), not just greyed
+  out in the browser. The shield stays armed across rounds until it absorbs a malus or a steal,
+  and takes the attacker's bonus with it.
+- **Stealing points moves 30%** of what the victim scores this round, rounded to 10; it is
+  announced when it is set up and again, with the amount, when the victim scores.
+- **Only the _count_ of someone's bonuses is public.** Items, hints and a bought zoom level go
+  through a per-player Socket.io channel (`room:CODE:player:ID`). Hints are derived in `view.ts`
+  from secrets that stay on the server: the initials bonus sends `T···  E·····`, never the answer.
+  Private events name their recipient twice (on the effect and by their type), so a forgotten
+  `to` cannot broadcast one.
+- **A zoom-out keeps its owner one level ahead of the room**, up to the fourth level, which only
+  a bonus reaches. The client keeps crops sorted and shows the widest: the room's narrower level
+  still arrives afterwards.
+- **The second lens sits beside the value, never over the main lens**, whose ring is the timer.
+- **Sabotage is public on purpose**: a one-line feed says who did what to whom. It always uses
+  nicknames, the viewer's included, which avoids a second set of sentences per language.
+- **Fixed points** (owner's request): 1000, 800, 600, then 500 by order of arrival, whatever the
+  clock says. Penalties and the floor of 100 still apply. A host setting next to the rounds and
+  the answer mode; the live value then shows what the _next_ finder gets.
+
+## Not done yet (after phase 3)
+
+- Big-screen mode (phase 4): maluses hit the lens for now; on a shared screen they will have to
+  hit the phone's controls instead, and visual bonuses will show in a mini-lens on the phone.
+- The "category" bonus is always in the draw: rooms cannot be limited to one category yet, which
+  is the only case where it should be left out.
+- Bonus UI was driven by script in desktop Chromium at phone size, with bots as opponents: not
+  yet played by several humans, nor on a real phone.
 
 - Games are not written to the database yet (`Game`, `GameParticipant`): nothing reads them
   before stats and rankings in phase 6. Only the solo personal best is stored.
@@ -195,8 +237,6 @@ Added in phase 2:
 - Seen once while driving the browser by script and not reproduced since: a game that started
   without a scripted click, and a "play again" click with no effect. Both server paths are
   covered by `pnpm smoke`; worth keeping an eye on during review.
-- Bonuses, maluses, stealing (phase 3): the fourth zoom level exists as crops but no bonus reaches
-  it yet, so the strip's last frame stays empty.
 - Big screen (4), admin and uploads (5), accounts (6), public matchmaking (7), player packs (8),
   deployment (9), Wikimedia importer (10).
 - **Not verified on a real iPhone.** The keyboard handling (`visualViewport` sets the screen

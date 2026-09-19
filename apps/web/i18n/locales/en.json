@@ -13,7 +13,16 @@
     "create": "Create a game",
     "codeLabel": "Game code",
     "codePlaceholder": "5-character code",
-    "join": "Join"
+    "join": "Join",
+    "scoring": "How points are counted",
+    "scoringMode": {
+      "decay": "Decreasing",
+      "fixed": "Fixed"
+    },
+    "scoringHint": {
+      "decay": "The faster you find it, the more it pays: from 1000 down to 200 points.",
+      "fixed": "The first to find it gets 1000 points, the second 800, the third 600, everyone after 500. Time does not count."
+    }
   },
   "join": {
     "title": "Join a game, {appName}",
@@ -53,7 +62,58 @@
     "leave": "Leave the game"
   },
   "ranking": {
-    "found": "found it"
+    "found": "found it",
+    "bonuses": "{n} bonus"
+  },
+  "bonus": {
+    "shieldUp": "Shield up: it will stop the next attack.",
+    "pickTarget": "{bonus}: against whom?",
+    "noTarget": "Nobody to aim at right now.",
+    "name": {
+      "zoomOut": "Zoom out",
+      "secondZone": "Another zone",
+      "initials": "Initials",
+      "category": "Category",
+      "removeTwo": "Remove 2 options",
+      "shield": "Shield",
+      "blur": "Blur",
+      "flip": "Flip",
+      "freeze": "Freeze",
+      "stealBonus": "Steal a bonus",
+      "stealPoints": "Steal points"
+    },
+    "error": {
+      "TARGET_BUSY": "Someone is already on that player. You keep your bonus.",
+      "TARGET_INVALID": "That player cannot be targeted. You keep your bonus.",
+      "BAD_PHASE": "This bonus would be of no use right now. You keep it.",
+      "other": "The bonus could not be played."
+    }
+  },
+  "feed": {
+    "malus": {
+      "blur": "{from} blurs {to}'s picture",
+      "flip": "{from} flips {to}'s picture",
+      "freeze": "{from} freezes {to}'s input"
+    },
+    "stealBonus": "{from} steals {to}'s “{bonus}” bonus",
+    "stealPoints": "{from} will take a share of {to}'s points",
+    "stolenPoints": "{from} takes {amount} points from {to}",
+    "blocked": "{to}'s shield stops {from}",
+    "granted": {
+      "streak": "Bonus earned: {bonus} (3 correct answers in a row)",
+      "fastest": "Bonus earned: {bonus} (fastest of the round)",
+      "catchup": "Bonus earned: {bonus} (a hand for whoever is last)"
+    }
+  },
+  "category": {
+    "CELEBRITY": "celebrity",
+    "CHARACTER": "character",
+    "OBJECT": "object",
+    "ANIMAL": "animal",
+    "LANDMARK": "landmark",
+    "FOOD": "food",
+    "VEHICLE": "vehicle",
+    "OTHER": "other"
   },
   "play": {
     "title": "Game in progress, {appName}",
@@ -78,7 +138,11 @@
     },
     "nextRound": "You play from the next round.",
     "full": "This game is full.",
-    "kicked": "The host removed you from the game."
+    "kicked": "The host removed you from the game.",
+    "worthFixed": "points for the next one to find it",
+    "frozen": "Your input is frozen for a few seconds.",
+    "secondZoneAlt": "Another part of the same picture",
+    "categoryHint": "Category: {category}"
   },
   "reveal": {
     "found": "Found +{points}",

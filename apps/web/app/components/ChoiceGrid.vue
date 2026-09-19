@@ -4,6 +4,8 @@ import type { McqOption } from '@closeup/shared';
 const props = defineProps<{
   options: McqOption[];
   wrongIds: string[];
+  /** Taken off the table by the "remove two options" bonus. */
+  removedIds: string[];
   lockedUntil: number | null;
   disabled: boolean;
   serverNow: () => number;
@@ -36,8 +38,13 @@ watch(() => props.lockedUntil, refresh);
         v-for="option in options"
         :key="option.id"
         type="button"
-        :class="{ wrong: wrongIds.includes(option.id) }"
-        :disabled="disabled || lockLeft > 0 || wrongIds.includes(option.id)"
+        :class="{
+          wrong: wrongIds.includes(option.id),
+          removed: removedIds.includes(option.id),
+        }"
+        :disabled="
+          disabled || lockLeft > 0 || wrongIds.includes(option.id) || removedIds.includes(option.id)
+        "
         @click="emit('pick', option.id)"
       >
         {{ option.label }}
@@ -75,6 +82,10 @@ button {
 button:disabled {
   opacity: 0.55;
   cursor: default;
+}
+button.removed {
+  text-decoration: line-through;
+  opacity: 0.35;
 }
 button.wrong {
   border-color: var(--danger);

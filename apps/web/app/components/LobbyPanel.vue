@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type AnswerMode, ROOM } from '@closeup/shared';
+import { type AnswerMode, ROOM, SCORING_MODES, type ScoringMode } from '@closeup/shared';
 import { renderSVG } from 'uqr';
 
 const { t } = useI18n();
@@ -34,11 +34,19 @@ const canShareNatively = computed(() => import.meta.client && 'share' in navigat
 // The server takes the settings as a whole. Building them from the store would send a stale
 // half when two choices are made in quick succession (the first echo has not come back yet), so
 // the host's choices live in a local draft that is updated at once and follows the server.
-const draft = reactive({ rounds: game.totalRounds, answerMode: game.answerMode });
+const draft = reactive({
+  rounds: game.totalRounds,
+  answerMode: game.answerMode,
+  scoring: game.scoring,
+});
 watch(
-  () => [game.totalRounds, game.answerMode] as const,
-  ([rounds, answerMode]) => Object.assign(draft, { rounds, answerMode }),
+  () => [game.totalRounds, game.answerMode, game.scoring] as const,
+  ([rounds, answerMode, scoring]) => Object.assign(draft, { rounds, answerMode, scoring }),
 );
+function setScoring(scoring: ScoringMode): void {
+  draft.scoring = scoring;
+  void game.updateSettings({ ...draft });
+}
 function setRounds(rounds: number): void {
   draft.rounds = rounds;
   void game.updateSettings({ ...draft });
@@ -129,6 +137,19 @@ const enoughPlayers = computed(() => game.presentCount >= ROOM.minPlayers);
           <span>{{ t('home.mcq') }}</span>
         </label>
       </fieldset>
+      <fieldset>
+        <legend>{{ t('home.scoring') }}</legend>
+        <label v-for="mode in SCORING_MODES" :key="mode">
+          <input
+            type="radio"
+            name="lobby-scoring"
+            :checked="draft.scoring === mode"
+            @change="setScoring(mode)"
+          />
+          <span>{{ t(`home.scoringMode.${mode}`) }}</span>
+        </label>
+        <p class="muted hint">{{ t(`home.scoringHint.${draft.scoring}`) }}</p>
+      </fieldset>
     </template>
     <p v-else class="muted">
       {{
@@ -137,6 +158,7 @@ const enoughPlayers = computed(() => game.presentCount >= ROOM.minPlayers);
           mode: t(game.answerMode === 'text' ? 'lobby.modeText' : 'lobby.modeMcq'),
         })
       }}
+      {{ t(`home.scoringHint.${game.scoring}`) }}
     </p>
 
     <div class="actions">
@@ -275,6 +297,10 @@ label input:checked + span {
 label input:focus-visible + span {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
+}
+.hint {
+  width: 100%;
+  font-size: 14px;
 }
 .actions {
   display: grid;

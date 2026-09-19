@@ -15,7 +15,15 @@ const countdown = ref(0);
 let countdownTimer: ReturnType<typeof setInterval> | undefined;
 
 const solo = computed(() => game.mode === 'solo');
-const canAnswer = computed(() => game.stage === 'playing' && game.seated && !game.answered);
+// A malus lasts a few seconds: a ticking clock makes it end on screen without a server event.
+const clock = ref(0);
+const malus = computed(() =>
+  game.effect && game.effect.until > clock.value ? game.effect.type : null,
+);
+const frozen = computed(() => malus.value === 'freeze');
+const canAnswer = computed(
+  () => game.stage === 'playing' && game.seated && !game.answered && !frozen.value,
+);
 
 onMounted(async () => {
   const code = roomCodeSchema.safeParse(route.params.code);
@@ -31,7 +39,8 @@ onMounted(async () => {
   void game.enter(code.data);
   countdownTimer = setInterval(() => {
     const startsAt = game.round?.startsAt ?? 0;
-    countdown.value = Math.max(0, Math.ceil((startsAt - game.serverNow()) / 1000));
+    clock.value = game.serverNow();
+    countdown.value = Math.max(0, Math.ceil((startsAt - clock.value) / 1000));
   }, 100);
 });
 
@@ -46,7 +55,7 @@ async function replaySolo(): Promise<void> {
   try {
     const code = await game.createRoom(
       'solo',
-      { rounds: game.totalRounds, answerMode: game.answerMode },
+      { rounds: game.totalRounds, answerMode: game.answerMode, scoring: game.scoring },
       locale.value as 'fr' | 'en',
     );
     // A new code is a new page: it mounts again and enters the room by itself.
@@ -98,22 +107,44 @@ async function quit(): Promise<void> {
             :starts-at="game.round.startsAt"
             :ends-at="game.round.endsAt"
             :penalty="game.penalty"
+            :scoring="game.scoring"
+            :found-before="game.answeredIds.length"
+            :malus="malus"
             :frozen="game.answered"
             :server-now="game.serverNow"
             :media-url="game.mediaUrl"
             @value="worth = $event"
           />
           <template v-if="game.stage === 'playing'">
-            <p class="display worth">{{ worth }}</p>
+            <div class="below">
+              <p class="display worth">{{ worth }}</p>
+              <!-- The "second zone" bonus: another part of the same image, in a small lens.
+                   Beside the value, never over the main lens: its ring is the timer. -->
+              <img
+                v-if="game.hints.secondZone"
+                class="second-lens"
+                :src="game.mediaUrl(game.hints.secondZone.url)"
+                :alt="t('play.secondZoneAlt')"
+              />
+            </div>
             <p class="muted note">
               <template v-if="!game.seated">{{ t('play.nextRound') }}</template>
               <template v-else-if="game.answered">{{ t('play.foundWaiting') }}</template>
+              <template v-else-if="frozen">{{ t('play.frozen') }}</template>
+              <template v-else-if="game.scoring === 'fixed'">{{ t('play.worthFixed') }}</template>
               <template v-else>{{ t('play.worthNote') }}</template>
+            </p>
+            <p v-if="game.hints.initials" class="display initials">{{ game.hints.initials }}</p>
+            <p v-if="game.hints.category" class="note">
+              {{ t('play.categoryHint', { category: t(`category.${game.hints.category}`) }) }}
             </p>
           </template>
           <p v-else class="muted note">{{ t('play.getReady') }}</p>
         </div>
       </section>
+
+      <EventFeed />
+      <BonusBar />
 
       <RankingList
         v-if="!solo"
@@ -135,6 +166,7 @@ async function quit(): Promise<void> {
         v-else
         :options="game.round.options ?? []"
         :wrong-ids="game.wrongOptionIds"
+        :removed-ids="game.hints.removedOptionIds"
         :locked-until="game.lockedUntil"
         :disabled="!canAnswer"
         :server-now="game.serverNow"
@@ -238,6 +270,28 @@ async function quit(): Promise<void> {
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+.below {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+/* Round like the main lens: the only other round thing on screen, and only while it is earned. */
+.second-lens {
+  flex: none;
+  width: 76px;
+  height: 76px;
+  margin-top: var(--space-2);
+  border: 4px solid var(--surface);
+  border-radius: 50%;
+  background: var(--surface);
+}
+.initials {
+  margin-top: var(--space-2);
+  font-size: 22px;
+  font-stretch: 100%;
+  letter-spacing: 0.08em;
 }
 /* Sized by the height that is left, so the lens shrinks when the keyboard opens. */
 .lens-box {

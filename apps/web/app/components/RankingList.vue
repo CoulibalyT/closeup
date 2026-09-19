@@ -34,6 +34,8 @@ const rows = computed(() => {
         {{ row.rank }}. {{ row.nickname }}
         <small v-if="foundIds?.includes(row.id)" class="found">{{ t('ranking.found') }}</small>
         <small v-else-if="!row.connected">{{ t('lobby.offline') }}</small>
+        <!-- How many, never which: enough to decide who is worth robbing. -->
+        <small v-if="row.bonusCount">{{ t('ranking.bonuses', { n: row.bonusCount }) }}</small>
       </span>
       <span class="score">
         <small v-if="gains && gains[row.id]" class="found">+{{ gains[row.id] }}</small>

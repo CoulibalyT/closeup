@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type Crop, ROUND, roundValueAt } from '@closeup/shared';
+import { type Crop, type Malus, ROUND, roundValue, type ScoringMode } from '@closeup/shared';
 
 /**
  * The one bold element of the interface: a round lens whose ring is the timer. The server sends
@@ -11,6 +11,11 @@ const props = defineProps<{
   startsAt: number;
   endsAt: number;
   penalty: number;
+  scoring: ScoringMode;
+  /** How many players already found: what "fixed points" rooms pay depends on it. */
+  foundBefore: number;
+  /** A blur or a flip thrown by another player. Freeze acts on the input, not on the lens. */
+  malus: Malus | null;
   frozen: boolean;
   serverNow: () => number;
   mediaUrl: (path: string) => string;
@@ -32,7 +37,15 @@ function tick(): void {
   if (!props.frozen) {
     progress.value = Math.min(1, left / ROUND.durationMs);
     hot.value = left < HOT_MS;
-    emit('value', roundValueAt(now - props.startsAt, props.penalty));
+    emit(
+      'value',
+      roundValue({
+        scoring: props.scoring,
+        elapsedMs: now - props.startsAt,
+        foundBefore: props.foundBefore,
+        penalty: props.penalty,
+      }),
+    );
   }
   frame = requestAnimationFrame(tick);
 }
@@ -70,7 +83,7 @@ onBeforeUnmount(() => cancelAnimationFrame(frame));
 
 <template>
   <div class="lens" :class="{ hot }" :style="{ '--p': progress }">
-    <div class="glass">
+    <div class="glass" :class="malus">
       <img
         v-if="shown"
         :key="shown.url"
@@ -100,11 +113,21 @@ onBeforeUnmount(() => cancelAnimationFrame(frame));
   overflow: hidden;
   border-radius: 50%;
   background: var(--surface);
+  transition: rotate 0.35s;
+}
+/* A malus landing is one of the few things allowed to move. The blur sits on the image, inside
+   the clipped glass, so the edge of the lens and the timer ring stay sharp. */
+.glass.blur img {
+  filter: blur(16px);
+}
+.glass.flip {
+  rotate: 180deg;
 }
 img {
   display: block;
   width: 100%;
   height: 100%;
+  transition: filter 0.25s;
   user-select: none;
   -webkit-user-drag: none;
 }
