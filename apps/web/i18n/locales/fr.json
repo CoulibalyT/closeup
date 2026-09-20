@@ -76,7 +76,14 @@
     "screenOpen": "Ouvre cette adresse sur la télé ou l'ordi :",
     "screenHere": "Ouvrir l'écran sur cet appareil",
     "screenOn": "Grand écran connecté.",
-    "needScreen": "Ouvre d'abord le grand écran : sans lui, personne ne voit l'image."
+    "needScreen": "Ouvre d'abord le grand écran : sans lui, personne ne voit l'image.",
+    "packs": "Packs de cartes",
+    "packsAll": "Tous les packs publiés.",
+    "packsChosen": "{n} pack(s) choisi(s).",
+    "packsChoose": "Choisir les packs",
+    "packsClose": "Terminer",
+    "packCards": "{n} carte(s)",
+    "packMine": "à toi"
   },
   "ranking": {
     "found": "a trouvé",
@@ -312,6 +319,83 @@
     "failed": "Le signalement n’est pas parti. Réessaie.",
     "close": "Fermer"
   },
+  "catalogue": {
+    "short": "Packs",
+    "title": "Catalogue, {appName}",
+    "heading": "Catalogue",
+    "pack": "Pack",
+    "pitch": "Les packs publiés, faits par la maison ou par des joueurs.",
+    "allCategories": "Toutes les catégories",
+    "empty": "Rien de publié pour l’instant.",
+    "cards": "{n} carte(s)",
+    "by": "par {author}",
+    "missing": "Ce pack n’existe pas, ou n’est plus publié.",
+    "credits": "Crédits des images",
+    "creditsHint": "Chaque image a un auteur et une licence. Rien n’est publié sans eux.",
+    "source": "source",
+    "makeYours": "Tu peux faire le tien :",
+    "report": "Signaler ce pack",
+    "reportTitle": "Signaler ce pack",
+    "reasons": {
+      "rights": "Une image m’appartient",
+      "inappropriate": "Contenu déplacé",
+      "wrong_answer": "Réponse fausse ou trompeuse"
+    },
+    "rightsHolder": "Tu détiens les droits d’une image ?"
+  },
+  "myPacks": {
+    "short": "Tes images, tes réponses, jouables tout de suite dans tes parties.",
+    "title": "Mes packs, {appName}",
+    "heading": "Mes packs",
+    "make": "Créer un pack",
+    "pitch": "Un pack à toi est privé : tu peux y jouer dans tes propres parties tout de suite. Pour qu’il entre au catalogue, tu le proposes et quelqu’un le regarde.",
+    "needAccount": "Il faut un compte pour créer un pack : il doit survivre à ce navigateur.",
+    "newPack": "Nouveau pack",
+    "create": "Créer le pack",
+    "quotaPacks": "{used} pack(s) sur {max}",
+    "quotaCards": "{used} carte(s) sur {max}",
+    "playable": "{n} carte(s) jouable(s)",
+    "noCards": "Aucune carte pour l’instant.",
+    "state": {
+      "PRIVATE": "privé",
+      "PENDING_REVIEW": "en attente de validation",
+      "PUBLIC": "au catalogue",
+      "DISABLED": "désactivé"
+    },
+    "reviewNote": "Réponse de la modération : {note}",
+    "publishTitle": "Publication",
+    "publishHint": "Une fois proposé, ton pack est lu par quelqu’un. Il reste jouable chez toi pendant ce temps.",
+    "rights": "Je confirme avoir le droit d’utiliser toutes les images de ce pack.",
+    "submit": "Proposer au catalogue",
+    "inReview": "Ton pack attend d’être regardé.",
+    "cancelSubmission": "Retirer la demande",
+    "isPublic": "Ton pack est au catalogue.",
+    "seeInCatalogue": "Le voir au catalogue",
+    "withdraw": "Le retirer du catalogue",
+    "delete": "Supprimer ce pack",
+    "deleteConfirm": "Supprimer ce pack et toutes ses cartes ? C’est définitif.",
+    "error": {
+      "QUOTA_PACKS": "Tu as atteint le nombre de packs autorisé.",
+      "QUOTA_CARDS": "Ce pack a atteint son nombre de cartes.",
+      "QUOTA_UPLOADS": "Tu as envoyé beaucoup d’images aujourd’hui. Reviens demain.",
+      "NO_PLAYABLE_CARD": "Il faut au moins une carte jouable pour proposer ce pack.",
+      "IN_REVIEW": "Ton pack est en cours de lecture : retire la demande pour le modifier.",
+      "PUBLIC_PACK": "Retire-le du catalogue avant de le supprimer.",
+      "other": "Ça n’a pas marché. Réessaie."
+    }
+  },
+  "contact": {
+    "title": "Contact, {appName}",
+    "heading": "Contact et retrait",
+    "pitch": "Une image t’appartient et tu veux qu’elle disparaisse ? Écris-nous : la demande arrive directement dans la file de modération.",
+    "about": "De quoi s’agit-il ?",
+    "aboutHint": "L’adresse de la page du pack, ou une description de l’image.",
+    "email": "Ton adresse e-mail",
+    "message": "Ton message",
+    "send": "Envoyer",
+    "sent": "Message reçu. On te répondra à l’adresse indiquée.",
+    "failed": "Le message n’est pas parti. Réessaie."
+  },
   "admin": {
     "backOffice": "Administration",
     "loginTitle": "Connexion, {appName}",
@@ -479,7 +563,11 @@
     "banReason": "Motif du bannissement (gardé dans le journal)",
     "banConfirm": "Bannir ce joueur",
     "unban": "Lever le bannissement",
-    "bannedNow": "banni"
+    "bannedNow": "banni",
+    "packSubmission": "Pack proposé",
+    "packPublish": "Publier le pack",
+    "packReject": "Renvoyer à son auteur",
+    "packNote": "Mot pour l’auteur (il le verra)"
   },
   "status": {
     "title": "État de {appName}",

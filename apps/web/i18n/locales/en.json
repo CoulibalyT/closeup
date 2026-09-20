@@ -76,7 +76,14 @@
     "screenOpen": "Open this address on the TV or the laptop:",
     "screenHere": "Open the screen on this device",
     "screenOn": "Big screen connected.",
-    "needScreen": "Open the big screen first: without it nobody sees the picture."
+    "needScreen": "Open the big screen first: without it nobody sees the picture.",
+    "packs": "Card packs",
+    "packsAll": "Every published pack.",
+    "packsChosen": "{n} pack(s) chosen.",
+    "packsChoose": "Choose the packs",
+    "packsClose": "Done",
+    "packCards": "{n} card(s)",
+    "packMine": "yours"
   },
   "ranking": {
     "found": "found it",
@@ -312,6 +319,83 @@
     "failed": "The report did not go through. Try again.",
     "close": "Close"
   },
+  "catalogue": {
+    "short": "Packs",
+    "title": "Catalogue, {appName}",
+    "heading": "Catalogue",
+    "pack": "Pack",
+    "pitch": "Published packs, made by the house or by players.",
+    "allCategories": "Every category",
+    "empty": "Nothing published yet.",
+    "cards": "{n} card(s)",
+    "by": "by {author}",
+    "missing": "This pack does not exist, or is no longer published.",
+    "credits": "Image credits",
+    "creditsHint": "Every image has an author and a licence. Nothing is published without them.",
+    "source": "source",
+    "makeYours": "You can make your own:",
+    "report": "Report this pack",
+    "reportTitle": "Report this pack",
+    "reasons": {
+      "rights": "One of the images is mine",
+      "inappropriate": "Inappropriate content",
+      "wrong_answer": "Wrong or misleading answer"
+    },
+    "rightsHolder": "Do you hold the rights to an image?"
+  },
+  "myPacks": {
+    "short": "Your images, your answers, playable in your own games right away.",
+    "title": "My packs, {appName}",
+    "heading": "My packs",
+    "make": "Create a pack",
+    "pitch": "A pack of yours is private: you can play with it in your own games right away. To reach the catalogue, you submit it and somebody reads it.",
+    "needAccount": "You need an account to make a pack: it has to outlive this browser.",
+    "newPack": "New pack",
+    "create": "Create the pack",
+    "quotaPacks": "{used} pack(s) out of {max}",
+    "quotaCards": "{used} card(s) out of {max}",
+    "playable": "{n} playable card(s)",
+    "noCards": "No card yet.",
+    "state": {
+      "PRIVATE": "private",
+      "PENDING_REVIEW": "waiting for review",
+      "PUBLIC": "in the catalogue",
+      "DISABLED": "disabled"
+    },
+    "reviewNote": "From the moderator: {note}",
+    "publishTitle": "Publication",
+    "publishHint": "Once submitted, your pack is read by somebody. It stays playable in your own games meanwhile.",
+    "rights": "I confirm that I have the right to use every image in this pack.",
+    "submit": "Submit to the catalogue",
+    "inReview": "Your pack is waiting to be read.",
+    "cancelSubmission": "Take the request back",
+    "isPublic": "Your pack is in the catalogue.",
+    "seeInCatalogue": "See it in the catalogue",
+    "withdraw": "Take it out of the catalogue",
+    "delete": "Delete this pack",
+    "deleteConfirm": "Delete this pack and all its cards? This cannot be undone.",
+    "error": {
+      "QUOTA_PACKS": "You have reached the number of packs allowed.",
+      "QUOTA_CARDS": "This pack has reached its number of cards.",
+      "QUOTA_UPLOADS": "You have uploaded a lot of images today. Come back tomorrow.",
+      "NO_PLAYABLE_CARD": "At least one playable card is needed to submit this pack.",
+      "IN_REVIEW": "Your pack is being read: take the request back to change it.",
+      "PUBLIC_PACK": "Take it out of the catalogue before deleting it.",
+      "other": "That did not work. Try again."
+    }
+  },
+  "contact": {
+    "title": "Contact, {appName}",
+    "heading": "Contact and takedown",
+    "pitch": "An image is yours and you want it gone? Write to us: the request lands straight in the moderation queue.",
+    "about": "What is this about?",
+    "aboutHint": "The address of the pack page, or a description of the image.",
+    "email": "Your email address",
+    "message": "Your message",
+    "send": "Send",
+    "sent": "Message received. We will answer at the address you gave.",
+    "failed": "The message did not go through. Try again."
+  },
   "admin": {
     "backOffice": "Back-office",
     "loginTitle": "Sign in, {appName}",
@@ -479,7 +563,11 @@
     "banReason": "Reason for the ban (kept in the log)",
     "banConfirm": "Ban this player",
     "unban": "Lift the ban",
-    "bannedNow": "banned"
+    "bannedNow": "banned",
+    "packSubmission": "Submitted pack",
+    "packPublish": "Publish the pack",
+    "packReject": "Send back to its author",
+    "packNote": "A word for the author (they will see it)"
   },
   "status": {
     "title": "{appName} status",

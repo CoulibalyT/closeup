@@ -132,7 +132,9 @@ input {
   cursor: default;
 }
 
+/* On a white panel a quiet button would be white on white: the outline is what makes it one. */
 .button.quiet {
+  border: 1.5px solid var(--line);
   background: var(--surface);
   color: var(--ink);
 }

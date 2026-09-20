@@ -66,6 +66,7 @@ async function replaySolo(): Promise<void> {
         answerMode: game.answerMode,
         scoring: game.scoring,
         display: 'phones',
+        packIds: [],
       },
       locale.value as 'fr' | 'en',
     );

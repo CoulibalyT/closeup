@@ -7,7 +7,11 @@ races to guess what it is. `closeup` is a codename; the player-facing name lives
 - The brief: [docs/brief.md](docs/brief.md)
 - The validated solo prototype: [docs/prototype/gros-plan.html](docs/prototype/gros-plan.html)
 
-**Status: phase 7 (public games and moderation) done.** `/public` is a queue: three strangers
+**Status: phase 8 (player packs) done.** A player with an account makes packs of their own at
+`/me/packs`, with the back-office's editor: private at first and playable in their own rooms
+straight away, then submitted to a moderation queue that decides whether they reach the public
+catalogue (`/packs`), where every pack shows the credit of each image. A host now picks which
+packs a room draws from. Phase 7 gave `/public`, a queue: three strangers
 of the same language are matched into a game that starts by itself, with fixed settings and only
 packs marked safe for public play. Nicknames are filtered there, every player can report another
 one, and `/admin/reports` is where those land, with a ban that covers both the account and the
@@ -381,7 +385,42 @@ Added in phase 7:
   a new login, away. It is recorded in `Ban` for the story but enforced by `bannedAt`, which the
   socket handshake already reads without joining a table. Lifting it is one click.
 
-## Not done yet (after phase 7)
+Added in phase 8:
+
+- **A pack of one's own is private and playable at once.** The brief's rule, and it decides the
+  whole design: publication and playability are two different things. One function
+  (`playableWhere`) says who may be dealt which card — the catalogue for everyone, your own
+  packs for you, `publicMatchSafe` ones for strangers — and every round re-runs it.
+- **The host picks the packs** (`packIds` in the room settings, empty meaning every published
+  pack). The lobby lists the catalogue plus the host's own. Multiple-choice distractors are
+  drawn from the same scope, so a wrong option always looks possible.
+- **One editor, one pipeline.** The card editor is a component used by both `/admin/cards/:id`
+  and `/me/packs/cards/:id`; only the base path differs, and an ownership check stands in front
+  of the player's. Nobody maintains two editors, and a player's image goes through exactly the
+  same checks as the owner's.
+- **An account is required to make a pack** (the brief): a pack outlives the browser that made
+  it. Quotas per account: ten packs, forty cards each, thirty uploads a day.
+- **Submitting puts the pack in the moderation queue**, as a report of its own kind. It stays
+  exactly as playable as it was while it waits. The answer is published or sent back **with a
+  word its author reads** on their own page. Publishing is not the same as `publicMatchSafe`:
+  letting a pack loose among strangers stays the owner's call.
+- **Every published pack owes its images a credit**, and `/packs/:id` is where they are read.
+  Restricted packs (real people, fictional characters) are never listed in the catalogue and
+  carry `noindex`: they are reached by their link, as the brief asks.
+- **Reporting a pack needs no account**, and `/contact` takes a takedown request from somebody
+  who does not play at all: both land in the same moderation queue.
+
+## Not done yet (after phase 8)
+
+- The catalogue has no search, no paging and no sort beyond newest or by name; it was built for
+  tens of packs, not thousands.
+- A player cannot copy a pack, share a private one with a friend, or hand it over to somebody
+  else. Deleting a pack deletes its cards and their files at once, with no undo.
+- Quotas are counted but never shown before they bite, except as a number on the pack page.
+- A rejected pack keeps only the last word from the moderator: there is no thread, and no way
+  for the author to answer.
+- Nothing warns a player that their own pack is about real people before they submit it; the
+  category is what decides, and they choose it.
 
 - The queue is per language only: no skill, no region, no friends' games. Two queues (fr, en)
   as the plan called for, and nothing decides what happens to a third language later.
@@ -389,9 +428,7 @@ Added in phase 7:
   browser at phone size, three players at a time.
 - The nickname filter is a short list, not a service. It will miss things, and it will
   occasionally annoy somebody whose name it does not know.
-- A report is about a player, from a public game. Packs, cards and takedown requests are phase 8,
-  and the moderation page has no search, no paging beyond a hundred rows and no history per
-  player.
+- The moderation page has no search, no paging beyond a hundred rows and no history per player.
 - A banned player is turned away, but is not told why, and there is no appeal.
 - Public games are not written into the ranking any differently from private ones.
 
@@ -410,10 +447,6 @@ Added in phase 7:
 - Face detection was checked on one public-domain portrait (a painting) and on pictures without
   a face. **Not measured on the target VPS**: memory with the models loaded is about 300 MB in
   the worker, and speed on a small shared CPU is unknown.
-- A public pack's cards join one global deck: rooms cannot choose packs, categories or
-  difficulty yet, so a pack made public is in everybody's games at once.
-- No credits page per pack yet (it comes with the public catalogue in phase 8), no moderation
-  queue (nothing can be submitted or reported before phases 7 and 8).
 - `request.ip` is the proxy's address behind Caddy until "trust proxy" is set in phase 9; the
   per-IP login limit then counts everybody together (the per-address limit still works).
 
@@ -427,19 +460,19 @@ Added in phase 7:
 - Bonus UI was driven by script in desktop Chromium at phone size, with bots as opponents: not
   yet played by several humans, nor on a real phone.
 
-- The room language is the host's at creation time and cannot be changed in the lobby; packs,
-  categories and difficulty are not host settings yet (the seed has three small packs).
+- The room language is the host's at creation time and cannot be changed in the lobby. The host
+  picks packs, but not categories or difficulty inside them.
 - A room lives in one API process. That is the intended v1 deployment (one small VPS); several
   instances would need the Socket.io Redis adapter and a lock per room.
 - Seen once while driving the browser by script and not reproduced since: a game that started
   without a scripted click, and a "play again" click with no effect. Both server paths are
   covered by `pnpm smoke`; worth keeping an eye on during review.
-- Player packs (8), deployment (9), Wikimedia importer (10).
+- Deployment (9), Wikimedia importer (10).
 - **Not verified on a real iPhone.** The keyboard handling (`visualViewport` sets the screen
   height, 17 px input so Safari does not zoom) follows the known recipe but was only exercised in
   desktop Chromium at phone size.
-- The pick of rounds and cards is uniform: difficulty and category filters are in the data model,
-  not in the room settings yet.
+- The pick of rounds and cards is uniform inside the chosen packs: difficulty and category
+  filters are in the data model, not in the room settings.
 - PWA: manifest and service worker registration only, with a placeholder SVG icon. Real icons,
   the offline screen and installability checks belong to phase 9.
 - No production Compose file, no Caddy, no deployment guide (phase 9).

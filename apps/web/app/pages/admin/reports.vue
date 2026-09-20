@@ -15,6 +15,9 @@ const failed = ref(false);
 /** The report whose ban form is open. */
 const banning = ref<string | null>(null);
 const reason = ref('');
+/** The submitted pack whose answer is being written, and the word its author will read. */
+const reviewing = ref<string | null>(null);
+const note = ref('');
 
 async function load(): Promise<void> {
   loading.value = true;
@@ -35,6 +38,13 @@ onMounted(load);
 
 async function decide(report: AdminReport, status: 'RESOLVED' | 'DISMISSED'): Promise<void> {
   await session.request('PUT', `/admin/reports/${report.id}`, { status, note: '' });
+  await load();
+}
+
+async function reviewPack(report: AdminReport, verdict: 'PUBLISH' | 'REJECT'): Promise<void> {
+  await session.request('PUT', `/admin/reports/${report.id}/pack`, { verdict, note: note.value });
+  reviewing.value = null;
+  note.value = '';
   await load();
 }
 
@@ -92,7 +102,35 @@ async function unban(report: AdminReport): Promise<void> {
           </template>
         </p>
 
-        <form v-if="banning === report.id" class="ban" @submit.prevent="ban(report)">
+        <!-- A pack submitted for publication: it is read, then published or sent back. -->
+        <template v-if="report.targetType === 'PACK' && report.reason === 'submission'">
+          <p class="muted small">{{ t('admin.packSubmission') }}</p>
+          <div v-if="report.status === 'OPEN'" class="review">
+            <label :for="`note-${report.id}`">{{ t('admin.packNote') }}</label>
+            <input
+              :id="`note-${report.id}`"
+              type="text"
+              maxlength="500"
+              :value="reviewing === report.id ? note : ''"
+              @focus="reviewing = report.id"
+              @input="note = ($event.target as HTMLInputElement).value"
+            />
+            <div class="actions">
+              <button type="button" class="button small" @click="reviewPack(report, 'PUBLISH')">
+                {{ t('admin.packPublish') }}
+              </button>
+              <button
+                type="button"
+                class="button small quiet"
+                @click="reviewPack(report, 'REJECT')"
+              >
+                {{ t('admin.packReject') }}
+              </button>
+            </div>
+          </div>
+        </template>
+
+        <form v-else-if="banning === report.id" class="ban" @submit.prevent="ban(report)">
           <label :for="`reason-${report.id}`">{{ t('admin.banReason') }}</label>
           <input
             :id="`reason-${report.id}`"
@@ -108,7 +146,10 @@ async function unban(report: AdminReport): Promise<void> {
             </button>
           </div>
         </form>
-        <div v-else class="actions">
+        <div
+          v-else-if="!(report.targetType === 'PACK' && report.reason === 'submission')"
+          class="actions"
+        >
           <button
             v-if="report.banned && !report.banned.user && !report.banned.devices"
             type="button"
@@ -180,7 +221,18 @@ async function unban(report: AdminReport): Promise<void> {
 .small {
   font-size: 14px;
 }
-.ban {
+.ban,
+.review {
   margin-top: var(--space-2);
+}
+.review input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  font: inherit;
+  color: inherit;
 }
 </style>

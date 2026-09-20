@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   type AnswerMode,
+  type CataloguePack,
   DISPLAY_MODES,
   type DisplayMode,
   ROOM,
@@ -52,12 +53,32 @@ const draft = reactive({
   answerMode: game.answerMode,
   scoring: game.scoring,
   display: game.display,
+  packIds: [...game.packIds],
 });
 watch(
   () => [game.totalRounds, game.answerMode, game.scoring, game.display] as const,
   ([rounds, answerMode, scoring, display]) =>
     Object.assign(draft, { rounds, answerMode, scoring, display }),
 );
+watch(
+  () => game.packIds,
+  (packIds) => (draft.packIds = [...packIds]),
+);
+
+/** The packs this room may draw from: the catalogue, plus the host's own. */
+const packs = ref<CataloguePack[]>([]);
+const packsOpen = ref(false);
+onMounted(async () => {
+  if (!game.isHost) return;
+  packs.value = await game.playablePacks().catch(() => []);
+});
+
+function togglePack(id: string): void {
+  draft.packIds = draft.packIds.includes(id)
+    ? draft.packIds.filter((packId) => packId !== id)
+    : [...draft.packIds, id];
+  void game.updateSettings({ ...draft });
+}
 function setDisplay(display: DisplayMode): void {
   draft.display = display;
   void game.updateSettings({ ...draft });
@@ -152,6 +173,37 @@ const screenMissing = computed(() => bigScreen.value && game.screens === 0);
           <span>{{ t(`home.displayMode.${mode}`) }}</span>
         </label>
         <p class="muted hint">{{ t(`home.displayHint.${draft.display}`) }}</p>
+      </fieldset>
+      <fieldset class="packs">
+        <legend>{{ t('lobby.packs') }}</legend>
+        <p class="muted hint">
+          {{
+            draft.packIds.length
+              ? t('lobby.packsChosen', { n: draft.packIds.length })
+              : t('lobby.packsAll')
+          }}
+        </p>
+        <button type="button" class="button quiet small" @click="packsOpen = !packsOpen">
+          {{ t(packsOpen ? 'lobby.packsClose' : 'lobby.packsChoose') }}
+        </button>
+        <ul v-if="packsOpen" class="plain pack-list">
+          <li v-for="pack in packs" :key="pack.id">
+            <label class="check">
+              <input
+                type="checkbox"
+                :checked="draft.packIds.includes(pack.id)"
+                @change="togglePack(pack.id)"
+              />
+              <span>
+                {{ pack.title }}
+                <small class="muted">
+                  {{ t('lobby.packCards', { n: pack.cards }) }}
+                  <template v-if="pack.byPlayer"> · {{ t('lobby.packMine') }}</template>
+                </small>
+              </span>
+            </label>
+          </li>
+        </ul>
       </fieldset>
       <fieldset>
         <legend>{{ t('home.rounds') }}</legend>
@@ -262,6 +314,36 @@ const screenMissing = computed(() => bigScreen.value && game.screens === 0);
   font-size: 17px;
   font-weight: 700;
   overflow-wrap: anywhere;
+}
+.packs .hint {
+  margin-bottom: var(--space-2);
+}
+.pack-list {
+  margin-top: var(--space-2);
+  max-height: 210px;
+  overflow-y: auto;
+}
+.pack-list .check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-height: 44px;
+  font-weight: 400;
+}
+.pack-list .check input {
+  width: 20px;
+  height: 20px;
+  margin-top: 12px;
+  flex: none;
+}
+.pack-list small {
+  display: block;
+  font-size: 13px;
+}
+.button.small {
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  font-size: 15px;
 }
 .screen-status .here {
   display: inline-flex;

@@ -86,6 +86,11 @@ const localePath = useLocalePath();
 .page .link.danger {
   color: var(--danger);
 }
+.page ul.plain {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
 .page .tabs {
   display: flex;
   gap: var(--space-2);

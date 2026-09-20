@@ -16,6 +16,7 @@ import {
   roundEffectSchema,
   roundStealSchema,
   type ScoringMode,
+  type CataloguePack,
   type Crop,
   type GameEnd,
   gameEndSchema,
@@ -105,6 +106,8 @@ export const useGameStore = defineStore('game', () => {
   /** Points each of them scored this round, as announced by the server. */
   const roundGains = ref<Record<string, number>>({});
   const scoring = ref<ScoringMode>('decay');
+  /** Packs the host picked. Empty: every public pack. */
+  const packIds = ref<string[]>([]);
   /** The viewer's own bonuses. Other players only ever show a count. */
   const inventory = ref<BonusItem[]>([]);
   const shielded = ref(false);
@@ -190,6 +193,13 @@ export const useGameStore = defineStore('game', () => {
     });
     if (!room.ok) throw new Error('room');
     return roomCreatedSchema.parse(await room.json()).code;
+  }
+
+  /** What a room may be told to play: the catalogue, plus the host's own packs. */
+  async function playablePacks(): Promise<CataloguePack[]> {
+    const response = await fetch(`${apiBase}/api/playable-packs`, { credentials: 'include' });
+    if (!response.ok) throw new Error('packs');
+    return (await response.json()) as CataloguePack[];
   }
 
   /** What the join screen shows before asking for a nickname. `null`: no such room. */
@@ -292,6 +302,7 @@ export const useGameStore = defineStore('game', () => {
       answerMode.value = settings.answerMode;
       scoring.value = settings.scoring;
       display.value = settings.display;
+      packIds.value = settings.packIds;
       totalRounds.value = settings.rounds;
     });
     io.on(ServerEvent.roomScreens, (raw) => {
@@ -586,6 +597,8 @@ export const useGameStore = defineStore('game', () => {
     answeredIds,
     roundGains,
     scoring,
+    packIds,
+    playablePacks,
     inventory,
     shielded,
     hints,
@@ -604,6 +617,7 @@ export const useGameStore = defineStore('game', () => {
     joinQueue,
     leaveQueue,
     report,
+    apiBase,
     serverNow,
     mediaUrl,
     rememberedNickname,

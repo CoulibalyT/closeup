@@ -95,7 +95,13 @@ async function reopen(): Promise<void> {
   try {
     const code = await game.createRoom(
       'private',
-      { rounds: ROOM.defaultRounds, answerMode: 'text', scoring: 'decay', display: 'bigscreen' },
+      {
+        rounds: ROOM.defaultRounds,
+        answerMode: 'text',
+        scoring: 'decay',
+        display: 'bigscreen',
+        packIds: [],
+      },
       locale.value as 'fr' | 'en',
       'screen',
     );

@@ -42,7 +42,13 @@ const createParty = () =>
     game.setNickname(nickname.value);
     const code = await game.createRoom(
       'private',
-      { rounds: ROOM.defaultRounds, answerMode: 'text', scoring: 'decay', display: 'phones' },
+      {
+        rounds: ROOM.defaultRounds,
+        answerMode: 'text',
+        scoring: 'decay',
+        display: 'phones',
+        packIds: [],
+      },
       locale.value as 'fr' | 'en',
     );
     return `/play/${code}`;
@@ -54,7 +60,13 @@ const openScreen = () =>
   go(async () => {
     const code = await game.createRoom(
       'private',
-      { rounds: ROOM.defaultRounds, answerMode: 'text', scoring: 'decay', display: 'bigscreen' },
+      {
+        rounds: ROOM.defaultRounds,
+        answerMode: 'text',
+        scoring: 'decay',
+        display: 'bigscreen',
+        packIds: [],
+      },
       locale.value as 'fr' | 'en',
       'screen',
     );
@@ -76,6 +88,7 @@ const playSolo = () =>
       answerMode: answerMode.value,
       scoring: scoring.value,
       display: 'phones' as const,
+      packIds: [],
     };
     return `/play/${await game.createRoom('solo', settings, locale.value as 'fr' | 'en')}`;
   });
@@ -93,6 +106,7 @@ const playSolo = () =>
         {{ l.name }}
       </NuxtLink>
       <span class="grow" />
+      <NuxtLink :to="localePath('/packs')">{{ t('catalogue.short') }}</NuxtLink>
       <NuxtLink :to="localePath('/rankings')">{{ t('rankings.heading') }}</NuxtLink>
       <NuxtLink :to="localePath('/stats')">{{ t('stats.short') }}</NuxtLink>
       <NuxtLink :to="localePath('/account')">{{ t('account.short') }}</NuxtLink>
@@ -154,6 +168,14 @@ const playSolo = () =>
       </button>
     </section>
 
+    <section class="block stack">
+      <h2>{{ t('myPacks.heading') }}</h2>
+      <p class="muted">{{ t('myPacks.short') }}</p>
+      <NuxtLink class="button quiet" :to="localePath('/me/packs')">
+        {{ t('myPacks.make') }}
+      </NuxtLink>
+    </section>
+
     <form class="block stack" @submit.prevent="playSolo">
       <h2>{{ t('home.solo') }}</h2>
 
@@ -187,6 +209,10 @@ const playSolo = () =>
 
       <button type="submit" class="button quiet" :disabled="busy">{{ t('home.play') }}</button>
     </form>
+
+    <footer>
+      <NuxtLink :to="localePath('/contact')">{{ t('contact.heading') }}</NuxtLink>
+    </footer>
   </main>
 </template>
 
@@ -228,6 +254,16 @@ h1 {
   max-width: 32ch;
   margin-top: var(--space-3);
   font-size: 19px;
+}
+footer {
+  margin-top: var(--space-6);
+  font-size: 15px;
+}
+footer a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--muted);
 }
 .block {
   margin-top: var(--space-6);
