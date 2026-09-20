@@ -1,4 +1,5 @@
-import { cropSidePx, ZOOM } from '@closeup/shared';
+import { ZOOM } from '../constants/game.js';
+import { cropSidePx } from './zoom.js';
 
 export interface ImageSize {
   width: number;
@@ -26,6 +27,9 @@ export interface PlannedCrop {
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 /**
+ * Shared on purpose: the worker cuts the real crops with it, and the admin draws its live preview
+ * of the four levels with it. One function, so what is previewed is what gets played.
+ *
  * One square per zoom level, as in the prototype: never larger than the image, and shifted
  * rather than shrunk when the point is near an edge.
  */

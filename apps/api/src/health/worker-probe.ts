@@ -27,7 +27,10 @@ export class WorkerProbe implements OnModuleDestroy {
       connectionName: 'closeup:queue-events',
       maxRetriesPerRequest: null,
     });
-    this.events = new QueueEvents(MEDIA_QUEUE, { connection: this.eventsClient });
+    this.events = new QueueEvents(MEDIA_QUEUE, {
+      connection: this.eventsClient,
+      prefix: config.env.QUEUE_PREFIX,
+    });
     logErrorsOnce(this.eventsClient, 'MediaQueueEvents');
     logErrorsOnce(this.events, 'MediaQueueEvents');
     logErrorsOnce(this.queue, 'MediaQueue');

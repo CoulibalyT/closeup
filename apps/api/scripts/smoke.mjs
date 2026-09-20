@@ -465,6 +465,108 @@ async function playBigScreen() {
   for (const p of [host, friend]) p.socket.disconnect();
 }
 
+/**
+ * The back-office against the running stack: login, the guard, then a card from upload to crops
+ * through the real worker. Needs an admin (`pnpm admin:create`) whose credentials are in
+ * SMOKE_ADMIN_EMAIL and SMOKE_ADMIN_PASSWORD; without them this part is skipped, not failed.
+ */
+async function adminBackOffice() {
+  const { SMOKE_ADMIN_EMAIL: email, SMOKE_ADMIN_PASSWORD: password } = process.env;
+  if (!email || !password) {
+    console.log('skip back-office checks: set SMOKE_ADMIN_EMAIL and SMOKE_ADMIN_PASSWORD');
+    return;
+  }
+  const shut = await fetch(`${api}/api/admin/packs`);
+  check('the back-office is shut without a session', shut.status === 401);
+
+  const login = await fetch(`${api}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  const cookie = (login.headers.getSetCookie()[0] ?? '').split(';')[0];
+  check('the admin logs in', login.status === 200 && cookie.length > 20);
+
+  const call = (path, init = {}) =>
+    fetch(`${api}/api/admin${path}`, { ...init, headers: { cookie, ...init.headers } });
+  const json = (method, path, body) =>
+    call(path, {
+      method,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then((response) => response.json());
+
+  const packs = await (await call('/packs')).json();
+  check(
+    'the seeded packs are listed',
+    packs.filter((p) => p.slug?.startsWith('seed-')).length >= 3,
+  );
+
+  const pack = await json('POST', '/packs', {
+    titleFr: 'Essai smoke',
+    titleEn: 'Smoke test',
+    category: 'OBJECT',
+  });
+  const card = await json('POST', `/packs/${pack.id}/cards`, { category: 'OBJECT' });
+  check(
+    'a pack and a draft card are created',
+    card.status === 'DRAFT' && pack.visibility === 'PRIVATE',
+  );
+
+  // A picture made here: nothing borrowed, nothing to credit.
+  const { default: sharp } = await import('sharp');
+  const picture = await sharp({
+    create: { width: 1600, height: 1200, channels: 3, background: '#5b8def' },
+  })
+    .jpeg()
+    .toBuffer();
+  const form = new FormData();
+  form.set('file', new Blob([picture]), 'smoke.jpg');
+  form.set('rightsConfirmed', 'true');
+  const uploaded = await call(`/cards/${card.id}/image`, { method: 'POST', body: form });
+  check('an upload is accepted and handed to the worker', uploaded.status === 201);
+
+  const settled = async () => {
+    for (let i = 0; i < 60; i++) {
+      const current = await (await call(`/cards/${card.id}`)).json();
+      if (current.status !== 'PROCESSING') return current;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    return { status: 'TIMEOUT' };
+  };
+  const ingested = await settled();
+  check(
+    'the worker stores the image and asks for zoom points',
+    ingested.status === 'NEEDS_POINTS' && ingested.image?.width === 1600,
+    ingested.processingError ?? ingested.status,
+  );
+
+  await json('PUT', `/cards/${card.id}/zoom-points`, {
+    points: [
+      { x: 400, y: 400, baseRadius: 60 },
+      { x: 1100, y: 800, baseRadius: 60 },
+    ],
+  });
+  const cut = await settled();
+  check(
+    'two zoom points get all their crops, and the card waits for a credit',
+    cut.status === 'READY' &&
+      cut.zoomPoints.every((point) => point.cropsReady) &&
+      cut.blockers.includes('CREDIT_MISSING'),
+    cut.status,
+  );
+  const refused = await call(`/cards/${card.id}/live`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ live: true }),
+  });
+  check('a card without a credit is not published', refused.status === 409);
+
+  const gone = await call(`/cards/${card.id}`, { method: 'DELETE' });
+  const emptied = await call(`/packs/${pack.id}`, { method: 'DELETE' });
+  check('the test card and pack are removed', gone.status === 204 && emptied.status === 204);
+}
+
 try {
   const live = await getJson(`${api}/api/health`);
   check('API is alive', live.status === 200);
@@ -513,6 +615,7 @@ try {
   await playParty();
   await playBonuses();
   await playBigScreen();
+  await adminBackOffice();
 } catch (error) {
   check('stack reachable', false, error.message);
 }

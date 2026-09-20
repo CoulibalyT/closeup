@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { AdminModule } from './admin/admin.module.js';
+import { AuthModule } from './auth/auth.module.js';
 import { ConfigModule } from './config/app-config.js';
 import { GameModule } from './game/game.module.js';
 import { HealthModule } from './health/health.module.js';
@@ -16,9 +18,11 @@ import { RedisModule } from './redis/redis.module.js';
     MediaModule,
     MediaHttpModule,
     IdentityModule,
+    AuthModule,
     bullRoot(),
     HealthModule,
     GameModule,
+    AdminModule,
   ],
 })
 export class AppModule {}

@@ -12,6 +12,8 @@ allowBuilds:
   '@prisma/engines': true
   # Optional native speed-up for BullMQ's msgpackr, which works fine in pure JS.
   msgpackr-extract: false
+  # Pulled in by @tensorflow/tfjs. Its install script only prints a funding banner.
+  core-js: false
 
 # Supply-chain guard: never resolve to a version published less than a day ago (minutes).
 # Keep dependency ranges loose enough (`^x.y.0`) for pnpm to fall back to the previous release

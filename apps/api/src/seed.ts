@@ -105,7 +105,12 @@ async function seedCard(packId: string, category: SeedCategory, def: SeedCard): 
     }),
   ]);
 
-  await queue.add(MediaJob.processCard, { cardId: card.id }, { attempts: 3, backoff: 2_000 });
+  // Seed content is complete by construction: it goes live as soon as its crops are cut.
+  await queue.add(
+    MediaJob.processCard,
+    { cardId: card.id, publish: true },
+    { attempts: 3, backoff: 2_000 },
+  );
   return true;
 }
 

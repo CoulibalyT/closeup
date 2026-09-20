@@ -1,9 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
-import { type Locale, MULTIPLE_CHOICE, ZOOM } from '@closeup/shared';
+import { type Locale, MULTIPLE_CHOICE, revealZone, ZOOM } from '@closeup/shared';
 import { normalise } from '../game/engine/matching.js';
 import type { AnswerMode, EngineCard } from '../game/engine/types.js';
-import { revealZone } from '../media/crop-geometry.js';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { chooseDistractors, pickWeighted, shuffle } from './distractors.js';
 

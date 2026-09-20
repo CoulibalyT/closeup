@@ -20,6 +20,11 @@ const envSchema = z
       ),
     /** Where originals, reveal renditions and crops live. A Docker volume in Compose. */
     MEDIA_DIR: z.string().min(1).default('../../data/media'),
+    /**
+     * Namespace of the job queue in Redis. Two stacks on one Redis (the tests next to a running
+     * Compose stack) must not take each other's image jobs.
+     */
+    QUEUE_PREFIX: z.string().min(1).default('bull'),
     /** Key of the encrypted media URLs. */
     MEDIA_SECRET: z.string().min(32).default(DEV_MEDIA_SECRET),
   })

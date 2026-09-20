@@ -15,6 +15,8 @@ export interface StorageDriver {
 export const STORAGE = Symbol('STORAGE');
 
 export const storageKeys = {
+  /** An upload waiting for the worker. Deleted once ingested, whatever the outcome. */
+  incoming: (uploadId: string) => `incoming/${uploadId}`,
   original: (imageId: string, extension: string) => `originals/${imageId}.${extension}`,
   reveal: (imageId: string) => `reveal/${imageId}.webp`,
   crop: (zoomPointId: string, level: number, sizePx: number) =>

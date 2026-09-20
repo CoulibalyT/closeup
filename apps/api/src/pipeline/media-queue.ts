@@ -8,8 +8,13 @@ export const MEDIA_QUEUE = 'media';
 export const MediaJob = {
   /** Round trip used by health checks to prove the worker consumes the queue. */
   ping: 'ping',
-  /** `{ cardId }`: reveal rendition and every crop of a card. Every content producer ends here. */
+  /**
+   * `{ cardId, publish? }`: reveal rendition and every crop of a card. Every content producer
+   * ends here. `publish` lets the card go live if nothing blocks it.
+   */
   processCard: 'card.process',
+  /** `{ cardId, incomingKey }`: an uploaded file becomes the card's private original. */
+  ingestImage: 'image.ingest',
 } as const;
 
 export const WORKER_HEARTBEAT_KEY = 'closeup:worker:heartbeat';
@@ -29,7 +34,10 @@ export const bullConnection = (config: AppConfig): ConnectionOptions => ({
 export const bullRoot = () =>
   BullModule.forRootAsync({
     inject: [AppConfig],
-    useFactory: (config: AppConfig) => ({ connection: bullConnection(config) }),
+    useFactory: (config: AppConfig) => ({
+      connection: bullConnection(config),
+      prefix: config.env.QUEUE_PREFIX,
+    }),
   });
 
 export const mediaQueue = () =>

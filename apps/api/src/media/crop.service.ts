@@ -1,8 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { ZOOM } from '@closeup/shared';
+import { cropPlan, publishBlockers, ZOOM } from '@closeup/shared';
 import sharp from 'sharp';
 import { PrismaService } from '../prisma/prisma.module.js';
-import { cropPlan } from './crop-geometry.js';
 import { STORAGE, type StorageDriver, storageKeys } from './storage.js';
 
 const REVEAL_MAX_PX = 1280;
@@ -25,7 +24,25 @@ export class CropService {
     @Inject(STORAGE) private readonly storage: StorageDriver,
   ) {}
 
-  async processCard(cardId: string): Promise<{ crops: number; status: string }> {
+  /** The downscaled rendition shown on the reveal and in the admin. Never the original. */
+  async renderReveal(imageId: string, original: Buffer): Promise<void> {
+    const revealKey = storageKeys.reveal(imageId);
+    await this.storage.put(
+      revealKey,
+      await sharp(original)
+        .resize(REVEAL_MAX_PX, REVEAL_MAX_PX, { fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: 80 })
+        .toBuffer(),
+    );
+    await this.prisma.imageAsset.update({ where: { id: imageId }, data: { revealKey } });
+  }
+
+  /**
+   * `publish`: go live when nothing blocks it. The seed asks for it; the admin only when the
+   * card was already live before its zoom points changed. Otherwise a finished card waits in
+   * READY for someone to publish it.
+   */
+  async processCard(cardId: string, publish = false): Promise<{ crops: number; status: string }> {
     const card = await this.prisma.card.findUniqueOrThrow({
       where: { id: cardId },
       include: { image: true, zoomPoints: true, answers: true },
@@ -34,15 +51,7 @@ export class CropService {
     const { image } = card;
     const original = await this.storage.read(image.originalKey);
 
-    const revealKey = storageKeys.reveal(image.id);
-    await this.storage.put(
-      revealKey,
-      await sharp(original)
-        .resize(REVEAL_MAX_PX, REVEAL_MAX_PX, { fit: 'inside', withoutEnlargement: true })
-        .webp({ quality: 80 })
-        .toBuffer(),
-    );
-    await this.prisma.imageAsset.update({ where: { id: image.id }, data: { revealKey } });
+    await this.renderReveal(image.id, original);
 
     let crops = 0;
     for (const point of card.zoomPoints) {
@@ -82,14 +91,18 @@ export class CropService {
       }
     }
 
-    // A card goes live only when it can be played *and* credited.
-    const credited = Boolean(card.creditAuthor && card.creditLicence);
+    // One rule for every producer: a card goes live only when it can be played *and* credited.
+    const answer = (locale: string) => card.answers.find((a) => a.locale === locale)?.text;
+    const blockers = publishBlockers({
+      hasImage: true,
+      processing: false,
+      rightsConfirmed: card.source !== 'UPLOAD' || card.rightsConfirmedAt !== null,
+      credit: { author: card.creditAuthor, licence: card.creditLicence },
+      answers: { fr: answer('fr'), en: answer('en') },
+      points: card.zoomPoints.map(() => ({ cropsReady: true })),
+    });
     const status =
-      card.zoomPoints.length < 2
-        ? 'NEEDS_POINTS'
-        : credited && card.answers.length
-          ? 'LIVE'
-          : 'READY';
+      card.zoomPoints.length < 2 ? 'NEEDS_POINTS' : publish && !blockers.length ? 'LIVE' : 'READY';
     await this.prisma.card.update({ where: { id: cardId }, data: { status } });
     this.logger.log(`Card ${card.slug ?? cardId}: ${crops} crops, ${status}`);
     return { crops, status };

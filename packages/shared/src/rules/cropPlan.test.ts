@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cropPlan, revealZone } from './crop-geometry.js';
+import { cropPlan, revealZone } from './cropPlan.js';
 
 const image = { width: 1000, height: 800 };
 
