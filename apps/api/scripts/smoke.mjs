@@ -121,6 +121,60 @@ async function playSolo() {
   const end = await over;
   check('the game ends with a personal best', end.personalBest?.score >= points);
   socket.disconnect();
+  return { cookie, points };
+}
+
+/**
+ * Accounts: the guest who just played gets statistics, signs up without losing them, shows up
+ * nowhere in a ranking of games with other people (they only trained alone), and leaves no
+ * trace when the account is deleted.
+ */
+async function accounts(player) {
+  const call = (method, path, body, cookie = player.cookie) =>
+    fetch(`${api}/api${path}`, {
+      method,
+      headers: { cookie, ...(body ? { 'content-type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+
+  // The archive is written right after the game ends, without holding the room up.
+  let stats;
+  for (let i = 0; i < 20 && !stats?.games; i++) {
+    stats = await (await call('GET', '/me/stats')).json();
+    if (!stats.games) await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  check(
+    'a finished game is written down for a guest',
+    stats.games === 1 && stats.hasAccount === false && stats.totalScore === player.points,
+    `${stats.games} game, ${stats.totalScore} points`,
+  );
+
+  const email = `smoke-${Date.now()}@closeup.test`;
+  const password = 'smoke test passphrase';
+  const signup = await call('POST', '/auth/register', { email, password, locale: 'fr' });
+  const session = signup.headers
+    .getSetCookie()
+    .map((c) => c.split(';')[0])
+    .join('; ');
+  const cookie = `${player.cookie}; ${session}`;
+  const me = await signup.json();
+  check(
+    'signing up adopts the guest: same nickname, same history',
+    signup.status === 201 && me.nickname === 'Smoke',
+    me.nickname,
+  );
+  const kept = await (await call('GET', '/me/stats', null, cookie)).json();
+  check('the history followed into the account', kept.hasAccount === true && kept.games === 1);
+
+  const board = await (await call('GET', '/rankings?period=week', null, cookie)).json();
+  check(
+    'solo training does not enter the ranking',
+    Array.isArray(board.rows) && !board.rows.some((row) => row.you) && board.you === null,
+  );
+
+  const gone = await call('DELETE', '/auth/me', { password }, cookie);
+  const after = await call('GET', '/auth/me', null, cookie);
+  check('the account can be deleted', gone.status === 204 && after.status === 401);
 }
 
 async function guest(nickname) {
@@ -484,8 +538,12 @@ async function adminBackOffice() {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ email, password }),
   });
-  const cookie = (login.headers.getSetCookie()[0] ?? '').split(';')[0];
-  check('the admin logs in', login.status === 200 && cookie.length > 20);
+  // A login sets two cookies: the session, and a device (an account is also a player).
+  const cookie = login.headers
+    .getSetCookie()
+    .map((c) => c.split(';')[0])
+    .join('; ');
+  check('the admin logs in', login.status === 200 && /_session=/.test(cookie));
 
   const call = (path, init = {}) =>
     fetch(`${api}/api/admin${path}`, { ...init, headers: { cookie, ...init.headers } });
@@ -611,7 +669,8 @@ try {
   check('a stale client is refused', stale.error?.message === 'PROTOCOL_MISMATCH');
   stale.socket.disconnect();
 
-  await playSolo();
+  const soloPlayer = await playSolo();
+  await accounts(soloPlayer);
   await playParty();
   await playBonuses();
   await playBigScreen();

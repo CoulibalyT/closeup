@@ -86,6 +86,18 @@ export interface PlayerState {
   inventory?: BonusItem[];
   /** An armed shield absorbs the next malus or steal, in this round or a later one. */
   shielded?: boolean;
+  /** For the player's statistics: rounds they were dealt in, and time spent on those they found. */
+  roundsSeated?: number;
+  answerMsTotal?: number;
+}
+
+/** What a finished round leaves behind, for the game's history (difficulty can be tuned from it). */
+export interface RoundSummary {
+  cardId: string;
+  seated: number;
+  found: number;
+  /** Sum of the times to find, over those who found. */
+  foundMsTotal: number;
 }
 
 export interface ActiveMalus {
@@ -142,6 +154,9 @@ export interface RoomState {
   settings: RoomSettings;
   phase: Phase;
   players: Record<string, PlayerState>;
+  /** When the host pressed start. With `history`, what is written down once the game ends. */
+  startedAt?: number;
+  history?: RoundSummary[];
   /** Rounds started so far. */
   roundIndex: number;
   totalRounds: number;

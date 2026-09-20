@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { engineCard } from '../../testing/cards.js';
+import { Party, PARTY_T0 } from '../../testing/party.js';
 import { createRoom, reduce } from './reducer.js';
 import type { Command, Effect, EngineCard, Reduced, RoomState } from './types.js';
 
@@ -396,5 +397,37 @@ describe('purity', () => {
       { now: start + 1_000, newId: () => 'x' },
     );
     expect(frozen).toEqual(before);
+  });
+});
+
+describe('what a game leaves behind for the history', () => {
+  it('remembers when it started, each round, and how each player did', () => {
+    const party = new Party({ players: 3 });
+    expect(party.state.startedAt).toBe(PARTY_T0 + 10);
+
+    party.guess('p1', 4_000);
+    party.guess('p2', 10_000);
+    party.finishRound();
+    party.guess('p1', 6_000);
+    party.send({ type: 'tick' }, party.start + 30_000);
+
+    expect(party.state.history).toEqual([
+      { cardId: expect.any(String), seated: 3, found: 2, foundMsTotal: 14_000 },
+      { cardId: expect.any(String), seated: 3, found: 1, foundMsTotal: 6_000 },
+    ]);
+    expect(party.state.players.p1).toMatchObject({
+      roundsSeated: 2,
+      correctCount: 2,
+      answerMsTotal: 10_000,
+    });
+    expect(party.state.players.p3).toMatchObject({ roundsSeated: 2, correctCount: 0 });
+  });
+
+  it('does not count a round for someone who joined in the middle of it', () => {
+    const party = new Party({ players: 2 });
+    party.send({ type: 'join', playerId: 'late', nickname: 'Théo' }, party.start + 5_000);
+    party.finishRound();
+    expect(party.state.players.late!.roundsSeated).toBe(1);
+    expect(party.state.players.p1!.roundsSeated).toBe(2);
   });
 });

@@ -261,7 +261,10 @@ function dispatch(
       if (state.phase !== 'ended') return refuse('BAD_PHASE', 'The game is not over');
       for (const player of Object.values(state.players)) {
         if (player.gone) delete state.players[player.id];
-        else Object.assign(player, { score: 0, streak: 0, bestStreak: 0, correctCount: 0 });
+        else {
+          Object.assign(player, { score: 0, streak: 0, bestStreak: 0, correctCount: 0 });
+          Object.assign(player, { roundsSeated: 0, answerMsTotal: 0 });
+        }
       }
       state.phase = 'lobby';
       state.round = undefined;
@@ -285,6 +288,8 @@ function dispatch(
         1,
         Math.min(state.settings.rounds, command.availableRounds ?? state.settings.rounds),
       );
+      state.startedAt = ctx.now;
+      state.history = [];
       emit({ type: 'gameStarted' });
       requestCard(state, effects);
       return OK;
@@ -304,6 +309,10 @@ function dispatch(
         perPlayer: Object.fromEntries(Object.keys(state.players).map((id) => [id, { penalty: 0 }])),
         answerOrder: [],
       };
+      for (const id of Object.keys(state.round.perPlayer)) {
+        const seated = state.players[id]!;
+        seated.roundsSeated = (seated.roundsSeated ?? 0) + 1;
+      }
       state.roundIndex += 1;
       state.phase = 'countdown';
       emit({ type: 'roundPrepare' });
@@ -448,6 +457,7 @@ function score(
   round.answerOrder.push(playerId);
   player.score += points;
   player.correctCount += 1;
+  player.answerMsTotal = (player.answerMsTotal ?? 0) + (now - round.startsAt);
   player.streak += 1;
   player.bestStreak = Math.max(player.bestStreak, player.streak);
   emit({ type: 'playerAnswered', playerId, points, order: round.answerOrder.length });
@@ -557,6 +567,15 @@ function endRound(state: RoomState, now: number, emit: (event: EngineEvent) => v
   for (const player of Object.values(state.players)) {
     if (round.perPlayer[player.id]?.answeredAt === undefined) player.streak = 0;
   }
+  const found = Object.values(round.perPlayer).flatMap((mine) =>
+    mine.answeredAt === undefined ? [] : [mine.answeredAt - round.startsAt],
+  );
+  (state.history ??= []).push({
+    cardId: round.card.cardId,
+    seated: Object.keys(round.perPlayer).length,
+    found: found.length,
+    foundMsTotal: found.reduce((sum, ms) => sum + ms, 0),
+  });
   state.phase = 'reveal';
   state.revealUntil = state.mode === 'solo' ? null : now + ROUND.revealMs;
   emit({ type: 'roundEnd' });

@@ -20,6 +20,11 @@ const envSchema = z
       ),
     /** Where originals, reveal renditions and crops live. A Docker volume in Compose. */
     MEDIA_DIR: z.string().min(1).default('../../data/media'),
+    /** e.g. smtp://user:password@mail.example.org:587. Empty: no e-mail leaves (see MailService). */
+    SMTP_URL: z.string().default(''),
+    MAIL_FROM: z.string().min(3).default('closeup <no-reply@localhost>'),
+    /** Where the web app lives, for the links written in e-mails. No trailing slash. */
+    PUBLIC_WEB_URL: z.url().default('http://localhost:3000'),
     /**
      * Namespace of the job queue in Redis. Two stacks on one Redis (the tests next to a running
      * Compose stack) must not take each other's image jobs.

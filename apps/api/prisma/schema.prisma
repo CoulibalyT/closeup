@@ -12,12 +12,16 @@ datasource db {
 /// Who plays. History and stats hang on the player, not on the device, so that upgrading a guest
 /// to an account (phase 6) is a matter of linking this row to a user.
 model Player {
-  id        String     @id @default(uuid(7)) @db.Uuid
-  nickname  String
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  devices   Device[]
-  soloBests SoloBest[]
+  id             String            @id @default(uuid(7)) @db.Uuid
+  nickname       String
+  /// Set when an account adopted this player. A guest's history is kept by linking, not copying.
+  userId         String?           @unique @db.Uuid
+  user           User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  devices        Device[]
+  soloBests      SoloBest[]
+  participations GameParticipant[]
 }
 
 /// A browser or phone, identified by an opaque token that is only ever stored hashed.
@@ -44,17 +48,33 @@ enum UserRole {
 }
 
 model User {
-  id           String     @id @default(uuid(7)) @db.Uuid
+  id           String          @id @default(uuid(7)) @db.Uuid
   /// Stored lower-cased: an address is one account however it was typed.
-  email        String     @unique
+  email        String          @unique
   /// argon2id, parameters included in the string.
   passwordHash String
-  role         UserRole   @default(PLAYER)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  role         UserRole        @default(PLAYER)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
   bannedAt     DateTime?
+  /// Language of the e-mails sent to them.
+  locale       String          @default("fr")
+  player       Player?
   sessions     Session[]
   auditLogs    AuditLog[]
+  resets       PasswordReset[]
+}
+
+/// A link sent by e-mail. One hour, one use, and like every token only its hash is stored.
+model PasswordReset {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([userId])
 }
 
 /// Like devices: the cookie holds an opaque token, the table only its hash.
@@ -249,4 +269,65 @@ model SoloBest {
   achievedAt DateTime @default(now())
 
   @@unique([playerId, configKey])
+}
+
+// ------------------------------------------------------------------------------------------
+// History. Written once, when a game ends, for guests and accounts alike: it hangs on the
+// player, so an account that adopts a guest inherits it.
+// ------------------------------------------------------------------------------------------
+
+model Game {
+  id           String            @id @default(uuid(7)) @db.Uuid
+  mode         String
+  display      String
+  answerMode   String
+  scoring      String
+  language     String
+  rounds       Int
+  playerCount  Int
+  startedAt    DateTime
+  endedAt      DateTime          @default(now())
+  participants GameParticipant[]
+  roundRows    GameRound[]
+
+  @@index([endedAt])
+}
+
+model GameParticipant {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  gameId        String   @db.Uuid
+  game          Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  playerId      String   @db.Uuid
+  player        Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  /// As played: a later rename does not rewrite old rankings.
+  nickname      String
+  score         Int
+  /// 1 is the winner. Equal scores share a rank.
+  rank          Int
+  roundsSeated  Int
+  correctCount  Int
+  bestStreak    Int
+  answerMsTotal Int
+  /// Copied from the game so that rankings are one indexed query.
+  multiplayer   Boolean
+  endedAt       DateTime
+
+  @@unique([gameId, playerId])
+  @@index([playerId, endedAt])
+  @@index([multiplayer, endedAt])
+}
+
+/// One line per round: which card, how many found it and how fast. Feeds difficulty tuning.
+model GameRound {
+  id           String @id @default(uuid(7)) @db.Uuid
+  gameId       String @db.Uuid
+  game         Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  index        Int
+  cardId       String @db.Uuid
+  seated       Int
+  found        Int
+  foundMsTotal Int
+
+  @@unique([gameId, index])
+  @@index([cardId])
 }

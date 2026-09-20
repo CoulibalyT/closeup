@@ -10,5 +10,6 @@ export * from './schemas/common.js';
 export * from './schemas/events.js';
 export * from './schemas/rest.js';
 export * from './schemas/admin.js';
+export * from './schemas/account.js';
 export * from './rules/publication.js';
 export * from './rules/upload.js';

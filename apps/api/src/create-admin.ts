@@ -5,6 +5,7 @@ import { NestFactory } from '@nestjs/core';
 import { loginSchema, PASSWORD } from '@closeup/shared';
 import { AuthService } from './auth/auth.service.js';
 import { ConfigModule } from './config/app-config.js';
+import { MailModule } from './mail/mail.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { RedisModule } from './redis/redis.module.js';
 
@@ -14,14 +15,17 @@ import { RedisModule } from './redis/redis.module.js';
  * There is no sign-up form for admins and no default account: this command is the only way in.
  */
 
-@Module({ imports: [ConfigModule, PrismaModule, RedisModule], providers: [AuthService] })
+@Module({
+  imports: [ConfigModule, PrismaModule, RedisModule, MailModule],
+  providers: [AuthService],
+})
 class CreateAdminModule {}
 
 const { ADMIN_EMAIL = '', ADMIN_PASSWORD = '' } = process.env;
 const account = loginSchema.safeParse({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
-if (!account.success || ADMIN_PASSWORD.length < PASSWORD.minLength) {
+if (!account.success || ADMIN_PASSWORD.length < PASSWORD.adminMinLength) {
   console.error(
-    `Set ADMIN_EMAIL to a valid address and ADMIN_PASSWORD to at least ${PASSWORD.minLength} characters.`,
+    `Set ADMIN_EMAIL to a valid address and ADMIN_PASSWORD to at least ${PASSWORD.adminMinLength} characters.`,
   );
   process.exit(1);
 }

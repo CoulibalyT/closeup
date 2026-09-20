@@ -18,6 +18,7 @@ import {
 import type { Redis } from 'ioredis';
 import { withTimeout } from '../../common/with-timeout.js';
 import { DeckService } from '../../content/deck.service.js';
+import { HistoryService } from '../../history/history.service.js';
 import type { Identity } from '../../identity/identity.service.js';
 import { MediaTokens } from '../../media/media-tokens.js';
 import { PrismaService } from '../../prisma/prisma.module.js';
@@ -67,6 +68,7 @@ export class RoomService implements OnApplicationBootstrap, OnModuleDestroy {
     private readonly decks: DeckService,
     private readonly prisma: PrismaService,
     private readonly tokens: MediaTokens,
+    private readonly history: HistoryService,
   ) {}
 
   /** Relative on purpose: the client prefixes its API base, which differs between dev and prod. */
@@ -236,6 +238,8 @@ export class RoomService implements OnApplicationBootstrap, OnModuleDestroy {
         void this.supplyCard(code, actor);
         return;
       case 'gameOver':
+        // Not awaited: the ranking is already on everyone's screen, the archive can follow.
+        void this.history.record(structuredClone(state));
         // Solo rooms are disposable. A private room stays for "play again" until it is abandoned.
         if (state.mode === 'solo') {
           setTimeout(() => void this.forget(code), ENDED_ROOM_KEPT_MS).unref();

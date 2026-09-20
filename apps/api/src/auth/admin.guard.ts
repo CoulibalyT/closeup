@@ -11,7 +11,7 @@ import { readCookie } from '../identity/device-token.js';
 import { AuthService } from './auth.service.js';
 import { SESSION_COOKIE } from './session-cookie.js';
 
-/** The slice of the HTTP request the guard reads (Express, but not tied to its types). */
+/** The slice of the HTTP request the guards read (Express, but not tied to its types). */
 export interface AdminRequest {
   method: string;
   headers: Record<string, string | string[] | undefined>;
@@ -41,9 +41,9 @@ export function sameOrigin(request: AdminRequest, allowedOrigins: string[]): boo
   }
 }
 
-/** Everything under `/api/admin` goes through this: a live session of an admin, nothing less. */
+/** A live session, whoever it belongs to: what the account pages need. */
 @Injectable()
-export class AdminGuard implements CanActivate {
+export class SessionGuard implements CanActivate {
   constructor(
     private readonly auth: AuthService,
     private readonly config: AppConfig,
@@ -56,8 +56,21 @@ export class AdminGuard implements CanActivate {
     }
     const user = await this.auth.resolve(readCookie(header(request, 'cookie'), SESSION_COOKIE));
     if (!user) throw new UnauthorizedException();
-    if (user.role !== 'ADMIN') throw new ForbiddenException();
+    if (!this.allows(user)) throw new ForbiddenException();
     request.user = user;
     return true;
+  }
+
+  /** Any account that is not banned will do (`resolve` already turned banned ones away). */
+  protected allows(user: SessionUser): boolean {
+    return Boolean(user.id);
+  }
+}
+
+/** Everything under `/api/admin` goes through this: a live session of an admin, nothing less. */
+@Injectable()
+export class AdminGuard extends SessionGuard {
+  protected override allows(user: SessionUser): boolean {
+    return user.role === 'ADMIN';
   }
 }

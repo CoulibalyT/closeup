@@ -58,6 +58,10 @@ services:
       <<: *app-env
       API_PORT: 3001
       CORS_ORIGINS: http://localhost:${WEB_PORT:-3000}
+      # For the links in e-mails. Without SMTP_URL the API log shows the e-mail instead of sending it.
+      PUBLIC_WEB_URL: http://localhost:${WEB_PORT:-3000}
+      SMTP_URL: ${SMTP_URL:-}
+      MAIL_FROM: ${MAIL_FROM:-closeup <no-reply@localhost>}
     ports:
       - '${API_PORT:-3001}:3001'
     volumes:

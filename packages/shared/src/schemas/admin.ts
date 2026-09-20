@@ -49,7 +49,8 @@ export const UPLOAD = {
 
 export const ZOOM_POINTS = { min: 2, max: 5 } as const;
 
-export const PASSWORD = { minLength: 12, maxLength: 200 } as const;
+/** Length is what counts. The owner's admin password is asked to be longer still. */
+export const PASSWORD = { minLength: 10, adminMinLength: 12, maxLength: 200 } as const;
 
 // ---- auth ----
 
@@ -63,6 +64,8 @@ export interface SessionUser {
   id: string;
   email: string;
   role: 'PLAYER' | 'ADMIN';
+  /** Of the player this account plays as. `null` for an admin who never played. */
+  nickname: string | null;
 }
 
 // ---- packs ----
