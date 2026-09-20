@@ -7,12 +7,13 @@ races to guess what it is. `closeup` is a codename; the player-facing name lives
 - The brief: [docs/brief.md](docs/brief.md)
 - The validated solo prototype: [docs/prototype/gros-plan.html](docs/prototype/gros-plan.html)
 
-**Status: phase 4 (big screen + phones) done.** A TV or a laptop opens `/screen/CODE` and shows
-the close-up, the timer, the live ranking and the code to join; phones become controllers, with
-the answer input and the bonuses only. That comes on top of private rooms (code, link, QR code,
-lobby, 60-second reconnection, play again), solo training, the eleven bonuses, maluses and steals
-of phase 3, and the choice between points that decay with the clock and **fixed points**. 22
-original seed cards, free text or multiple choice.
+**Status: phase 5 (back-office and image pipeline) done.** `/admin` is where the owner makes
+the game's content: packs and cards, image upload (checked, stripped of EXIF, resized, original
+kept private), zoom points placed by hand with a live preview of the four levels, or proposed
+from face landmarks for people, credits that are required before anything goes live, and a
+one-click switch that takes a pack out of running games. That comes on top of the big screen
+with phones as controllers, private rooms, solo training, the eleven bonuses, maluses and steals,
+and the choice between decaying and **fixed points**. 22 original seed cards.
 
 ## Run it
 
@@ -31,6 +32,18 @@ who already has a room can also pick "On a big screen" in the lobby and open the
 files land in `data/media/`, a plain folder you can browse. `/status` is the technical page from
 phase 0: six rows that must read "en ligne"; stop Redis and it says so within five seconds.
 
+**The back-office** has no default account and no sign-up form. Create the owner's admin once
+the stack is up, then open `/admin`:
+
+```sh
+docker compose exec -e ADMIN_EMAIL=you@example.org -e ADMIN_PASSWORD='a long passphrase' \
+  api pnpm --filter @closeup/api admin:create
+```
+
+Running it again for the same address resets the password and ends its sessions. A pack made
+there is private until you make it public; a card goes live only with an image, two to five zoom
+points, answers in both languages and a credit.
+
 Changing the game's name: set `CLOSEUP_DISPLAY_NAME=Whatever` in `.env` and run
 `docker compose up -d web`. The page title, the PWA manifest and every translated string follow.
 
@@ -43,6 +56,10 @@ Scripts that check a running stack from the host:
   connection that resumes in the same round, early end, ranking, play again; a three-player
   round where the fastest earns a bonus and plays it; and **a big-screen game**: room opened from
   the screen, first phone holds it, no start without a screen, image to the screen only.
+  With `SMOKE_ADMIN_EMAIL` and `SMOKE_ADMIN_PASSWORD` in `.env` it also checks **the
+  back-office**: login, the guard, an upload through the worker, crops, the credit rule.
+- `pnpm --filter @closeup/api face:check portrait.jpg` (after a build) — what the face detector
+  finds on one image and the zoom points it would propose. Keep such images out of the repo.
 - `pnpm bot AB2CD [nickname] [how many]` — stand-in players that join a room by its code, to try
   a game with friends on your own. They answer by themselves in multiple-choice rooms; in
   typed-answer rooms they cannot know and let the clock run. Ctrl+C makes them leave. With
@@ -254,7 +271,62 @@ Added in phase 4:
 - The screen asks for a wake lock (a TV that sleeps mid-round ends the party) and offers full
   screen. `PROTOCOL_VERSION` is now 2: a cached client from before gets "reload".
 
-## Not done yet (after phase 4)
+Added in phase 5:
+
+- **Admin accounts before player accounts.** `User`, `Session` and the argon2id login are the
+  real thing, used by the owner only for now; phase 6 opens them to players instead of replacing
+  a throwaway. Sessions work like device tokens: an opaque token in an httpOnly `SameSite=Lax`
+  cookie, only its hash in the database. No default admin exists; `admin:create` is the way in.
+- **A login never says which half was wrong**, costs the same time for an unknown address (a
+  decoy hash is verified), and is counted in Redis: 5 failures per address, 20 per IP, per
+  quarter of an hour. Without Redis there is no counter, so the door stays shut (503).
+- **Every `/api/admin` route is behind one guard** (live session, role, not banned). It also
+  refuses a change whose `Origin` is another site: a file upload is the one request a foreign
+  form can send without a preflight.
+- **An upload has two gates.** The API only checks what is cheap (size, first bytes of the file,
+  rights confirmed), parks the file under a private key and queues a job. The worker does the
+  real test, decoding it: bounded pixel count (decompression bombs), JPEG/PNG/WebP only, no
+  animation, at least 600 px. It stores an upright copy of at most 4096 px **without any
+  metadata** (no GPS, no camera serial), and deletes the uploaded bytes. `sharp` still never
+  loads in the API.
+- **A job that fails for good releases its card** with a message. Found by a test: the Compose
+  worker took a test's job and the card stayed in "processing" for ever. Tests now use their own
+  queue prefix (`QUEUE_PREFIX`), and the failure path exists for real crashes.
+- **Face landmarks: `@vladmandic/face-api` on the tfjs WASM backend**, behind a
+  `FaceLandmarkDetector` interface. Same models as the prototype, so the same feel; no native
+  binding (`tfjs-node` has no Node 22 binary and breaks on Apple Silicon), no Python sidecar
+  (MediaPipe has no Node support); models and `.wasm` files come from the npm packages, nothing
+  from a CDN. About 200 ms per image on a laptop, models loaded on first use. Known limit: the
+  face-api repository is archived; `@vladmandic/human` is the planned replacement if needed.
+- **Detection proposes, the admin disposes.** No face, several faces or a face under 70 px
+  between the eyes are warnings, never refusals; proposals are stored next to the card, not as
+  zoom points. When detection fails, "place from the eyes" rebuilds the six zones from two clicks
+  with the prototype's ratios (`fromEyes`, shared by the worker and the admin).
+- **The preview is the crop.** `cropPlan` moved to `packages/shared`: the worker cuts the real
+  crops with it and the admin draws the four levels with it, from the image already loaded, so
+  it follows a point while it is dragged.
+- **One publication rule for every producer** (`publishBlockers`, shared): image, rights
+  confirmed for uploads, author and licence, answers in French and English, two to five zoom
+  points with all their crops. The seed asks to go live when done; an admin card waits in
+  "ready" until published, and leaves the game by itself if its credit or an answer is removed.
+- **Disabling a pack is immediate** because every round re-checks the pack of its card before
+  it starts (phase 1). Celebrity and character packs are created `restricted`.
+- **Who did what** is written to `AuditLog`. The back-office pages are `noindex`.
+
+## Not done yet (after phase 5)
+
+- Back-office: driven in desktop Chromium only. The zoom editor takes pointer events, so it
+  should work on a tablet, but it was not tried; on a phone it is usable, not pleasant.
+- Face detection was checked on one public-domain portrait (a painting) and on pictures without
+  a face. **Not measured on the target VPS**: memory with the models loaded is about 300 MB in
+  the worker, and speed on a small shared CPU is unknown.
+- A public pack's cards join one global deck: rooms cannot choose packs, categories or
+  difficulty yet, so a pack made public is in everybody's games at once.
+- No credits page per pack yet (it comes with the public catalogue in phase 8), no moderation
+  queue (nothing can be submitted or reported before phases 7 and 8).
+- No password reset by e-mail (phase 6, with the SMTP setting): `admin:create` resets it.
+- `request.ip` is the proxy's address behind Caddy until "trust proxy" is set in phase 9; the
+  per-IP login limit then counts everybody together (the per-address limit still works).
 
 - Big screen: driven by script and bots in desktop Chromium (1280×720 for the screen, phone size
   for a controller). **Not tried on a real TV**, through a cast, or with real phones; text sizes
@@ -276,14 +348,13 @@ Added in phase 4:
 - Seen once while driving the browser by script and not reproduced since: a game that started
   without a scripted click, and a "play again" click with no effect. Both server paths are
   covered by `pnpm smoke`; worth keeping an eye on during review.
-- Admin and uploads (5), accounts (6), public matchmaking (7), player packs (8), deployment (9),
-  Wikimedia importer (10).
+- Accounts (6), public matchmaking (7), player packs (8), deployment (9), Wikimedia importer
+  (10).
 - **Not verified on a real iPhone.** The keyboard handling (`visualViewport` sets the screen
   height, 17 px input so Safari does not zoom) follows the known recipe but was only exercised in
   desktop Chromium at phone size.
 - The pick of rounds and cards is uniform: difficulty and category filters are in the data model,
   not in the room settings yet.
-- Face landmark detection is not written; the seed has no people. It belongs to phase 5.
 - PWA: manifest and service worker registration only, with a placeholder SVG icon. Real icons,
   the offline screen and installability checks belong to phase 9.
 - No production Compose file, no Caddy, no deployment guide (phase 9).
