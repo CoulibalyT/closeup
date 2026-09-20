@@ -276,6 +276,42 @@
     "detail": "{games} partie(s), {wins} victoire(s)",
     "needAccount": "Pour y figurer, il faut un compte : sans lui, un appareil n’est pas quelqu’un."
   },
+  "publicGame": {
+    "short": "Une partie tout de suite, avec des gens au hasard qui parlent ta langue.",
+    "title": "Partie publique, {appName}",
+    "heading": "Avec des inconnus",
+    "pitch": "On te met avec des gens au hasard qui jouent dans la même langue que toi.",
+    "rules": "{rounds} manches, {max} joueurs au plus. Ça démarre dès que vous êtes {start}, ou après {seconds} secondes si vous êtes deux.",
+    "nicknameRule": "Des inconnus vont le lire : choisis-le en conséquence.",
+    "join": "Chercher une partie",
+    "waiting": "{n} joueur(s) en attente",
+    "startsIn": "Ça démarre dans {seconds} s si personne d’autre ne vient.",
+    "needOneMore": "Il faut être au moins deux pour commencer.",
+    "cancel": "Annuler",
+    "error": {
+      "banned": "Ce pseudo ne passera pas. Prends-en un autre.",
+      "reserved": "Ce pseudo est réservé.",
+      "too_short": "Ce pseudo est trop court.",
+      "too_long": "Ce pseudo est trop long.",
+      "other": "La recherche a échoué. Réessaie."
+    }
+  },
+  "report": {
+    "who": "Un souci avec quelqu’un ? Signale-le :",
+    "title": "Signaler {nickname}",
+    "reason": "Motif",
+    "reasons": {
+      "nickname": "Pseudo déplacé",
+      "cheating": "Triche",
+      "harassment": "Insultes, harcèlement",
+      "other": "Autre"
+    },
+    "message": "Ce qui s’est passé (facultatif)",
+    "send": "Envoyer le signalement",
+    "sent": "Signalement envoyé. Quelqu’un le lira.",
+    "failed": "Le signalement n’est pas parti. Réessaie.",
+    "close": "Fermer"
+  },
   "admin": {
     "backOffice": "Administration",
     "loginTitle": "Connexion, {appName}",
@@ -425,7 +461,25 @@
       "3": "3, difficile"
     },
     "deletePack": "Supprimer ce pack vide",
-    "deletePackConfirm": "Supprimer ce pack ? C’est définitif."
+    "deletePackConfirm": "Supprimer ce pack ? C’est définitif.",
+    "reports": "Signalements",
+    "reportsTitle": "Signalements, {appName}",
+    "reportsOpen": "À traiter",
+    "reportsAll": "Tous",
+    "reportsEmpty": "Aucun signalement.",
+    "reportStatus": {
+      "OPEN": "à traiter",
+      "RESOLVED": "traité",
+      "DISMISSED": "écarté"
+    },
+    "reportResolve": "Marquer traité",
+    "reportDismiss": "Écarter",
+    "alsoReported": "{n} autre(s) signalement(s) ouvert(s) sur cette personne",
+    "ban": "Bannir",
+    "banReason": "Motif du bannissement (gardé dans le journal)",
+    "banConfirm": "Bannir ce joueur",
+    "unban": "Lever le bannissement",
+    "bannedNow": "banni"
   },
   "status": {
     "title": "État de {appName}",

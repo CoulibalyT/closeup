@@ -7,9 +7,12 @@ races to guess what it is. `closeup` is a codename; the player-facing name lives
 - The brief: [docs/brief.md](docs/brief.md)
 - The validated solo prototype: [docs/prototype/gros-plan.html](docs/prototype/gros-plan.html)
 
-**Status: phase 6 (player accounts) done.** Playing still needs nothing but a nickname; an
-optional account (`/account`) makes a player's history follow them from one device to the next,
-with statistics (`/stats`) and a ranking of games played with other people (`/rankings`).
+**Status: phase 7 (public games and moderation) done.** `/public` is a queue: three strangers
+of the same language are matched into a game that starts by itself, with fixed settings and only
+packs marked safe for public play. Nicknames are filtered there, every player can report another
+one, and `/admin/reports` is where those land, with a ban that covers both the account and the
+devices. Phase 6 gave optional accounts (`/account`), statistics (`/stats`) and a ranking of
+games played with other people (`/rankings`); playing still needs nothing but a nickname.
 Phase 5 gave the owner `/admin`, where the game's content is made: packs and cards, image upload (checked, stripped of EXIF, resized, original
 kept private), zoom points placed by hand with a live preview of the four levels, or proposed
 from face landmarks for people, credits that are required before anything goes live, and a
@@ -70,6 +73,8 @@ Scripts that check a running stack from the host:
   back-office**: login, the guard, an upload through the worker, crops, the credit rule.
 - `pnpm --filter @closeup/api face:check portrait.jpg` (after a build) — what the face detector
   finds on one image and the zoom points it would propose. Keep such images out of the repo.
+- `pnpm bot --queue [nickname] [how many]` — the same bots, waiting in the public queue
+  instead of a room: enough to see a public game form on your own.
 - `pnpm bot AB2CD [nickname] [how many]` — stand-in players that join a room by its code, to try
   a game with friends on your own. They answer by themselves in multiple-choice rooms; in
   typed-answer rooms they cannot know and let the clock run. Ctrl+C makes them leave. With
@@ -351,7 +356,44 @@ Added in phase 6:
   without e-mail verification there is no inbox to say it to instead.
 - The minimum password length is 10 for players and 12 for the owner's admin account.
 
-## Not done yet (after phase 6)
+Added in phase 7:
+
+- **One queue per language**, in Redis, keyed by player. A room forms as soon as three are
+  waiting, or after twenty seconds with two, and holds up to eight. The rules are a pure
+  function (`formRoom`) so they are tested on a clock of their own; the service around it owns
+  Redis and the sockets. Queues are emptied at boot: a queue of a dead process is a queue of
+  ghosts.
+- **A public room starts by itself.** Nobody presses start in front of strangers, so the engine
+  asks for it: when everyone the queue matched has arrived, or twelve seconds later with enough
+  of them. Alone at the deadline, the room is dropped rather than leaving one person waiting.
+- **A public game is closed once it starts**: a stranger with the code is refused, and the code
+  is not even a summary (`GET /rooms/:code` is for private rooms). Somebody who was matched and
+  lost their connection still comes back — that is the reconnection path, not a new arrival.
+- **Fixed settings** (`PUBLIC_SETTINGS`): five rounds, free text, decaying points. Nothing is
+  negotiated with strangers. Only packs the owner marked `publicMatchSafe` are drawn.
+- **The nickname filter runs on the queue and nowhere else**: private rooms are people who know
+  each other. It is small and blunt on purpose — accents, digits, spacing and repeated letters
+  are flattened before the list is read — and what it cannot catch is why the report button
+  exists. Names of the house ("admin") are refused whole.
+- **Reporting is one open report per pair**: a second one is the same complaint, not a louder
+  one. The nickname is stored as reported, so a rename afterwards does not hide who it was about.
+- **A ban covers the account and every device that plays as it**: one alone is a new browser, or
+  a new login, away. It is recorded in `Ban` for the story but enforced by `bannedAt`, which the
+  socket handshake already reads without joining a table. Lifting it is one click.
+
+## Not done yet (after phase 7)
+
+- The queue is per language only: no skill, no region, no friends' games. Two queues (fr, en)
+  as the plan called for, and nothing decides what happens to a third language later.
+- Nothing was tried with real strangers or at any scale: the queue was driven by bots and by a
+  browser at phone size, three players at a time.
+- The nickname filter is a short list, not a service. It will miss things, and it will
+  occasionally annoy somebody whose name it does not know.
+- A report is about a player, from a public game. Packs, cards and takedown requests are phase 8,
+  and the moderation page has no search, no paging beyond a hundred rows and no history per
+  player.
+- A banned player is turned away, but is not told why, and there is no appeal.
+- Public games are not written into the ranking any differently from private ones.
 
 - No e-mail verification: an address is never proven, so it is only good for the reset link.
   A verification round trip belongs with the SMTP setting of a real deployment.
@@ -385,7 +427,6 @@ Added in phase 6:
 - Bonus UI was driven by script in desktop Chromium at phone size, with bots as opponents: not
   yet played by several humans, nor on a real phone.
 
-- No nickname filter, reports or bans: phase 7, with public matchmaking.
 - The room language is the host's at creation time and cannot be changed in the lobby; packs,
   categories and difficulty are not host settings yet (the seed has three small packs).
 - A room lives in one API process. That is the intended v1 deployment (one small VPS); several
@@ -393,7 +434,7 @@ Added in phase 6:
 - Seen once while driving the browser by script and not reproduced since: a game that started
   without a scripted click, and a "play again" click with no effect. Both server paths are
   covered by `pnpm smoke`; worth keeping an eye on during review.
-- Public matchmaking (7), player packs (8), deployment (9), Wikimedia importer (10).
+- Player packs (8), deployment (9), Wikimedia importer (10).
 - **Not verified on a real iPhone.** The keyboard handling (`visualViewport` sets the screen
   height, 17 px input so Safari does not zoom) follows the known recipe but was only exercised in
   desktop Chromium at phone size.

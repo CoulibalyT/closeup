@@ -9,6 +9,9 @@ import {
   type DisplayMode,
   type Hints,
   type Malus,
+  matchmakingMatchedSchema,
+  type MatchmakingStatus,
+  matchmakingStatusSchema,
   roundBlockedSchema,
   roundEffectSchema,
   roundStealSchema,
@@ -119,6 +122,9 @@ export const useGameStore = defineStore('game', () => {
   const end = ref<GameEnd | null>(null);
   const foundCount = ref(0);
   const clockOffsetMs = ref(0);
+  /** The public queue: how many are waiting, and the code once a room is found. */
+  const queue = ref<MatchmakingStatus | null>(null);
+  const matchedCode = ref('');
 
   let socket: Socket | undefined;
   let listening = false;
@@ -385,11 +391,56 @@ export const useGameStore = defineStore('game', () => {
       players.value = end.value.ranking;
       stage.value = 'ended';
     });
+    io.on(ServerEvent.matchmakingStatus, (raw) => {
+      queue.value = matchmakingStatusSchema.parse(raw);
+    });
+    io.on(ServerEvent.matchmakingMatched, (raw) => {
+      matchedCode.value = matchmakingMatchedSchema.parse(raw).code;
+      queue.value = null;
+    });
     // Phone locked, tunnel, server restart: on every (re)connection, ask for the whole picture.
     io.on('connect', () => void rejoin(io));
     io.on('disconnect', () => {
       if (!['ended', 'kicked', 'lost', 'full'].includes(stage.value)) stage.value = 'connecting';
     });
+  }
+
+  /**
+   * The public queue lives on the socket, not on a room: waiting is this connection waiting.
+   * `null` on success, otherwise the error code (NICKNAME_REJECTED and why, in the message).
+   */
+  async function joinQueue(wanted: string, language: 'fr' | 'en'): Promise<string | null> {
+    setNickname(wanted);
+    matchedCode.value = '';
+    socket = useGameSocket();
+    listen(socket);
+    if (!socket.connected) {
+      socket.connect();
+      await new Promise<void>((resolve) => socket!.once('connect', () => resolve()));
+    }
+    const ack = await send(ClientEvent.matchmakingJoin, { nickname: wanted, language });
+    if (!ack) return 'INTERNAL';
+    if (!ack.ok) return ack.error.message || ack.error.code;
+    queue.value = { waiting: 1, startsAt: null };
+    return null;
+  }
+
+  async function leaveQueue(): Promise<void> {
+    await send(ClientEvent.matchmakingLeave).catch(() => null);
+    queue.value = null;
+    socket?.disconnect();
+  }
+
+  /** Reporting somebody from a public game. `true` when the report was taken. */
+  async function report(targetId: string, reason: string, message: string): Promise<boolean> {
+    const response = await post('/api/reports', {
+      targetType: 'PLAYER',
+      targetId,
+      roomCode: code.value,
+      reason,
+      message,
+    });
+    return response.ok;
   }
 
   async function rejoin(io: Socket): Promise<void> {
@@ -548,6 +599,11 @@ export const useGameStore = defineStore('game', () => {
     reveal,
     end,
     foundCount,
+    queue,
+    matchedCode,
+    joinQueue,
+    leaveQueue,
+    report,
     serverNow,
     mediaUrl,
     rememberedNickname,

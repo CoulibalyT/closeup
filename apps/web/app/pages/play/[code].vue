@@ -51,6 +51,10 @@ onBeforeUnmount(() => {
   game.leave();
 });
 
+// Reporting somebody from a public game, once it is over.
+const reporting = ref<{ id: string; nickname: string } | null>(null);
+const others = computed(() => (game.end?.ranking ?? []).filter((player) => player.id !== game.you));
+
 const busy = ref(false);
 async function replaySolo(): Promise<void> {
   busy.value = true;
@@ -222,6 +226,31 @@ async function quit(): Promise<void> {
         </p>
       </template>
       <RankingList v-else class="final" :players="game.end.ranking" :you="game.you" />
+
+      <!-- Public games put strangers together: the way to say something went wrong is here. -->
+      <section v-if="game.mode === 'public'" class="report-zone">
+        <template v-if="reporting">
+          <ReportDialog
+            :player-id="reporting.id"
+            :nickname="reporting.nickname"
+            @close="reporting = null"
+          />
+        </template>
+        <template v-else>
+          <p class="muted">{{ t('report.who') }}</p>
+          <div class="targets">
+            <button
+              v-for="player in others"
+              :key="player.id"
+              type="button"
+              class="button quiet small"
+              @click="reporting = player"
+            >
+              {{ player.nickname }}
+            </button>
+          </div>
+        </template>
+      </section>
 
       <div class="actions">
         <button v-if="solo" type="button" class="button" :disabled="busy" @click="replaySolo">
@@ -403,5 +432,20 @@ async function quit(): Promise<void> {
   gap: var(--space-2);
   margin-top: auto;
   padding-top: var(--space-6);
+}
+.report-zone {
+  margin-top: var(--space-4);
+  font-size: 15px;
+}
+.targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.button.small {
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  font-size: 15px;
 }
 </style>

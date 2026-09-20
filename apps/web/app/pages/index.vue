@@ -139,6 +139,14 @@ const playSolo = () =>
     </section>
 
     <section class="block stack">
+      <h2>{{ t('publicGame.heading') }}</h2>
+      <p class="muted">{{ t('publicGame.short') }}</p>
+      <NuxtLink class="button quiet" :to="localePath('/public')">
+        {{ t('publicGame.join') }}
+      </NuxtLink>
+    </section>
+
+    <section class="block stack">
       <h2>{{ t('home.bigScreen') }}</h2>
       <p class="muted">{{ t('home.bigScreenHint') }}</p>
       <button type="button" class="button quiet" :disabled="busy" @click="openScreen">

@@ -276,6 +276,42 @@
     "detail": "{games} game(s), {wins} win(s)",
     "needAccount": "You need an account to be in it: without one, a device is not somebody."
   },
+  "publicGame": {
+    "short": "A game right away, with random people who speak your language.",
+    "title": "Public game, {appName}",
+    "heading": "With strangers",
+    "pitch": "We put you with random people playing in the same language as you.",
+    "rules": "{rounds} rounds, {max} players at most. It starts as soon as {start} of you are there, or after {seconds} seconds if there are two.",
+    "nicknameRule": "Strangers will read it: pick it accordingly.",
+    "join": "Find a game",
+    "waiting": "{n} player(s) waiting",
+    "startsIn": "Starting in {seconds} s if nobody else turns up.",
+    "needOneMore": "At least two are needed to start.",
+    "cancel": "Cancel",
+    "error": {
+      "banned": "That nickname will not do. Pick another one.",
+      "reserved": "That nickname is reserved.",
+      "too_short": "That nickname is too short.",
+      "too_long": "That nickname is too long.",
+      "other": "The search failed. Try again."
+    }
+  },
+  "report": {
+    "who": "A problem with somebody? Report them:",
+    "title": "Report {nickname}",
+    "reason": "Reason",
+    "reasons": {
+      "nickname": "Inappropriate nickname",
+      "cheating": "Cheating",
+      "harassment": "Insults, harassment",
+      "other": "Other"
+    },
+    "message": "What happened (optional)",
+    "send": "Send the report",
+    "sent": "Report sent. Somebody will read it.",
+    "failed": "The report did not go through. Try again.",
+    "close": "Close"
+  },
   "admin": {
     "backOffice": "Back-office",
     "loginTitle": "Sign in, {appName}",
@@ -425,7 +461,25 @@
       "3": "3, hard"
     },
     "deletePack": "Delete this empty pack",
-    "deletePackConfirm": "Delete this pack? This cannot be undone."
+    "deletePackConfirm": "Delete this pack? This cannot be undone.",
+    "reports": "Reports",
+    "reportsTitle": "Reports, {appName}",
+    "reportsOpen": "To review",
+    "reportsAll": "All",
+    "reportsEmpty": "No report.",
+    "reportStatus": {
+      "OPEN": "to review",
+      "RESOLVED": "resolved",
+      "DISMISSED": "dismissed"
+    },
+    "reportResolve": "Mark resolved",
+    "reportDismiss": "Dismiss",
+    "alsoReported": "{n} other open report(s) about this person",
+    "ban": "Ban",
+    "banReason": "Reason for the ban (kept in the log)",
+    "banConfirm": "Ban this player",
+    "unban": "Lift the ban",
+    "bannedNow": "banned"
   },
   "status": {
     "title": "{appName} status",

@@ -54,6 +54,9 @@ async function toggle(pack: AdminPack): Promise<void> {
 
 <template>
   <AdminShell :title="t('admin.packs')">
+    <p class="tools">
+      <NuxtLink :to="localePath('/admin/reports')">{{ t('admin.reports') }}</NuxtLink>
+    </p>
     <p v-if="failed" class="error" role="alert">{{ t('admin.failed') }}</p>
     <p v-if="loading" class="muted">{{ t('admin.loading') }}</p>
 
@@ -107,6 +110,14 @@ async function toggle(pack: AdminPack): Promise<void> {
 </template>
 
 <style scoped>
+.tools {
+  margin-bottom: var(--space-4);
+}
+.tools a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
 .packs {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
