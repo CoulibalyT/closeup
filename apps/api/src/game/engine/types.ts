@@ -154,6 +154,12 @@ export interface RoomState {
   settings: RoomSettings;
   phase: Phase;
   players: Record<string, PlayerState>;
+  /**
+   * Public rooms only: how many the queue matched, and when the game starts whatever happened.
+   * Nobody presses start in front of strangers.
+   */
+  expectedPlayers?: number;
+  autoStartAt?: number;
   /** When the host pressed start. With `history`, what is written down once the game ends. */
   startedAt?: number;
   history?: RoundSummary[];
@@ -229,6 +235,8 @@ export type Effect =
   /** Ask the room layer for the next playable card; it answers with `cardReady` or `noCardLeft`. */
   | { type: 'needCard' }
   | { type: 'gameOver' }
+  /** A public room is ready (or out of patience): the room layer builds the deck and starts. */
+  | { type: 'needStart' }
   /** Nobody is left and nobody can come back: the room layer may forget the room. */
   | { type: 'abandoned' };
 

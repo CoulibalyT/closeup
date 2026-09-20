@@ -41,6 +41,9 @@ export function createRoom(init: {
   language: Locale;
   settings: RoomSettings;
   lexicon: string[];
+  /** Public rooms: how many the queue matched, and how long to wait for them. */
+  expectedPlayers?: number;
+  waitForPlayersMs?: number;
   now?: number;
 }): RoomState {
   return {
@@ -57,6 +60,11 @@ export function createRoom(init: {
     roundIndex: 0,
     totalRounds: init.settings.rounds,
     lexicon: init.lexicon,
+    expectedPlayers: init.expectedPlayers,
+    autoStartAt:
+      init.expectedPlayers === undefined
+        ? undefined
+        : (init.now ?? 0) + (init.waitForPlayersMs ?? 0),
     awaitingCard: false,
     wakeAt: null,
   };
@@ -89,6 +97,9 @@ export function reduce(previous: RoomState, command: Command, ctx: Context): Red
 
   advance(state, ctx, effects);
   const reply = handle(state, command, ctx, effects, emit);
+  // After the command, not before: the player who completes a public room is the one joining.
+  autoStart(state, ctx.now, effects);
+  state.wakeAt = nextWake(state);
   // A round that ended during this call, whichever way: the last of the ranking gets a hand.
   if (previous.phase !== 'reveal' && state.phase === 'reveal') grantCatchUp(state, ctx, effects);
   return { state, effects, reply };
@@ -149,7 +160,7 @@ function nextWake(state: RoomState): number | null {
     .filter((p) => p.disconnectedAt !== undefined && !p.gone)
     .map((p) => p.disconnectedAt! + ROOM.reconnectGraceMs);
   const empty = state.emptySince === undefined ? Infinity : state.emptySince + ROOM.emptyRoomTtlMs;
-  const next = Math.min(game ?? Infinity, empty, ...grace);
+  const next = Math.min(game ?? Infinity, empty, state.autoStartAt ?? Infinity, ...grace);
   return Number.isFinite(next) ? next : null;
 }
 
@@ -204,6 +215,11 @@ function dispatch(
       }
       if (state.phase === 'ended') return refuse('BAD_PHASE', 'This game is over');
       if (state.mode === 'solo') return refuse('ROOM_FULL', 'Solo training is for one player');
+      // Strangers do not walk into a game that started: the queue gives them their own. Coming
+      // back after a lost connection is the branch above, and still works.
+      if (state.mode === 'public' && state.phase !== 'lobby') {
+        return refuse('BAD_PHASE', 'This game has already started');
+      }
       if (Object.keys(state.players).length >= ROOM.maxPlayers) {
         return refuse('ROOM_FULL', 'This room is full');
       }
@@ -538,6 +554,22 @@ function removePlayer(
     // They may have left right after "start": the card still loading has nobody to be shown to.
     state.awaitingCard = false;
   } else effects.push({ type: 'abandoned' });
+}
+
+/**
+ * A public room starts by itself: as soon as everyone the queue matched is there, or when the
+ * wait runs out with enough of them. Alone at the deadline, the room is dropped rather than
+ * leaving somebody in an empty lobby.
+ */
+function autoStart(state: RoomState, now: number, effects: Effect[]): void {
+  if (state.phase !== 'lobby' || state.autoStartAt === undefined || state.awaitingCard) return;
+  const present = Object.values(state.players).filter((p) => p.connected).length;
+  const everyone = present >= (state.expectedPlayers ?? Infinity);
+  if (!everyone && now < state.autoStartAt) return;
+
+  state.autoStartAt = undefined;
+  if (present >= ROOM.minPlayers) effects.push({ type: 'needStart' });
+  else effects.push({ type: 'abandoned' });
 }
 
 function expireEmptyRoom(state: RoomState, now: number, effects: Effect[]): void {

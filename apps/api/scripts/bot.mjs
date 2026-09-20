@@ -1,6 +1,7 @@
 // A stand-in player, to try a game with friends on your own:
 //   pnpm bot AB2CD            joins room AB2CD as "Bot"
 //   pnpm bot AB2CD Moussa 3   three bots: Moussa, Moussa 2, Moussa 3
+//   pnpm bot --queue Awa 2      two bots wait in the public queue (fr) instead of a room
 //   pnpm bot AB2CD Awa 3 --host   for a room opened from a big screen, where the first to join
 //                                 holds the room: the first bot picks multiple choice and starts
 // In multiple-choice rooms it picks options after a few seconds (and is sometimes wrong). In
@@ -15,8 +16,10 @@ for (const file of ['.env', '../../.env']) {
 const api = `http://localhost:${process.env.API_PORT ?? 3001}`;
 const args = process.argv.slice(2);
 const hosting = args.includes('--host');
-const [code, name = 'Bot', count = '1'] = args.filter((arg) => !arg.startsWith('--'));
-if (!code) {
+const queueing = args.includes('--queue');
+const plain = args.filter((arg) => !arg.startsWith('--'));
+const [code, name = 'Bot', count = '1'] = queueing ? ['', ...plain] : plain;
+if (!code && !queueing) {
   console.error('usage: pnpm bot <ROOM_CODE> [nickname] [how many]');
   process.exit(1);
 }
@@ -45,6 +48,20 @@ async function play(nickname) {
 
   const joined = new Promise((resolve) => {
     socket.on('connect', async () => {
+      // In the public queue a bot waits to be matched, then joins the room it is given.
+      if (queueing) {
+        const waiting = await socket.emitWithAck('mm:join', { nickname, language: 'fr' });
+        log(waiting.ok ? 'waiting in the public queue' : `refused: ${waiting.error.code}`);
+        socket.on('mm:matched', async ({ code: found }) => {
+          const ack = await socket.emitWithAck('room:join', {
+            code: found,
+            nickname,
+            role: 'player',
+          });
+          log(ack.ok ? `matched into ${found}` : `could not join ${found}`);
+        });
+        return resolve({});
+      }
       const ack = await socket.emitWithAck('room:join', {
         code: code.toUpperCase(),
         nickname,

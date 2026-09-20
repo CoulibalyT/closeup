@@ -19,12 +19,11 @@ import type { Redis } from 'ioredis';
 import { withTimeout } from '../../common/with-timeout.js';
 import { DeckService } from '../../content/deck.service.js';
 import { HistoryService } from '../../history/history.service.js';
-import type { Identity } from '../../identity/identity.service.js';
 import { MediaTokens } from '../../media/media-tokens.js';
 import { PrismaService } from '../../prisma/prisma.module.js';
 import { REDIS } from '../../redis/redis.module.js';
 import { createRoom, reduce } from '../engine/reducer.js';
-import type { Command, Effect, Reply, RoomSettings, RoomState } from '../engine/types.js';
+import type { Command, Effect, Reply, RoomMode, RoomSettings, RoomState } from '../engine/types.js';
 import {
   bonusReply,
   broadcast,
@@ -38,6 +37,8 @@ import {
 const ROOM_TTL_S = 2 * 60 * 60;
 const RECOVERY_TIMEOUT_MS = 2_500;
 const ENDED_ROOM_KEPT_MS = 10 * 60 * 1000;
+/** How long a matched public room waits for the players the queue sent it. */
+const PUBLIC_ROOM_WAIT_MS = 12_000;
 const ACTIVE_ROOMS = 'closeup:rooms:active';
 const roomKey = (code: string) => `closeup:room:${code}`;
 
@@ -110,10 +111,12 @@ export class RoomService implements OnApplicationBootstrap, OnModuleDestroy {
 
   /** `host: null` opens the room from a shared screen: the first player to join will hold it. */
   async create(
-    mode: 'solo' | 'private',
-    host: Identity | null,
+    mode: RoomMode,
+    host: { playerId: string; nickname: string } | null,
     settings: RoomSettings,
     language: Locale,
+    /** Public rooms: how many the queue matched. They have no host to press start. */
+    expectedPlayers?: number,
   ): Promise<string> {
     const code = this.newCode();
     const state = createRoom({
@@ -123,6 +126,8 @@ export class RoomService implements OnApplicationBootstrap, OnModuleDestroy {
       language,
       settings,
       lexicon: [],
+      expectedPlayers,
+      waitForPlayersMs: PUBLIC_ROOM_WAIT_MS,
       now: Date.now(),
     });
     // The host is only present once their socket joins; until then the seat is held for them.
@@ -145,7 +150,8 @@ export class RoomService implements OnApplicationBootstrap, OnModuleDestroy {
   async start(code: string, playerId: string): Promise<Reply> {
     const actor = this.actors.get(code);
     if (!actor) return this.dispatch(code, { type: 'start', playerId });
-    const deck = await this.decks.build(actor.record.state.settings.rounds);
+    const { state } = actor.record;
+    const deck = await this.decks.build(state.settings.rounds, state.mode === 'public');
     actor.record.deck = deck.cardIds;
     return this.dispatch(code, {
       type: 'start',
@@ -181,7 +187,8 @@ export class RoomService implements OnApplicationBootstrap, OnModuleDestroy {
   /** What anyone holding the code may know before joining. */
   summary(code: string): RoomSummary | null {
     const state = this.actors.get(code)?.record.state;
-    if (!state || state.mode === 'solo') return null;
+    // Solo has nothing to show; a public room is not joined by its code, only by the queue.
+    if (!state || state.mode !== 'private') return null;
     return {
       code,
       phase: state.phase,
@@ -236,6 +243,10 @@ export class RoomService implements OnApplicationBootstrap, OnModuleDestroy {
       }
       case 'needCard':
         void this.supplyCard(code, actor);
+        return;
+      case 'needStart':
+        // Outside the queue, back in through `start`, which builds the deck first.
+        void this.start(code, state.hostId ?? '');
         return;
       case 'gameOver':
         // Not awaited: the ranking is already on everyone's screen, the archive can follow.

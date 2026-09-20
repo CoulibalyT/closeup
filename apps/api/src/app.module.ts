@@ -8,6 +8,7 @@ import { HealthModule } from './health/health.module.js';
 import { HistoryModule } from './history/history.module.js';
 import { IdentityModule } from './identity/identity.module.js';
 import { MailModule } from './mail/mail.module.js';
+import { ModerationModule } from './moderation/moderation.module.js';
 import { MediaHttpModule, MediaModule } from './media/media.module.js';
 import { bullRoot } from './pipeline/media-queue.js';
 import { PrismaModule } from './prisma/prisma.module.js';
@@ -24,6 +25,7 @@ import { RedisModule } from './redis/redis.module.js';
     MailModule,
     AccountModule,
     HistoryModule,
+    ModerationModule,
     AuthModule,
     bullRoot(),
     HealthModule,

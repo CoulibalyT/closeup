@@ -331,3 +331,59 @@ model GameRound {
   @@unique([gameId, index])
   @@index([cardId])
 }
+
+// ------------------------------------------------------------------------------------------
+// Moderation. Public games put strangers in front of each other: what the nickname filter
+// cannot catch, a person reads.
+// ------------------------------------------------------------------------------------------
+
+enum ReportTargetType {
+  PLAYER
+  PACK
+  CARD
+  TAKEDOWN
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+model Report {
+  id               String           @id @default(uuid(7)) @db.Uuid
+  targetType       ReportTargetType
+  /// The player, pack or card complained about. Null for a takedown about an image by e-mail.
+  targetId         String?          @db.Uuid
+  /// Kept as reported: a later rename must not hide who was reported.
+  targetLabel      String
+  reporterPlayerId String?          @db.Uuid
+  reason           String
+  message          String           @default("")
+  /// Takedown requests only: how to answer the person.
+  contactEmail     String?
+  status           ReportStatus     @default(OPEN)
+  note             String?
+  createdAt        DateTime         @default(now())
+  reviewedAt       DateTime?
+
+  @@index([status, createdAt])
+  @@index([targetType, targetId])
+}
+
+/// A ban, for the record: who, why, by whom, and whether it was lifted. The hot path does not
+/// read this table, it reads `bannedAt` on the device or the account.
+model Ban {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  /// One of the two: an account, or a device token. A player is reached through either.
+  userId    String?   @db.Uuid
+  deviceId  String?   @db.Uuid
+  reason    String
+  actorId   String?   @db.Uuid
+  reportId  String?   @db.Uuid
+  createdAt DateTime  @default(now())
+  liftedAt  DateTime?
+
+  @@index([userId])
+  @@index([deviceId])
+}

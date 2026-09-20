@@ -625,6 +625,85 @@ async function adminBackOffice() {
   check('the test card and pack are removed', gone.status === 204 && emptied.status === 204);
 }
 
+/**
+ * The public queue: three strangers of the same language are matched into a room that starts by
+ * itself, a nickname nobody should read is turned away, and the code is not a way in.
+ */
+async function playPublic() {
+  const guests = await Promise.all([guest('Un'), guest('Deux'), guest('Trois')]);
+  const players = guests.map((who) => player(who.cookie));
+  await Promise.all(players.map((who) => who.ready));
+
+  const refused = await players[0].socket.emitWithAck('mm:join', {
+    nickname: 'connard',
+    language: 'fr',
+  });
+  check(
+    'the queue turns away a nickname nobody should read',
+    refused.error?.code === 'NICKNAME_REJECTED',
+  );
+
+  const matched = players.map((who) => who.once('mm:matched', 30_000));
+  const names = ['Un', 'Deux', 'Trois'];
+  for (const [index, who] of players.entries()) {
+    const ack = await who.socket.emitWithAck('mm:join', { nickname: names[index], language: 'fr' });
+    if (!ack.ok) check('the queue takes a player', false, JSON.stringify(ack.error));
+  }
+  const codes = await Promise.all(matched);
+  check(
+    'three strangers of a language are matched into one room',
+    new Set(codes.map((m) => m.code)).size === 1,
+    codes[0]?.code,
+  );
+
+  const code = codes[0].code;
+  const started = players.map((who) => who.once('game:started', 30_000));
+  for (const [index, who] of players.entries()) {
+    const joined = await who.socket.emitWithAck('room:join', {
+      code,
+      nickname: names[index],
+      role: 'player',
+    });
+    if (!joined.ok) check('a matched player joins their room', false, JSON.stringify(joined.error));
+  }
+  const games = await Promise.all(started);
+  check(
+    'the public room starts by itself, with nobody pressing start',
+    games.length === 3 && games[0].totalRounds > 0,
+    `${games[0].totalRounds} rounds`,
+  );
+
+  const stranger = player((await guest('Quatre')).cookie);
+  await stranger.ready;
+  const late = await stranger.socket.emitWithAck('room:join', {
+    code,
+    nickname: 'Quatre',
+    role: 'player',
+  });
+  const summary = await fetch(`${api}/api/rooms/${code}`);
+  check(
+    'a public game is closed to latecomers, and its code is not a door',
+    late.error?.code === 'BAD_PHASE' && summary.status === 404,
+  );
+
+  // A report about somebody met here goes through, once.
+  const report = {
+    targetType: 'PLAYER',
+    targetId: guests[2].playerId,
+    roomCode: code,
+    reason: 'harassment',
+    message: '',
+  };
+  const sent = await fetch(`${api}/api/reports`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: guests[0].cookie },
+    body: JSON.stringify(report),
+  });
+  check('a player can report another one', sent.status === 204);
+
+  for (const who of [...players, stranger]) who.socket.disconnect();
+}
+
 try {
   const live = await getJson(`${api}/api/health`);
   check('API is alive', live.status === 200);
@@ -674,6 +753,7 @@ try {
   await playParty();
   await playBonuses();
   await playBigScreen();
+  await playPublic();
   await adminBackOffice();
 } catch (error) {
   check('stack reachable', false, error.message);

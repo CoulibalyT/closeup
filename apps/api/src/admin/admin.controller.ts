@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Post,
   Put,
+  Query,
   Req,
   UploadedFile,
   UseGuards,
@@ -16,17 +17,21 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
+  banSchema,
   cardInputSchema,
   newCardSchema,
   packInputSchema,
   packVisibilityInputSchema,
   publishInputSchema,
+  reportDecisionSchema,
   type SessionUser,
+  unbanSchema,
   UPLOAD,
   zoomPointsInputSchema,
 } from '@closeup/shared';
 import type { z } from 'zod';
 import { AdminGuard, type AdminRequest } from '../auth/admin.guard.js';
+import { ModerationService } from '../moderation/moderation.service.js';
 import { AdminContentService } from './admin-content.service.js';
 
 function parse<S extends z.ZodType>(schema: S, body: unknown): z.infer<S> {
@@ -41,7 +46,38 @@ const actorOf = (request: AdminRequest): SessionUser => request.user!;
 @Controller('admin')
 @UseGuards(AdminGuard)
 export class AdminController {
-  constructor(private readonly content: AdminContentService) {}
+  constructor(
+    private readonly content: AdminContentService,
+    private readonly moderation: ModerationService,
+  ) {}
+
+  @Get('reports')
+  listReports(@Query('status') status: string | undefined) {
+    return this.moderation.list(status === 'all' ? 'ALL' : 'OPEN');
+  }
+
+  @Put('reports/:id')
+  @HttpCode(204)
+  async decideReport(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+    @Req() request: AdminRequest,
+  ) {
+    const { status, note } = parse(reportDecisionSchema, body);
+    await this.moderation.decide(id, status, note, actorOf(request));
+  }
+
+  /** Bans the account behind the player and every device that plays as them. */
+  @Post('bans')
+  ban(@Body() body: unknown, @Req() request: AdminRequest) {
+    const { playerId, reason, reportId } = parse(banSchema, body);
+    return this.moderation.ban(playerId, reason, reportId, actorOf(request));
+  }
+
+  @Post('bans/lift')
+  unban(@Body() body: unknown, @Req() request: AdminRequest) {
+    return this.moderation.unban(parse(unbanSchema, body).playerId, actorOf(request));
+  }
 
   @Get('packs')
   listPacks() {

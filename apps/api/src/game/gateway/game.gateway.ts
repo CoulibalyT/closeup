@@ -9,9 +9,14 @@ import {
 import {
   type Ack,
   bonusUseSchema,
+  checkNickname,
   ClientEvent,
   fail,
   handshakeAuthSchema,
+  localeSchema,
+  matchmakingJoinSchema,
+  matchmakingStatusSchema,
+  matchmakingMatchedSchema,
   ok,
   PROTOCOL_VERSION,
   revealSkipSchema,
@@ -34,6 +39,7 @@ import type { z } from 'zod';
 import { DEVICE_COOKIE, readCookie } from '../../identity/device-token.js';
 import { type Identity, IdentityService } from '../../identity/identity.service.js';
 import type { Command, Reply } from '../engine/types.js';
+import { MatchmakingService } from '../matchmaking/matchmaking.service.js';
 import { RoomService } from '../rooms/room.service.js';
 
 interface SocketData {
@@ -41,11 +47,16 @@ interface SocketData {
   roomCode?: string;
   /** Set on `room:join`. A shared screen watches; only a player may send game commands. */
   role?: 'player' | 'screen';
+  /** The public queue this socket is waiting in, if any. */
+  queue?: 'fr' | 'en';
 }
 type GameSocket = Socket<never, never, never, SocketData>;
 
 /** Everyone in the room, phones and shared screens alike. */
 const channel = (code: string) => `room:${code}`;
+/** Everyone waiting in one language's public queue, or one waiting player. */
+const queueChannel = (language: string, playerId?: string) =>
+  playerId ? `mm:${language}:${playerId}` : `mm:${language}`;
 const playersChannel = (code: string) => `room:${code}:players`;
 const screensChannel = (code: string) => `room:${code}:screens`;
 /** Every socket of one player in one room: where their private messages go (bonuses, hints). */
@@ -58,6 +69,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
   constructor(
     private readonly rooms: RoomService,
     private readonly identities: IdentityService,
+    private readonly matchmaking: MatchmakingService,
   ) {}
 
   afterInit(namespace: Namespace): void {
@@ -83,6 +95,24 @@ export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
     });
 
     this.namespace = namespace;
+
+    // The queue talks to the sockets waiting in it, never to a room.
+    this.matchmaking.listen(
+      (language, players, code) => {
+        const payload = matchmakingMatchedSchema.parse({ code });
+        for (const player of players) {
+          namespace
+            .to(queueChannel(language, player.playerId))
+            .emit(ServerEvent.matchmakingMatched, payload);
+        }
+      },
+      (language, status) => {
+        namespace
+          .to(queueChannel(language))
+          .emit(ServerEvent.matchmakingStatus, matchmakingStatusSchema.parse(status));
+      },
+    );
+
     this.rooms.onMessage((code, message, to) => {
       const audience = to
         ? privateChannel(code, to)
@@ -132,6 +162,10 @@ export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
   /** A player is offline when their *last* socket in the room closes (think of two tabs). */
   async handleDisconnect(socket: GameSocket): Promise<void> {
     const { identity, roomCode, role } = socket.data;
+    // Waiting for a public game is waiting with this socket: closing it gives up the place.
+    if (socket.data.queue && identity) {
+      await this.matchmaking.leave(socket.data.queue, identity.playerId);
+    }
     if (roomCode && role === 'screen') {
       await this.announceScreens(roomCode, socket.id);
       return;
@@ -299,6 +333,50 @@ export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
       itemId: use.data.itemId,
       targetId: use.data.targetPlayerId,
     });
+  }
+
+  /**
+   * The public queue. The nickname is filtered here and nowhere else: private rooms are people
+   * who know each other, public games put a name in front of strangers.
+   */
+  @SubscribeMessage(ClientEvent.matchmakingJoin)
+  async onMatchmakingJoin(
+    @ConnectedSocket() socket: GameSocket,
+    @MessageBody() body: unknown,
+  ): Promise<Reply> {
+    const { identity } = socket.data;
+    if (!identity) return fail('UNAUTHENTICATED', 'Unknown device');
+    const request = matchmakingJoinSchema.safeParse(body);
+    if (!request.success) return fail('INVALID_PAYLOAD', 'mm:join expects { nickname, language }');
+
+    const verdict = checkNickname(request.data.nickname);
+    if (verdict !== 'ok') return fail('NICKNAME_REJECTED', verdict);
+
+    const language = localeSchema.parse(request.data.language);
+    if (request.data.nickname !== identity.nickname) {
+      await this.identities.rename(identity.playerId, request.data.nickname);
+      identity.nickname = request.data.nickname;
+    }
+
+    await socket.join([queueChannel(language), queueChannel(language, identity.playerId)]);
+    socket.data.queue = language;
+    await this.matchmaking.join(language, {
+      playerId: identity.playerId,
+      nickname: request.data.nickname,
+    });
+    return ok({});
+  }
+
+  @SubscribeMessage(ClientEvent.matchmakingLeave)
+  async onMatchmakingLeave(@ConnectedSocket() socket: GameSocket): Promise<Reply> {
+    const { identity, queue } = socket.data;
+    if (identity && queue) {
+      await this.matchmaking.leave(queue, identity.playerId);
+      await socket.leave(queueChannel(queue));
+      await socket.leave(queueChannel(queue, identity.playerId));
+      socket.data.queue = undefined;
+    }
+    return { ok: true, data: {} };
   }
 
   @SubscribeMessage(ClientEvent.revealSkip)

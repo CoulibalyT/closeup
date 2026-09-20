@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { BONUS_TYPES, DISPLAY_MODES, FREE_TEXT, SCORING_MODES } from '../constants/game.js';
-import { idSchema, nicknameSchema, roomCodeSchema } from './common.js';
+import { idSchema, localeSchema, nicknameSchema, roomCodeSchema } from './common.js';
 
 /**
  * Socket contract, namespace `/game`. Phase 0 only wires `time:ping`; the other client → server
@@ -91,7 +91,20 @@ export type BonusUse = z.infer<typeof bonusUseSchema>;
 
 export const revealSkipSchema = z.object({ roundId: idSchema });
 
-export const matchmakingJoinSchema = z.object({ nickname: nicknameSchema });
+/** The queue is per language: matched strangers must be able to read the same answers. */
+export const matchmakingJoinSchema = z.object({
+  nickname: nicknameSchema,
+  language: localeSchema,
+});
+
+export const matchmakingStatusSchema = z.strictObject({
+  waiting: z.int().min(0),
+  /** When the wait alone is enough to start. `null` while there is nobody to start with. */
+  startsAt: z.number().nullable(),
+});
+export type MatchmakingStatus = z.infer<typeof matchmakingStatusSchema>;
+
+export const matchmakingMatchedSchema = z.strictObject({ code: roomCodeSchema });
 
 export const bonusTypeSchema = z.enum(BONUS_TYPES);
 

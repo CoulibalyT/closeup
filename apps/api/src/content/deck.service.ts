@@ -21,9 +21,12 @@ export interface Deck {
 export class DeckService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async build(rounds: number): Promise<Deck> {
+  /** `publicSafeOnly`: strangers only ever see packs the owner marked safe for public games. */
+  async build(rounds: number, publicSafeOnly = false): Promise<Deck> {
     const cards = await this.prisma.card.findMany({
-      where: PLAYABLE,
+      where: publicSafeOnly
+        ? { ...PLAYABLE, pack: { ...PLAYABLE.pack, publicMatchSafe: true } }
+        : PLAYABLE,
       select: { id: true, answers: { select: { text: true, aliases: true } } },
     });
     const picked = shuffle(cards, Math.random).slice(0, rounds);

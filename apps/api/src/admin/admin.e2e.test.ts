@@ -38,6 +38,8 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('back-office', () => {
   let pack: AdminPack;
   let card: AdminCard;
   const email = `admin-${randomUUID()}@test.local`;
+  /** Accounts made inside a test, to be removed with the rest. */
+  const victims: string[] = [];
 
   const call = (path: string, init: RequestInit = {}) =>
     fetch(`${url}/api${path}`, { ...init, headers: { cookie, ...init.headers } });
@@ -88,7 +90,7 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('back-office', () => {
   afterAll(async () => {
     const prisma = app.get(PrismaService);
     if (pack) await prisma.pack.deleteMany({ where: { id: pack.id } });
-    await prisma.user.deleteMany({ where: { email: { endsWith: '@test.local' } } });
+    await prisma.user.deleteMany({ where: { email: { in: [email, ...victims] } } });
     await worker.close();
     await app.close();
     await rm(mediaDir, { recursive: true, force: true });
@@ -124,6 +126,7 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('back-office', () => {
 
   it('shuts the door after five wrong passwords for one address', async () => {
     const victim = `victim-${randomUUID()}@test.local`;
+    victims.push(victim);
     await app.get(AuthService).upsertAdmin(victim, PASSWORD);
     for (let i = 0; i < 5; i++)
       await send('POST', '/auth/login', { email: victim, password: 'nope' });

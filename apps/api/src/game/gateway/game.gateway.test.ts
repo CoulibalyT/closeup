@@ -12,6 +12,7 @@ import { io, type Socket } from 'socket.io-client';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { IdentityService } from '../../identity/identity.service.js';
 import { listen } from '../../testing/listen.js';
+import { MatchmakingService } from '../matchmaking/matchmaking.service.js';
 import { RoomService } from '../rooms/room.service.js';
 import { GameGateway } from './game.gateway.js';
 import { SocketAdapter } from './socket.adapter.js';
@@ -28,6 +29,7 @@ describe('GameGateway', () => {
         GameGateway,
         { provide: RoomService, useValue: { onMessage: () => undefined } },
         { provide: IdentityService, useValue: { resolve: async () => null } },
+        { provide: MatchmakingService, useValue: { listen: () => undefined } },
       ],
     }).compile();
     app = moduleRef.createNestApplication();
