@@ -42,6 +42,13 @@ export const reportDecisionSchema = z.strictObject({
   note: z.string().trim().max(500).default(''),
 });
 
+/** The moderator's answer to a pack submitted for publication. */
+export const packReviewSchema = z.strictObject({
+  verdict: z.enum(['PUBLISH', 'REJECT']),
+  /** Shown to the author. Saying why a pack came back is the whole point of the queue. */
+  note: z.string().trim().max(500).default(''),
+});
+
 export const banSchema = z.strictObject({
   playerId: idSchema,
   reason: z.string().trim().min(1).max(200),

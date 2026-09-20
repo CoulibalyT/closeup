@@ -384,6 +384,7 @@ export const roomSettingsEventSchema = z.strictObject({
   answerMode: answerModeSchema,
   scoring: scoringModeSchema,
   display: displayModeSchema,
+  packIds: z.array(idSchema),
 });
 export type RoomSettingsEvent = z.infer<typeof roomSettingsEventSchema>;
 

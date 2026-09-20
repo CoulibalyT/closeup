@@ -5,11 +5,10 @@ import { normalise } from '../game/engine/matching.js';
 import type { AnswerMode, EngineCard } from '../game/engine/types.js';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { chooseDistractors, pickWeighted, shuffle } from './distractors.js';
+import { type DeckScope, playableWhere } from './playable.js';
 
 /** Phones get the small crops; the big screen (phase 4) will ask for the large ones. */
 const PHONE_CROP_PX = ZOOM.cropSizesPx[0];
-
-const PLAYABLE = { status: 'LIVE', pack: { visibility: 'PUBLIC' } } as const;
 
 export interface Deck {
   cardIds: string[];
@@ -21,12 +20,9 @@ export interface Deck {
 export class DeckService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** `publicSafeOnly`: strangers only ever see packs the owner marked safe for public games. */
-  async build(rounds: number, publicSafeOnly = false): Promise<Deck> {
+  async build(rounds: number, scope: DeckScope): Promise<Deck> {
     const cards = await this.prisma.card.findMany({
-      where: publicSafeOnly
-        ? { ...PLAYABLE, pack: { ...PLAYABLE.pack, publicMatchSafe: true } }
-        : PLAYABLE,
+      where: playableWhere(scope),
       select: { id: true, answers: { select: { text: true, aliases: true } } },
     });
     const picked = shuffle(cards, Math.random).slice(0, rounds);
@@ -40,9 +36,14 @@ export class DeckService {
    * Everything the engine needs to play a card, or `null` if it cannot be played *right now*.
    * Called at the start of every round, which is what makes disabling a pack immediate.
    */
-  async load(cardId: string, language: Locale, answerMode: AnswerMode): Promise<EngineCard | null> {
+  async load(
+    cardId: string,
+    language: Locale,
+    answerMode: AnswerMode,
+    scope: DeckScope = { kind: 'room' },
+  ): Promise<EngineCard | null> {
     const card = await this.prisma.card.findFirst({
-      where: { id: cardId, ...PLAYABLE },
+      where: { id: cardId, ...playableWhere(scope) },
       include: {
         answers: true,
         image: true,
@@ -97,7 +98,7 @@ export class DeckService {
           sourceUrl: card.creditSourceUrl ?? undefined,
         },
       },
-      ...(answerMode === 'mcq' ? await this.options(card, primary.text, language) : {}),
+      ...(answerMode === 'mcq' ? await this.options(card, primary.text, language, scope) : {}),
     };
   }
 
@@ -105,9 +106,14 @@ export class DeckService {
     card: { id: string; category: string; difficulty: number },
     label: string,
     language: Locale,
+    scope: DeckScope,
   ): Promise<Pick<EngineCard, 'options' | 'correctOptionId'>> {
     const others = await this.prisma.card.findMany({
-      where: { ...PLAYABLE, category: card.category as never, id: { not: card.id } },
+      where: {
+        ...playableWhere(scope),
+        category: card.category as never,
+        id: { not: card.id },
+      },
       select: { id: true, difficulty: true, category: true, answers: true },
     });
     const pool = others.flatMap((other) => {

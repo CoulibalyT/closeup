@@ -704,6 +704,151 @@ async function playPublic() {
   for (const who of [...players, stranger]) who.socket.disconnect();
 }
 
+/**
+ * Player packs: a pack is private and playable at once in its author's rooms, reaches the
+ * catalogue only through the queue, and owes its images a credit.
+ */
+async function playerPacks() {
+  const { SMOKE_ADMIN_EMAIL: adminEmail, SMOKE_ADMIN_PASSWORD: adminPassword } = process.env;
+  if (!adminEmail || !adminPassword) {
+    console.log('skip pack checks: set SMOKE_ADMIN_EMAIL and SMOKE_ADMIN_PASSWORD');
+    return;
+  }
+  const { default: sharp } = await import('sharp');
+  const author = await guest('Auteur');
+  const email = `packs-${Date.now()}@closeup.test`;
+  const signup = await fetch(`${api}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: author.cookie },
+    body: JSON.stringify({ email, password: 'smoke test passphrase', locale: 'fr' }),
+  });
+  const cookie = `${author.cookie}; ${signup.headers
+    .getSetCookie()
+    .map((c) => c.split(';')[0])
+    .join('; ')}`;
+  const call = (method, path, body) =>
+    fetch(`${api}/api${path}`, {
+      method,
+      headers: {
+        cookie,
+        ...(body && !(body instanceof FormData) ? { 'content-type': 'application/json' } : {}),
+      },
+      body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
+    });
+
+  const pack = await (
+    await call('POST', '/me/packs', {
+      titleFr: 'Pack de fumée',
+      titleEn: 'Smoke pack',
+      category: 'OBJECT',
+    })
+  ).json();
+  check('a player creates a private pack', pack.visibility === 'PRIVATE', pack.id);
+
+  const card = await (
+    await call('POST', `/me/packs/${pack.id}/cards`, { category: 'OBJECT' })
+  ).json();
+  const form = new FormData();
+  const picture = await sharp({
+    create: { width: 1200, height: 900, channels: 3, background: '#7a5' },
+  })
+    .jpeg()
+    .toBuffer();
+  form.set('file', new Blob([picture]), 'mine.jpg');
+  form.set('rightsConfirmed', 'true');
+  await call('POST', `/me/packs/cards/${card.id}/image`, form);
+
+  const settled = async () => {
+    for (let i = 0; i < 80; i++) {
+      const current = await (await call('GET', `/me/packs/cards/${card.id}`)).json();
+      if (current.status !== 'PROCESSING') return current;
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+    return { status: 'TIMEOUT' };
+  };
+  const ingested = await settled();
+  check(
+    'their image goes through the same pipeline',
+    ingested.status === 'NEEDS_POINTS',
+    ingested.status,
+  );
+
+  await call('PUT', `/me/packs/cards/${card.id}/zoom-points`, {
+    points: [
+      { x: 300, y: 300, baseRadius: 60 },
+      { x: 900, y: 600, baseRadius: 60 },
+    ],
+  });
+  await settled();
+  await call('PUT', `/me/packs/cards/${card.id}`, {
+    category: 'OBJECT',
+    difficulty: 2,
+    isPerson: false,
+    answers: { fr: { text: 'fumée', aliases: [] }, en: { text: 'smoke', aliases: [] } },
+    credit: { author: 'Auteur', licence: 'CC BY 4.0', sourceUrl: '' },
+  });
+  const live = await (await call('PUT', `/me/packs/cards/${card.id}/live`, { live: true })).json();
+  check(
+    'their card is playable in their own rooms at once',
+    live.status === 'LIVE',
+    live.blockers?.join(','),
+  );
+
+  const beforeReview = await (await call('GET', '/packs')).json();
+  check('a private pack is not in the catalogue', !beforeReview.some((row) => row.id === pack.id));
+
+  await call('POST', `/me/packs/${pack.id}/submit`, { rightsConfirmed: true });
+  const adminLogin = await fetch(`${api}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: adminEmail, password: adminPassword }),
+  });
+  const adminCookie = adminLogin.headers
+    .getSetCookie()
+    .map((c) => c.split(';')[0])
+    .join('; ');
+  const queue = await (
+    await fetch(`${api}/api/admin/reports`, { headers: { cookie: adminCookie } })
+  ).json();
+  const submission = queue.find((row) => row.targetId === pack.id);
+  check('the submission lands in the moderation queue', Boolean(submission), submission?.reason);
+
+  await fetch(`${api}/api/admin/reports/${submission.id}/pack`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', cookie: adminCookie },
+    body: JSON.stringify({ verdict: 'PUBLISH', note: '' }),
+  });
+  const catalogue = await (await call('GET', '/packs')).json();
+  const published = catalogue.find((row) => row.id === pack.id);
+  check('publishing puts it in the catalogue with its author', published?.byPlayer === true);
+
+  const credits = await (await call('GET', `/packs/${pack.id}/credits`)).json();
+  check(
+    'the catalogue shows the credit of every image',
+    credits.cards?.[0]?.licence === 'CC BY 4.0',
+  );
+
+  const takedown = await fetch(`${api}/api/takedown`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      about: `pack ${pack.id}`,
+      contactEmail: 'rights@example.org',
+      message: 'Cette image est la mienne, merci de la retirer.',
+      locale: 'fr',
+    }),
+  });
+  check('anybody can ask for an image to be taken down', takedown.status === 204);
+
+  await call('POST', `/me/packs/${pack.id}/withdraw`);
+  await call('DELETE', `/me/packs/${pack.id}`);
+  await fetch(`${api}/api/auth/me`, {
+    method: 'DELETE',
+    headers: { 'content-type': 'application/json', cookie },
+    body: JSON.stringify({ password: 'smoke test passphrase' }),
+  });
+}
+
 try {
   const live = await getJson(`${api}/api/health`);
   check('API is alive', live.status === 200);
@@ -755,6 +900,7 @@ try {
   await playBigScreen();
   await playPublic();
   await adminBackOffice();
+  await playerPacks();
 } catch (error) {
   check('stack reachable', false, error.message);
 }

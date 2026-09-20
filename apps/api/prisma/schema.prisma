@@ -22,6 +22,7 @@ model Player {
   devices        Device[]
   soloBests      SoloBest[]
   participations GameParticipant[]
+  packs          Pack[]
 }
 
 /// A browser or phone, identified by an opaque token that is only ever stored hashed.
@@ -152,6 +153,13 @@ model Pack {
   id              String         @id @default(uuid(7)) @db.Uuid
   /// Stable handle for system packs (seed, importers). Null for player packs.
   slug            String?        @unique
+  /// The player who made it. Null for the owner's own packs (seed, admin, importers).
+  ownerId         String?        @db.Uuid
+  owner           Player?        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  /// What the author was told when their pack was refused, shown to them once.
+  reviewNote      String?
+  submittedAt     DateTime?
+  reviewedAt      DateTime?
   titleFr         String
   titleEn         String
   descriptionFr   String         @default("")
@@ -196,6 +204,7 @@ model Card {
 
   @@unique([packId, slug])
   @@index([status, category, difficulty])
+  @@index([packId, status])
 }
 
 model CardAnswer {

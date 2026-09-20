@@ -222,6 +222,7 @@ export function eventToWire(
           ...state.settings,
           scoring: state.settings.scoring ?? 'decay',
           display: displayOf(state),
+          packIds: state.settings.packIds ?? [],
         }),
       };
     case 'backToLobby':

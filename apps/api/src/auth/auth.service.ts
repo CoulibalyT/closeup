@@ -87,7 +87,11 @@ export class AuthService {
       data: { email, passwordHash: await hashPassword(password), locale },
     });
     const token = await this.openSession(user.id);
-    return { ok: true, token, user: { id: user.id, email, role: user.role, nickname: null } };
+    return {
+      ok: true,
+      token,
+      user: { id: user.id, email, role: user.role, playerId: null, nickname: null },
+    };
   }
 
   async login(email: string, password: string, ip: string): Promise<LoginResult> {
@@ -121,7 +125,7 @@ export class AuthService {
     return {
       ok: true,
       token,
-      user: { id: user.id, email: user.email, role: user.role, nickname: null },
+      user: { id: user.id, email: user.email, role: user.role, playerId: null, nickname: null },
     };
   }
 
@@ -137,6 +141,7 @@ export class AuthService {
       id: user.id,
       email: user.email,
       role: user.role,
+      playerId: user.player?.id ?? null,
       nickname: user.player?.nickname ?? null,
     };
   }
@@ -229,6 +234,6 @@ export class AuthService {
     });
     // A new password ends every open session of that account.
     await this.prisma.session.deleteMany({ where: { userId: user.id } });
-    return { id: user.id, email: user.email, role: user.role, nickname: null };
+    return { id: user.id, email: user.email, role: user.role, playerId: null, nickname: null };
   }
 }

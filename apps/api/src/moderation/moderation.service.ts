@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import type { AdminReport, ReportInput, SessionUser } from '@closeup/shared';
+import type { AdminReport, ContentReport, ReportInput, SessionUser } from '@closeup/shared';
 import { PrismaService } from '../prisma/prisma.module.js';
 
 /**
@@ -10,6 +10,31 @@ import { PrismaService } from '../prisma/prisma.module.js';
 @Injectable()
 export class ModerationService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /** About a pack or a card of the public catalogue. Anybody who can see it can report it. */
+  async reportContent(input: ContentReport, reporterPlayerId: string | null): Promise<void> {
+    const label =
+      input.targetType === 'PACK'
+        ? (await this.prisma.pack.findUnique({ where: { id: input.targetId } }))?.titleFr
+        : (
+            await this.prisma.card.findUnique({
+              where: { id: input.targetId },
+              include: { answers: { take: 1 } },
+            })
+          )?.answers[0]?.text;
+    if (label === undefined) throw new NotFoundException();
+
+    await this.prisma.report.create({
+      data: {
+        targetType: input.targetType,
+        targetId: input.targetId,
+        targetLabel: label || input.targetId,
+        reporterPlayerId,
+        reason: input.reason,
+        message: input.message,
+      },
+    });
+  }
 
   /** From a player, about a player they were just in a public game with. */
   async report(input: ReportInput, reporterPlayerId: string): Promise<void> {
@@ -79,6 +104,36 @@ export class ModerationService {
         };
       }),
     );
+  }
+
+  /**
+   * A submitted pack: published, or sent back with a word for its author. Publishing is the
+   * only way a player's pack reaches the catalogue; `publicMatchSafe` stays the owner's call,
+   * made afterwards on the pack itself.
+   */
+  async reviewPack(
+    reportId: string,
+    verdict: 'PUBLISH' | 'REJECT',
+    note: string,
+    actor: SessionUser,
+  ): Promise<void> {
+    const report = await this.prisma.report.findUnique({ where: { id: reportId } });
+    if (!report?.targetId || report.targetType !== 'PACK') throw new NotFoundException();
+
+    await this.prisma.pack.update({
+      where: { id: report.targetId },
+      data: {
+        visibility: verdict === 'PUBLISH' ? 'PUBLIC' : 'PRIVATE',
+        reviewNote: note || null,
+        reviewedAt: new Date(),
+        ...(verdict === 'REJECT' ? { submittedAt: null } : {}),
+      },
+    });
+    await this.prisma.report.update({
+      where: { id: reportId },
+      data: { status: 'RESOLVED', note: note || null, reviewedAt: new Date() },
+    });
+    await this.audit(actor, `pack.${verdict.toLowerCase()}`, report.targetId, note);
   }
 
   async decide(

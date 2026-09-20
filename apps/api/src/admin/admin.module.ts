@@ -8,5 +8,6 @@ import { AdminController } from './admin.controller.js';
   imports: [mediaQueue()],
   controllers: [AdminController],
   providers: [AdminContentService],
+  exports: [AdminContentService],
 })
 export class AdminModule {}

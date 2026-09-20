@@ -64,7 +64,8 @@ export interface SessionUser {
   id: string;
   email: string;
   role: 'PLAYER' | 'ADMIN';
-  /** Of the player this account plays as. `null` for an admin who never played. */
+  /** The player this account plays as. `null` for an admin who never played. */
+  playerId: string | null;
   nickname: string | null;
 }
 

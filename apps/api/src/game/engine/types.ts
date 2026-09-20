@@ -28,6 +28,8 @@ export interface RoomSettings {
    * this only changes who receives which payload (`view.ts`).
    */
   display?: DisplayMode;
+  /** Packs the host picked. The reducer never reads it either: the deck is built outside. */
+  packIds?: string[];
 }
 
 export interface McqOption {

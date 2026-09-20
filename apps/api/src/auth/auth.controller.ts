@@ -94,7 +94,7 @@ export class AuthController {
         maxAge: DEVICE_COOKIE_MAX_AGE_S * 1000,
       });
     }
-    return { ...user, nickname: adopted.nickname };
+    return { ...user, playerId: adopted.playerId, nickname: adopted.nickname };
   }
 
   private static refuse(reason: 'INVALID' | 'RATE_LIMITED' | 'UNAVAILABLE' | 'EMAIL_TAKEN'): never {

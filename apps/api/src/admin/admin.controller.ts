@@ -22,6 +22,7 @@ import {
   newCardSchema,
   packInputSchema,
   packVisibilityInputSchema,
+  packReviewSchema,
   publishInputSchema,
   reportDecisionSchema,
   type SessionUser,
@@ -65,6 +66,18 @@ export class AdminController {
   ) {
     const { status, note } = parse(reportDecisionSchema, body);
     await this.moderation.decide(id, status, note, actorOf(request));
+  }
+
+  /** A pack submitted for publication: into the catalogue, or back to its author. */
+  @Put('reports/:id/pack')
+  @HttpCode(204)
+  async reviewPack(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+    @Req() request: AdminRequest,
+  ) {
+    const { verdict, note } = parse(packReviewSchema, body);
+    await this.moderation.reviewPack(id, verdict, note, actorOf(request));
   }
 
   /** Bans the account behind the player and every device that plays as them. */

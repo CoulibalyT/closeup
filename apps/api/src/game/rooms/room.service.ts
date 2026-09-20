@@ -22,6 +22,7 @@ import { HistoryService } from '../../history/history.service.js';
 import { MediaTokens } from '../../media/media-tokens.js';
 import { PrismaService } from '../../prisma/prisma.module.js';
 import { REDIS } from '../../redis/redis.module.js';
+import type { DeckScope } from '../../content/playable.js';
 import { createRoom, reduce } from '../engine/reducer.js';
 import type { Command, Effect, Reply, RoomMode, RoomSettings, RoomState } from '../engine/types.js';
 import {
@@ -41,6 +42,15 @@ const ENDED_ROOM_KEPT_MS = 10 * 60 * 1000;
 const PUBLIC_ROOM_WAIT_MS = 12_000;
 const ACTIVE_ROOMS = 'closeup:rooms:active';
 const roomKey = (code: string) => `closeup:room:${code}`;
+
+/**
+ * Who this room may draw cards from. It is recomputed before every round, so a pack that is
+ * disabled or unpublished mid-game stops appearing at the next one.
+ */
+const deckScope = (state: RoomState): DeckScope =>
+  state.mode === 'public'
+    ? { kind: 'public' }
+    : { kind: 'room', hostPlayerId: state.hostId ?? undefined, packIds: state.settings.packIds };
 
 /** What survives a restart: the engine state and the cards still to be played. */
 interface RoomRecord {
@@ -151,7 +161,7 @@ export class RoomService implements OnApplicationBootstrap, OnModuleDestroy {
     const actor = this.actors.get(code);
     if (!actor) return this.dispatch(code, { type: 'start', playerId });
     const { state } = actor.record;
-    const deck = await this.decks.build(state.settings.rounds, state.mode === 'public');
+    const deck = await this.decks.build(state.settings.rounds, deckScope(state));
     actor.record.deck = deck.cardIds;
     return this.dispatch(code, {
       type: 'start',
@@ -271,6 +281,7 @@ export class RoomService implements OnApplicationBootstrap, OnModuleDestroy {
           deck.shift()!,
           state.language,
           state.settings.answerMode,
+          deckScope(state),
         );
         if (card) {
           await this.dispatch(code, { type: 'cardReady', card });

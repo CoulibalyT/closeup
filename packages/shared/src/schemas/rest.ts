@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { DISPLAY_MODES, SCORING_MODES } from '../constants/game.js';
+import { packChoiceSchema } from './packs.js';
 import { idSchema, localeSchema, nicknameSchema, roomCodeSchema } from './common.js';
 import { answerModeSchema, phaseSchema } from './events.js';
 
@@ -34,6 +35,11 @@ export const roomSettingsSchema = z.strictObject({
   scoring: z.enum(SCORING_MODES).default('decay'),
   /** The host may still change it in the lobby, like the rest. */
   display: z.enum(DISPLAY_MODES).default('phones'),
+  /**
+   * Which packs to draw from. Empty: every public pack, as before. A host may also pick their
+   * own packs, published or not; the server checks that they are theirs.
+   */
+  packIds: packChoiceSchema.default([]),
 });
 export type RoomSettings = z.infer<typeof roomSettingsSchema>;
 
