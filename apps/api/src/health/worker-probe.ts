@@ -5,13 +5,24 @@ import { type Queue, QueueEvents } from 'bullmq';
 import { Redis } from 'ioredis';
 import { withTimeout } from '../common/with-timeout.js';
 import { AppConfig } from '../config/app-config.js';
-import { MEDIA_QUEUE, MediaJob } from '../pipeline/media-queue.js';
+import {
+  MEDIA_QUEUE,
+  MediaJob,
+  WORKER_HEARTBEAT_EVERY_MS,
+  WORKER_HEARTBEAT_KEY,
+} from '../pipeline/media-queue.js';
 import { logErrorsOnce } from '../redis/redis.module.js';
 
 const PROBE_TIMEOUT_MS = 3_000;
+const HEARTBEAT_READ_TIMEOUT_MS = 1_000;
 const CLOSE_TIMEOUT_MS = 2_000;
 
-/** Sends a `ping` job through the real queue: up means the worker is consuming, not just alive. */
+/**
+ * Is the worker there? Its heartbeat answers first: the worker cuts one image at a time, so a
+ * `ping` job queued behind twenty cards proves nothing except that the queue is busy — which is
+ * how this used to report a perfectly healthy worker as down. The round trip is the fallback,
+ * for the case where there is no heartbeat yet (an older worker, or one just started).
+ */
 @Injectable()
 export class WorkerProbe implements OnModuleDestroy {
   private readonly eventsClient: Redis;
@@ -38,6 +49,20 @@ export class WorkerProbe implements OnModuleDestroy {
 
   async ping(): Promise<WorkerHealth> {
     const startedAt = Date.now();
+    // Bounded: ioredis queues commands while disconnected instead of failing, so a dead Redis
+    // would hang the health endpoint rather than answer it.
+    const beat = await withTimeout(
+      this.eventsClient.get(WORKER_HEARTBEAT_KEY),
+      HEARTBEAT_READ_TIMEOUT_MS,
+      'redis',
+    ).catch(() => null);
+    if (beat) {
+      const age = Date.now() - Number(beat);
+      // Two missed beats: something is wrong, fall through to the round trip and say so.
+      if (Number.isFinite(age) && age < WORKER_HEARTBEAT_EVERY_MS * 2) {
+        return { status: 'up', latencyMs: Math.max(0, age) };
+      }
+    }
     try {
       const roundTrip = async () => {
         const job = await this.queue.add(MediaJob.ping, {}, { removeOnComplete: true });

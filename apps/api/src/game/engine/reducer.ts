@@ -216,8 +216,9 @@ function dispatch(
       if (state.phase === 'ended') return refuse('BAD_PHASE', 'This game is over');
       if (state.mode === 'solo') return refuse('ROOM_FULL', 'Solo training is for one player');
       // Strangers do not walk into a game that started: the queue gives them their own. Coming
-      // back after a lost connection is the branch above, and still works.
-      if (state.mode === 'public' && state.phase !== 'lobby') {
+      // back after a lost connection is the branch above, and still works. `awaitingCard` counts
+      // as started: the phase is still 'lobby' while the first card is being fetched.
+      if (state.mode === 'public' && (state.phase !== 'lobby' || state.awaitingCard)) {
         return refuse('BAD_PHASE', 'This game has already started');
       }
       if (Object.keys(state.players).length >= ROOM.maxPlayers) {

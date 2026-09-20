@@ -427,9 +427,12 @@ Added in phase 9:
   proxy. It is off by default: a header anybody can write must not decide who is rate limited.
 - **CI builds the production stack and plays a game against it** through Caddy, over TLS it
   actually verifies (it trusts Caddy's local CA rather than turning certificate checks off).
-  This is what catches a broken Dockerfile or Caddyfile, and it found three while it was written:
-  a missing Prisma CLI, missing dependencies for the shared package, and a media volume owned by
-  root while the server runs as `node`.
+  This is what catches a broken Dockerfile or Caddyfile, and it earned its keep immediately:
+  a missing Prisma CLI, the shared package left without its own dependencies, a media volume
+  owned by root while the server runs as `node`, **a way into a public game while its first
+  card was still loading** (the phase is 'lobby' until the card arrives), and a worker health
+  check that called a perfectly healthy worker down because a `ping` job was queued behind
+  twenty cards. The last two were bugs in the game, not in the deployment.
 - **A real icon**: the lens whose ring is the timer, drawn once as an SVG and rendered to the
   PNGs some platforms insist on (`pnpm --filter @closeup/web icons`). It fits the middle 80%, so
   the same drawing survives any mask.

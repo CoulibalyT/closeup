@@ -98,6 +98,20 @@ describe('a public room starts by itself', () => {
     expect(room.send({ type: 'join', playerId: 'p2', nickname: 'P2' }, T0 + 3_200).ok).toBe(true);
   });
 
+  it('closes as soon as its first card is asked for, not when the card arrives', () => {
+    const room = publicRoom(2);
+    arrive(room, ['p1', 'p2'], T0 + 1_000);
+    room.send({ type: 'start', playerId: 'p1' }, T0 + 2_000);
+
+    // The phase is still 'lobby' while the room layer fetches the card from the database, and
+    // that gap was a way in until CI walked through it on a slow machine.
+    expect(room.state().phase).toBe('lobby');
+    expect(room.state().awaitingCard).toBe(true);
+    expect(
+      room.send({ type: 'join', playerId: 'late', nickname: 'Théo' }, T0 + 2_100),
+    ).toMatchObject({ error: { code: 'BAD_PHASE' } });
+  });
+
   it('leaves private and solo rooms alone: they start when their host says so', () => {
     let state: RoomState = createRoom({
       code: 'AB2CD',
