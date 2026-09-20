@@ -17,6 +17,7 @@ apps/api/src/generated/
 .env
 .env.*
 !.env.example
+!.env.prod.example
 
 # local media volume (originals and crops never go to git)
 /data/
