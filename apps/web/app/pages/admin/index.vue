@@ -5,7 +5,7 @@ definePageMeta({ middleware: 'admin' });
 
 const { t, locale } = useI18n();
 const localePath = useLocalePath();
-const admin = useAdminStore();
+const admin = useSessionStore();
 const { appName } = useRuntimeConfig().public;
 useHead({ title: () => t('admin.packsTitle', { appName }) });
 

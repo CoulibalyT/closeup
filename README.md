@@ -7,8 +7,10 @@ races to guess what it is. `closeup` is a codename; the player-facing name lives
 - The brief: [docs/brief.md](docs/brief.md)
 - The validated solo prototype: [docs/prototype/gros-plan.html](docs/prototype/gros-plan.html)
 
-**Status: phase 5 (back-office and image pipeline) done.** `/admin` is where the owner makes
-the game's content: packs and cards, image upload (checked, stripped of EXIF, resized, original
+**Status: phase 6 (player accounts) done.** Playing still needs nothing but a nickname; an
+optional account (`/account`) makes a player's history follow them from one device to the next,
+with statistics (`/stats`) and a ranking of games played with other people (`/rankings`).
+Phase 5 gave the owner `/admin`, where the game's content is made: packs and cards, image upload (checked, stripped of EXIF, resized, original
 kept private), zoom points placed by hand with a live preview of the four levels, or proposed
 from face landmarks for people, credits that are required before anything goes live, and a
 one-click switch that takes a pack out of running games. That comes on top of the big screen
@@ -31,6 +33,14 @@ device as the screen": it shows a QR code, and the first phone to join holds the
 who already has a room can also pick "On a big screen" in the lobby and open the address shown. On first start the API seeds the cards and the worker cuts their crops (about 20 s); the
 files land in `data/media/`, a plain folder you can browse. `/status` is the technical page from
 phase 0: six rows that must read "en ligne"; stop Redis and it says so within five seconds.
+
+**Accounts are optional and there is no sign-up wall.** A guest is a device cookie and a
+nickname, and every finished game is written down for them. Creating an account adopts that
+guest: nothing already played is lost. Logging in on a second device merges what was played
+there. Logging out hands the device back to a fresh guest, and deleting an account erases its
+address, password and records while leaving its games in other people's history under an
+anonymous name. The "forgot my password" e-mail needs `SMTP_URL`; without it (development) the
+API log prints the message, reset link included.
 
 **The back-office** has no default account and no sign-up form. Create the owner's admin once
 the stack is up, then open `/admin`:
@@ -313,7 +323,45 @@ Added in phase 5:
   it starts (phase 1). Celebrity and character packs are created `restricted`.
 - **Who did what** is written to `AuditLog`. The back-office pages are `noindex`.
 
-## Not done yet (after phase 5)
+Added in phase 6:
+
+- **Identity never changes shape.** A device points to a player, and that player is who plays.
+  An account only decides _which_ player a device points to, so nothing downstream (rooms,
+  engine, history) knows whether there is an account. `GET /auth/me` also re-points a device
+  that drifted, which is how a restored session finds its player again.
+- **Upgrading a guest links, it never copies.** The guest's `Player` row simply gains a
+  `userId`. When both sides already exist (a second device), the guest is merged into the
+  account's player: shared games are de-duplicated, personal bests keep the better of the two,
+  devices follow, and the empty row goes.
+- **History is written once, when a game ends**, for guests and accounts alike: one `Game`, one
+  `GameParticipant` per player (nickname as played, so a later rename does not rewrite old
+  rankings) and one `GameRound` per round (which card, how many found it, how fast — the raw
+  material for tuning difficulty later). It is not awaited: the ranking is already on everyone's
+  screen, and a failure is logged, never shown.
+- **Statistics belong to the device, rankings to accounts.** `/stats` reads the device cookie, so
+  a guest sees their own numbers and is told they live on this device only. `/rankings` counts
+  points from games played with other people, by players who have an account: a guest is a
+  device, not somebody, and training alone is not a ranking.
+- **Password reset in three parts**: a one-hour, one-use link whose hash alone is stored,
+  the same answer whether the address has an account or not (and whether an e-mail left or
+  not), and a successful reset ends every session of that account. Changing a password from
+  the account page ends the others but keeps the current one.
+- **Sign-ups and reset requests are rate limited** in Redis per IP, and reset requests per
+  address too. Sign-up is the one place where "this address is taken" has to be said out loud:
+  without e-mail verification there is no inbox to say it to instead.
+- The minimum password length is 10 for players and 12 for the owner's admin account.
+
+## Not done yet (after phase 6)
+
+- No e-mail verification: an address is never proven, so it is only good for the reset link.
+  A verification round trip belongs with the SMTP setting of a real deployment.
+- Nothing in the account pages was tried on a real phone; they were driven in desktop Chromium
+  at phone size. E-mails were read in the API log, never through a real SMTP server.
+- The ranking is one global board (week and all time). No per-pack or per-mode board, and no
+  paging beyond the first 50 rows plus the viewer's own line.
+- `GameRound` is written but nothing reads it yet: difficulty tuning is a later phase.
+- An account cannot change the nickname it plays under from the account page (the lobby and the
+  join screen still own that), and there is no export of one's own data.
 
 - Back-office: driven in desktop Chromium only. The zoom editor takes pointer events, so it
   should work on a tablet, but it was not tried; on a phone it is usable, not pleasant.
@@ -324,7 +372,6 @@ Added in phase 5:
   difficulty yet, so a pack made public is in everybody's games at once.
 - No credits page per pack yet (it comes with the public catalogue in phase 8), no moderation
   queue (nothing can be submitted or reported before phases 7 and 8).
-- No password reset by e-mail (phase 6, with the SMTP setting): `admin:create` resets it.
 - `request.ip` is the proxy's address behind Caddy until "trust proxy" is set in phase 9; the
   per-IP login limit then counts everybody together (the per-address limit still works).
 
@@ -338,8 +385,6 @@ Added in phase 5:
 - Bonus UI was driven by script in desktop Chromium at phone size, with bots as opponents: not
   yet played by several humans, nor on a real phone.
 
-- Games are not written to the database yet (`Game`, `GameParticipant`): nothing reads them
-  before stats and rankings in phase 6. Only the solo personal best is stored.
 - No nickname filter, reports or bans: phase 7, with public matchmaking.
 - The room language is the host's at creation time and cannot be changed in the lobby; packs,
   categories and difficulty are not host settings yet (the seed has three small packs).
@@ -348,8 +393,7 @@ Added in phase 5:
 - Seen once while driving the browser by script and not reproduced since: a game that started
   without a scripted click, and a "play again" click with no effect. Both server paths are
   covered by `pnpm smoke`; worth keeping an eye on during review.
-- Accounts (6), public matchmaking (7), player packs (8), deployment (9), Wikimedia importer
-  (10).
+- Public matchmaking (7), player packs (8), deployment (9), Wikimedia importer (10).
 - **Not verified on a real iPhone.** The keyboard handling (`visualViewport` sets the screen
   height, 17 px input so Safari does not zoom) follows the known recipe but was only exercised in
   desktop Chromium at phone size.

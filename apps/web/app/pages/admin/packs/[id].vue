@@ -13,7 +13,7 @@ definePageMeta({ middleware: 'admin' });
 const route = useRoute();
 const { t } = useI18n();
 const localePath = useLocalePath();
-const admin = useAdminStore();
+const admin = useSessionStore();
 const { appName } = useRuntimeConfig().public;
 
 const id = String(route.params.id);

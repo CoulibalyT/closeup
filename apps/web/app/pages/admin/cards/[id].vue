@@ -12,14 +12,14 @@ import {
   type ZoomPointInput,
   type ZoomPointProposal,
 } from '@closeup/shared';
-import { AdminApiError } from '~/stores/admin';
+import { ApiError } from '~/stores/session';
 
 definePageMeta({ middleware: 'admin' });
 
 const route = useRoute();
 const { t } = useI18n();
 const localePath = useLocalePath();
-const admin = useAdminStore();
+const admin = useSessionStore();
 const { appName } = useRuntimeConfig().public;
 
 const id = String(route.params.id);
@@ -125,7 +125,7 @@ async function upload(): Promise<void> {
     if (fileInput.value) fileInput.value.value = '';
   } catch (failure) {
     imageChanging = false;
-    const known = failure instanceof AdminApiError ? failure : null;
+    const known = failure instanceof ApiError ? failure : null;
     uploadError.value = known?.status === 413 ? 'TOO_LARGE' : (known?.code ?? 'FAILED');
   } finally {
     uploading.value = false;
@@ -218,7 +218,7 @@ async function setLive(live: boolean): Promise<void> {
   try {
     card.value = await admin.request<AdminCard>('PUT', `/admin/cards/${id}/live`, { live });
   } catch (failure) {
-    if (failure instanceof AdminApiError && failure.status === 409) await refresh();
+    if (failure instanceof ApiError && failure.status === 409) await refresh();
     else failed.value = true;
   }
 }

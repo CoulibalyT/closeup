@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { AdminApiError } from '~/stores/admin';
+import { ApiError } from '~/stores/session';
 
 const { t } = useI18n();
 const localePath = useLocalePath();
-const admin = useAdminStore();
+const admin = useSessionStore();
 const { appName } = useRuntimeConfig().public;
 
 useHead({
@@ -27,7 +27,7 @@ async function submit(): Promise<void> {
     await admin.login(email.value, password.value);
     await navigateTo(localePath('/admin'));
   } catch (failure) {
-    const status = failure instanceof AdminApiError ? failure.status : 0;
+    const status = failure instanceof ApiError ? failure.status : 0;
     error.value = status === 401 ? 'invalid' : status === 429 ? 'locked' : 'failed';
   } finally {
     busy.value = false;

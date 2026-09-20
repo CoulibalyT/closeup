@@ -4,7 +4,7 @@ defineProps<{ title: string; back?: { to: string; label: string } }>();
 
 const { t } = useI18n();
 const localePath = useLocalePath();
-const admin = useAdminStore();
+const admin = useSessionStore();
 const { appName } = useRuntimeConfig().public;
 
 // The back-office is nobody's business but the owner's: keep it out of every index.

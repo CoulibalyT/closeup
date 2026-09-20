@@ -3,7 +3,7 @@
  * `/api/admin` call goes through a guard); this one only spares a stranger an empty shell.
  */
 export default defineNuxtRouteMiddleware(async () => {
-  const admin = useAdminStore();
+  const admin = useSessionStore();
   const user = admin.user ?? (await admin.whoAmI());
   if (user?.role !== 'ADMIN') return navigateTo(useLocalePath()('/admin/login'));
 });

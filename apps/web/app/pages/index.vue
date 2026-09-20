@@ -92,6 +92,10 @@ const playSolo = () =>
       >
         {{ l.name }}
       </NuxtLink>
+      <span class="grow" />
+      <NuxtLink :to="localePath('/rankings')">{{ t('rankings.heading') }}</NuxtLink>
+      <NuxtLink :to="localePath('/stats')">{{ t('stats.short') }}</NuxtLink>
+      <NuxtLink :to="localePath('/account')">{{ t('account.short') }}</NuxtLink>
     </nav>
 
     <h1 class="display">{{ appName }}</h1>
@@ -191,6 +195,9 @@ nav {
   display: flex;
   gap: var(--space-2);
   margin-left: calc(-1 * var(--space-2));
+}
+nav .grow {
+  flex: 1;
 }
 nav a {
   display: inline-flex;
