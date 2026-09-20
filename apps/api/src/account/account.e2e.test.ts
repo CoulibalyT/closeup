@@ -66,6 +66,7 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('accounts', () => {
   let prisma: PrismaService;
   let history: HistoryService;
   const sent: { to: string; token: string }[] = [];
+  const verifications: { to: string; token: string }[] = [];
   const run = randomUUID().slice(0, 8);
   const email = `awa-${run}@test.local`;
   const PASSWORD = 'a long enough passphrase';
@@ -119,6 +120,9 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('accounts', () => {
         sent.push({ to, token });
       },
     );
+    vi.spyOn(app.get(MailService), 'verifyEmail').mockImplementation(async (to, _locale, token) => {
+      verifications.push({ to, token });
+    });
     const redis = app.get<Redis>(REDIS);
     const stale = await redis.keys('closeup:*:ip:*');
     if (stale.length) await redis.del(...stale);
@@ -191,6 +195,30 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('accounts', () => {
       409,
       expect.objectContaining({ code: 'EMAIL_TAKEN' }),
     ]);
+  });
+
+  it('sends a one-hour link to prove the address, and playing never waits for it', async () => {
+    const link = verifications.find((mail) => mail.to === email);
+    expect(link, 'a verification e-mail went out at sign-up').toBeDefined();
+
+    const phone = new Browser(url);
+    await phone.call('POST', '/auth/login', { email, password: PASSWORD });
+    expect(await (await phone.call('GET', '/auth/me')).json()).toMatchObject({
+      emailVerified: false,
+    });
+
+    const forged = await phone.call('POST', '/auth/email/verify', { token: 'x'.repeat(43) });
+    expect(await forged.json()).toMatchObject({ code: 'LINK_INVALID' });
+
+    expect((await phone.call('POST', '/auth/email/verify', { token: link!.token })).status).toBe(
+      204,
+    );
+    expect(await (await phone.call('GET', '/auth/me')).json()).toMatchObject({
+      emailVerified: true,
+    });
+    // One use only.
+    const again = await phone.call('POST', '/auth/email/verify', { token: link!.token });
+    expect(again.status).toBe(409);
   });
 
   it('merges what was played as a guest on another device when its owner logs in there', async () => {

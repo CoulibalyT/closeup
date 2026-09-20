@@ -20,6 +20,17 @@ const RESET_MAIL = {
   }),
 };
 
+const VERIFY_MAIL = {
+  fr: (name: string, link: string) => ({
+    subject: `${name} : confirme ton adresse`,
+    text: `Bonjour,\n\nPour confirmer que cette adresse est bien la tienne, ouvre ce lien dans l'heure qui vient :\n${link}\n\nSi tu n'as pas de compte chez nous, ignore ce message.\n\n${name}`,
+  }),
+  en: (name: string, link: string) => ({
+    subject: `${name}: confirm your address`,
+    text: `Hello,\n\nTo confirm that this address is yours, open this link within the hour:\n${link}\n\nIf you have no account with us, ignore this message.\n\n${name}`,
+  }),
+};
+
 /**
  * Plain-text e-mail through whatever SMTP server `SMTP_URL` names. Without one, nothing is sent:
  * in development the message is printed in the API log (so the reset link can be followed), in
@@ -50,9 +61,20 @@ export class MailService {
   }
 
   passwordReset(to: string, locale: string, token: string): Promise<void> {
-    const name = process.env.CLOSEUP_DISPLAY_NAME || brand.displayName;
-    const link = `${this.config.env.PUBLIC_WEB_URL}/account/reset?token=${encodeURIComponent(token)}`;
     const template = locale === 'en' ? RESET_MAIL.en : RESET_MAIL.fr;
-    return this.send({ to, ...template(name, link) });
+    return this.send({ to, ...template(this.name, this.link('/account/reset', token)) });
+  }
+
+  verifyEmail(to: string, locale: string, token: string): Promise<void> {
+    const template = locale === 'en' ? VERIFY_MAIL.en : VERIFY_MAIL.fr;
+    return this.send({ to, ...template(this.name, this.link('/account/verify', token)) });
+  }
+
+  private get name(): string {
+    return process.env.CLOSEUP_DISPLAY_NAME || brand.displayName;
+  }
+
+  private link(path: string, token: string): string {
+    return `${this.config.env.PUBLIC_WEB_URL}${path}?token=${encodeURIComponent(token)}`;
   }
 }

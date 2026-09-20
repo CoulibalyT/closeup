@@ -8,4 +8,5 @@ useHead(() => ({ htmlAttrs: { lang: localeProperties.value.language } }));
 <template>
   <VitePwaManifest />
   <NuxtPage />
+  <OfflineNotice />
 </template>

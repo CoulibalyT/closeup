@@ -86,11 +86,20 @@ export class AuthService {
     const user = await this.prisma.user.create({
       data: { email, passwordHash: await hashPassword(password), locale },
     });
+    // The address is not proven yet: playing never waits for an inbox, but the link goes out now.
+    await this.sendVerification(user.id, email, locale);
     const token = await this.openSession(user.id);
     return {
       ok: true,
       token,
-      user: { id: user.id, email, role: user.role, playerId: null, nickname: null },
+      user: {
+        id: user.id,
+        email,
+        role: user.role,
+        playerId: null,
+        nickname: null,
+        emailVerified: false,
+      },
     };
   }
 
@@ -125,8 +134,54 @@ export class AuthService {
     return {
       ok: true,
       token,
-      user: { id: user.id, email: user.email, role: user.role, playerId: null, nickname: null },
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        playerId: null,
+        nickname: null,
+        emailVerified: user.emailVerifiedAt !== null,
+      },
     };
+  }
+
+  /** A one-hour link proving the address belongs to whoever opened the mailbox. */
+  async sendVerification(userId: string, email: string, locale: string): Promise<void> {
+    const token = newDeviceToken();
+    await this.prisma.passwordReset.deleteMany({ where: { userId, kind: 'EMAIL_VERIFICATION' } });
+    await this.prisma.passwordReset.create({
+      data: {
+        userId,
+        kind: 'EMAIL_VERIFICATION',
+        tokenHash: hashToken(token),
+        expiresAt: new Date(Date.now() + RESET_TTL_MS),
+      },
+    });
+    await this.mail.verifyEmail(email, locale, token);
+  }
+
+  /** Asking for the link again, from the account page. Silent about whether anything was sent. */
+  async resendVerification(userId: string, ip: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || user.emailVerifiedAt) return;
+    const key = `closeup:verify:ip:${digest(ip)}`;
+    if (!(await this.allowed(key, FORGOT_LIMIT.perIp, FORGOT_LIMIT.windowS))) return;
+    await this.sendVerification(user.id, user.email, user.locale);
+  }
+
+  async verifyEmail(token: string): Promise<boolean> {
+    const link = await this.prisma.passwordReset.findUnique({
+      where: { tokenHash: hashToken(token) },
+    });
+    if (!link || link.kind !== 'EMAIL_VERIFICATION' || link.expiresAt < new Date()) return false;
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: link.userId },
+        data: { emailVerifiedAt: new Date() },
+      }),
+      this.prisma.passwordReset.delete({ where: { id: link.id } }),
+    ]);
+    return true;
   }
 
   async resolve(token: string | undefined): Promise<SessionUser | null> {
@@ -143,6 +198,7 @@ export class AuthService {
       role: user.role,
       playerId: user.player?.id ?? null,
       nickname: user.player?.nickname ?? null,
+      emailVerified: user.emailVerifiedAt !== null,
     };
   }
 
@@ -190,10 +246,13 @@ export class AuthService {
     if (!user || user.bannedAt) return;
 
     const token = newDeviceToken();
-    await this.prisma.passwordReset.deleteMany({ where: { userId: user.id } });
+    await this.prisma.passwordReset.deleteMany({
+      where: { userId: user.id, kind: 'PASSWORD_RESET' },
+    });
     await this.prisma.passwordReset.create({
       data: {
         userId: user.id,
+        kind: 'PASSWORD_RESET',
         tokenHash: hashToken(token),
         expiresAt: new Date(Date.now() + RESET_TTL_MS),
       },
@@ -207,7 +266,7 @@ export class AuthService {
       where: { tokenHash: hashToken(token) },
       include: { user: true },
     });
-    if (!reset || reset.expiresAt < new Date()) return false;
+    if (!reset || reset.kind !== 'PASSWORD_RESET' || reset.expiresAt < new Date()) return false;
     await this.prisma.$transaction([
       this.prisma.user.update({
         where: { id: reset.userId },
@@ -234,6 +293,13 @@ export class AuthService {
     });
     // A new password ends every open session of that account.
     await this.prisma.session.deleteMany({ where: { userId: user.id } });
-    return { id: user.id, email: user.email, role: user.role, playerId: null, nickname: null };
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      playerId: null,
+      nickname: null,
+      emailVerified: true,
+    };
   }
 }

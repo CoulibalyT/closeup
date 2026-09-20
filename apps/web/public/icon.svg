@@ -1,5 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" fill="#fff"/>
-  <circle cx="256" cy="256" r="176" fill="none" stroke="#111" stroke-width="40"/>
-  <circle cx="256" cy="256" r="72" fill="#111"/>
+<!--
+  The lens whose ring is the timer: the one bold shape of the game (docs/design, Photomaton).
+  Everything sits inside the middle 80% of the square, so the same drawing works as a maskable
+  icon, where the platform may crop the corners to any shape it likes.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="closeup">
+  <rect width="512" height="512" fill="#11183a" />
+  <g fill="none" stroke-width="34">
+    <circle cx="256" cy="256" r="178" stroke="#273066" />
+    <!-- Two thirds of the way round: a round in progress, not a full circle. -->
+    <path d="M 256 78 A 178 178 0 1 1 102.9 345" stroke="#7d90ff" stroke-linecap="butt" />
+  </g>
+  <circle cx="256" cy="256" r="140" fill="#eef1ff" />
+  <!-- The subject, off centre: a close-up is never framed politely. -->
+  <circle cx="232" cy="242" r="52" fill="#11183a" />
+  <circle cx="252" cy="224" r="16" fill="#eef1ff" />
 </svg>

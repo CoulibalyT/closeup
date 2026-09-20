@@ -30,11 +30,18 @@ export const passwordResetSchema = z.strictObject({
   password: newPasswordSchema,
 });
 
+export const verifyEmailSchema = z.strictObject({ token: z.string().min(20).max(200) });
+
 export const accountDeleteSchema = z.strictObject({
   password: z.string().min(1).max(PASSWORD.maxLength),
 });
 
-export const ACCOUNT_ERRORS = ['EMAIL_TAKEN', 'WRONG_PASSWORD', 'RESET_INVALID'] as const;
+export const ACCOUNT_ERRORS = [
+  'EMAIL_TAKEN',
+  'WRONG_PASSWORD',
+  'RESET_INVALID',
+  'LINK_INVALID',
+] as const;
 export type AccountError = (typeof ACCOUNT_ERRORS)[number];
 
 // ---- statistics: of the player behind this device, account or not ----

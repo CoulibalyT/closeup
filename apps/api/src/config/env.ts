@@ -20,6 +20,15 @@ const envSchema = z
       ),
     /** Where originals, reveal renditions and crops live. A Docker volume in Compose. */
     MEDIA_DIR: z.string().min(1).default('../../data/media'),
+    /**
+     * Behind a reverse proxy: trust `X-Forwarded-For` so that the per-IP limits count the
+     * visitor, not Caddy. Never set it when the API is reachable directly — a header anybody
+     * can write would then decide who is rate limited.
+     */
+    TRUST_PROXY: z
+      .string()
+      .default('')
+      .transform((value) => value === '1' || value.toLowerCase() === 'true'),
     /** e.g. smtp://user:password@mail.example.org:587. Empty: no e-mail leaves (see MailService). */
     SMTP_URL: z.string().default(''),
     MAIL_FROM: z.string().min(3).default('closeup <no-reply@localhost>'),

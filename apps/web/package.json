@@ -9,7 +9,8 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "nuxt:prepare": "nuxt prepare",
-    "typecheck": "nuxt typecheck"
+    "typecheck": "nuxt typecheck",
+    "icons": "node scripts/icons.mjs"
   },
   "dependencies": {
     "@closeup/shared": "workspace:*",
@@ -25,6 +26,7 @@
     "vue": "^3.5.0"
   },
   "devDependencies": {
+    "sharp": "^0.35.4",
     "typescript": "~6.0.3",
     "vue-tsc": "^3.0.0"
   }

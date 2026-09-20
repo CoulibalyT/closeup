@@ -246,7 +246,14 @@
     "resetSend": "Send me the link",
     "resetSent": "If an account exists with this address, a link was just sent to it. Check the spam folder too.",
     "resetInvalid": "This link is no longer valid. Ask for a new one.",
-    "resetDone": "Password changed. You can sign in."
+    "resetDone": "Password changed. You can sign in.",
+    "verifyTitle": "Confirmation, {appName}",
+    "verifyHeading": "Confirming your address",
+    "verifyDone": "Address confirmed. Thank you.",
+    "verifyInvalid": "This link is no longer valid. Ask for a new one from your account.",
+    "unverified": "Your address is not confirmed yet: without it you will not be able to recover your account.",
+    "resendVerification": "Send the link again",
+    "verificationSent": "Link sent again. Check the spam folder too."
   },
   "stats": {
     "short": "Stats",
@@ -396,6 +403,7 @@
     "sent": "Message received. We will answer at the address you gave.",
     "failed": "The message did not go through. Try again."
   },
+  "offline": "No connection: the game needs the network to run.",
   "admin": {
     "backOffice": "Back-office",
     "loginTitle": "Sign in, {appName}",

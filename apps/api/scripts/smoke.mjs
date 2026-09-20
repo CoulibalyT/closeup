@@ -15,8 +15,10 @@ for (const file of ['.env', '../../.env']) {
   if (existsSync(file)) process.loadEnvFile(file);
 }
 
-const api = `http://localhost:${process.env.API_PORT ?? 3001}`;
-const web = `http://localhost:${process.env.WEB_PORT ?? 3000}`;
+// In production one origin serves both, so SMOKE_BASE_URL replaces the two dev ports.
+const base = process.env.SMOKE_BASE_URL;
+const api = base ?? `http://localhost:${process.env.API_PORT ?? 3001}`;
+const web = base ?? `http://localhost:${process.env.WEB_PORT ?? 3000}`;
 let failures = 0;
 
 function check(label, pass, detail = '') {
@@ -543,7 +545,10 @@ async function adminBackOffice() {
     .getSetCookie()
     .map((c) => c.split(';')[0])
     .join('; ');
-  check('the admin logs in', login.status === 200 && /_session=/.test(cookie));
+  const loggedIn = login.status === 200 && /_session=/.test(cookie);
+  check('the admin logs in', loggedIn, loggedIn ? '' : `HTTP ${login.status}`);
+  // Without a session the rest would only report the same failure a dozen times over.
+  if (!loggedIn) return;
 
   const call = (path, init = {}) =>
     fetch(`${api}/api/admin${path}`, { ...init, headers: { cookie, ...init.headers } });
@@ -803,6 +808,10 @@ async function playerPacks() {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ email: adminEmail, password: adminPassword }),
   });
+  if (adminLogin.status !== 200) {
+    check('an admin can review the submitted pack', false, `login: HTTP ${adminLogin.status}`);
+    return;
+  }
   const adminCookie = adminLogin.headers
     .getSetCookie()
     .map((c) => c.split(';')[0])

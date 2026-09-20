@@ -67,6 +67,8 @@ export interface SessionUser {
   /** The player this account plays as. `null` for an admin who never played. */
   playerId: string | null;
   nickname: string | null;
+  /** Whether they followed the link in the e-mail. Playing never waits for it. */
+  emailVerified: boolean;
 }
 
 // ---- packs ----

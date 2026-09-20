@@ -7,7 +7,13 @@ races to guess what it is. `closeup` is a codename; the player-facing name lives
 - The brief: [docs/brief.md](docs/brief.md)
 - The validated solo prototype: [docs/prototype/gros-plan.html](docs/prototype/gros-plan.html)
 
-**Status: phase 8 (player packs) done.** A player with an account makes packs of their own at
+**Status: phase 9 (deployment) done.** The game can go online: `docker-compose.prod.yml` builds
+three lean images, Caddy gets the certificate and serves everything from one origin, and
+[docs/deploy.md](docs/deploy.md) walks through a first deployment, backups included. The PWA has
+real icons and says when the network is gone, an address can be confirmed by e-mail, and CI now
+builds the production stack and plays a whole game against it over HTTPS.
+
+Phase 8 (player packs) is behind it: A player with an account makes packs of their own at
 `/me/packs`, with the back-office's editor: private at first and playable in their own rooms
 straight away, then submitted to a moderation queue that decides whether they reach the public
 catalogue (`/packs`), where every pack shows the credit of each image. A host now picks which
@@ -410,7 +416,41 @@ Added in phase 8:
 - **Reporting a pack needs no account**, and `/contact` takes a takedown request from somebody
   who does not play at all: both land in the same moderation queue.
 
-## Not done yet (after phase 8)
+Added in phase 9:
+
+- **Three production images out of one build**: the API, the worker and Caddy with the built
+  game inside. The runtime images carry no source and no dev dependencies. Caddy serves `/` and
+  proxies `/api`, so cookies stay first-party and there is no CORS anywhere in production.
+- **One process owns the schema, and it is not the server**: a one-shot `migrate` container
+  applies the migrations and exits, and the API waits for it to succeed.
+- **`TRUST_PROXY=1` behind Caddy**, so the per-IP limits count the visitor instead of the
+  proxy. It is off by default: a header anybody can write must not decide who is rate limited.
+- **CI builds the production stack and plays a game against it** through Caddy, over TLS it
+  actually verifies (it trusts Caddy's local CA rather than turning certificate checks off).
+  This is what catches a broken Dockerfile or Caddyfile, and it found three while it was written:
+  a missing Prisma CLI, missing dependencies for the shared package, and a media volume owned by
+  root while the server runs as `node`.
+- **A real icon**: the lens whose ring is the timer, drawn once as an SVG and rendered to the
+  PNGs some platforms insist on (`pnpm --filter @closeup/web icons`). It fits the middle 80%, so
+  the same drawing survives any mask.
+- **Address confirmation** (what phase 6 left out): a one-hour, one-use link, and the account
+  page says plainly that an unconfirmed address cannot recover the account. Playing never waits
+  for it.
+- **An offline notice rather than an offline game**: this game is other people and a server. The
+  shell loads from the cache and says what is missing.
+
+## Not done yet (after phase 9)
+
+- **Never deployed to a real VPS.** The whole stack was built and played locally against Caddy
+  on `localhost`, and CI does the same on every push. Certificates from Let's Encrypt, a real
+  domain, and how the worker behaves on a small shared CPU are all untried.
+- **Still not tried on a real phone or a real TV**, which is the one thing that needs your
+  hardware rather than more code.
+- No monitoring, no alerting and no log shipping: the answer to "is it up" is the status page
+  and `docker compose logs`.
+- The deployment guide's backup script writes to the same machine and tells you to copy it
+  elsewhere; it does not do it for you.
+- No staging environment, and no rollback beyond `git checkout` and rebuild.
 
 - The catalogue has no search, no paging and no sort beyond newest or by name; it was built for
   tens of packs, not thousands.
@@ -432,8 +472,6 @@ Added in phase 8:
 - A banned player is turned away, but is not told why, and there is no appeal.
 - Public games are not written into the ranking any differently from private ones.
 
-- No e-mail verification: an address is never proven, so it is only good for the reset link.
-  A verification round trip belongs with the SMTP setting of a real deployment.
 - Nothing in the account pages was tried on a real phone; they were driven in desktop Chromium
   at phone size. E-mails were read in the API log, never through a real SMTP server.
 - The ranking is one global board (week and all time). No per-pack or per-mode board, and no
@@ -447,8 +485,6 @@ Added in phase 8:
 - Face detection was checked on one public-domain portrait (a painting) and on pictures without
   a face. **Not measured on the target VPS**: memory with the models loaded is about 300 MB in
   the worker, and speed on a small shared CPU is unknown.
-- `request.ip` is the proxy's address behind Caddy until "trust proxy" is set in phase 9; the
-  per-IP login limit then counts everybody together (the per-address limit still works).
 
 - Big screen: driven by script and bots in desktop Chromium (1280×720 for the screen, phone size
   for a controller). **Not tried on a real TV**, through a cast, or with real phones; text sizes
@@ -467,15 +503,14 @@ Added in phase 8:
 - Seen once while driving the browser by script and not reproduced since: a game that started
   without a scripted click, and a "play again" click with no effect. Both server paths are
   covered by `pnpm smoke`; worth keeping an eye on during review.
-- Deployment (9), Wikimedia importer (10).
+- Wikimedia importer (10), then the leftovers agreed with the owner: changing one's nickname
+  from the account page, exporting one's data, difficulty tuning from `GameRound`, and hunting
+  the two bugs seen once and never reproduced.
 - **Not verified on a real iPhone.** The keyboard handling (`visualViewport` sets the screen
   height, 17 px input so Safari does not zoom) follows the known recipe but was only exercised in
   desktop Chromium at phone size.
 - The pick of rounds and cards is uniform inside the chosen packs: difficulty and category
   filters are in the data model, not in the room settings.
-- PWA: manifest and service worker registration only, with a placeholder SVG icon. Real icons,
-  the offline screen and installability checks belong to phase 9.
-- No production Compose file, no Caddy, no deployment guide (phase 9).
 - No hot reload for `packages/shared` inside the containers (see the limit above).
 - CI (GitHub Actions) runs lint, typecheck, the migration and every test against real Postgres
-  and Redis services. It does not build the Docker image or run `pnpm smoke` yet.
+  and Redis services, then builds the production stack and plays a game against it.

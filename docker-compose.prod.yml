@@ -1,0 +1,143 @@
+# Production, on one small VPS. Everything is on a private network except Caddy, which is the
+# only door: it terminates HTTPS, serves the built game and passes /api to the API.
+#
+#   cp .env.prod.example .env && edit it
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# See docs/deploy.md for the whole story, including backups.
+
+x-app: &app
+  build:
+    context: .
+  environment: &app-env
+    NODE_ENV: production
+    DATABASE_URL: postgresql://closeup:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/closeup
+    REDIS_URL: redis://redis:6379
+    MEDIA_DIR: /data/media
+    MEDIA_SECRET: ${MEDIA_SECRET:?set MEDIA_SECRET}
+    PUBLIC_WEB_URL: https://${CLOSEUP_DOMAIN:?set CLOSEUP_DOMAIN}
+    SMTP_URL: ${SMTP_URL:-}
+    MAIL_FROM: ${MAIL_FROM:-closeup <no-reply@localhost>}
+    TRUST_PROXY: '1'
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: '10m', max-file: '3' }
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: closeup
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: closeup
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U closeup -d closeup']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+
+  redis:
+    image: redis:7-alpine
+    # Rooms and queues live here: losing them ends the games in progress, nothing else.
+    command: ['redis-server', '--save', '900', '1', '--appendonly', 'no']
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+
+  # One process owns the schema, and it is not the server. This runs once and exits; the API
+  # waits for it to succeed. The image is the build stage, the only one with the Prisma CLI.
+  migrate:
+    build:
+      context: .
+      target: build
+    working_dir: /repo/apps/api
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://closeup:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/closeup
+    command: ['pnpm', 'exec', 'prisma', 'migrate', 'deploy']
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: 'no'
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+
+  api:
+    <<: *app
+    build:
+      context: .
+      target: api
+    environment:
+      <<: *app-env
+      API_PORT: 3001
+    volumes:
+      - media:/data/media
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3001/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  worker:
+    <<: *app
+    build:
+      context: .
+      target: worker
+    volumes:
+      - media:/data/media
+    depends_on:
+      api: { condition: service_healthy }
+
+  web:
+    build:
+      context: .
+      target: web
+    environment:
+      CLOSEUP_DOMAIN: ${CLOSEUP_DOMAIN:?set CLOSEUP_DOMAIN}
+      CLOSEUP_ACME_EMAIL: ${CLOSEUP_ACME_EMAIL:?set CLOSEUP_ACME_EMAIL}
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      api: { condition: service_healthy }
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+
+volumes:
+  pgdata:
+  redisdata:
+  media:
+  caddy-data:
+  caddy-config:

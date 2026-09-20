@@ -246,7 +246,14 @@
     "resetSend": "Recevoir le lien",
     "resetSent": "Si un compte existe avec cette adresse, un lien vient de lui être envoyé. Regarde aussi dans les indésirables.",
     "resetInvalid": "Ce lien n’est plus valable. Demandes-en un nouveau.",
-    "resetDone": "Mot de passe changé. Tu peux te connecter."
+    "resetDone": "Mot de passe changé. Tu peux te connecter.",
+    "verifyTitle": "Confirmation, {appName}",
+    "verifyHeading": "Confirmation de ton adresse",
+    "verifyDone": "Adresse confirmée. Merci.",
+    "verifyInvalid": "Ce lien n’est plus valable. Demande-en un nouveau depuis ton compte.",
+    "unverified": "Ton adresse n’est pas encore confirmée : sans elle, tu ne pourras pas récupérer ton compte.",
+    "resendVerification": "Renvoyer le lien",
+    "verificationSent": "Lien renvoyé. Regarde aussi dans les indésirables."
   },
   "stats": {
     "short": "Stats",
@@ -396,6 +403,7 @@
     "sent": "Message reçu. On te répondra à l’adresse indiquée.",
     "failed": "Le message n’est pas parti. Réessaie."
   },
+  "offline": "Pas de connexion : le jeu a besoin du réseau pour tourner.",
   "admin": {
     "backOffice": "Administration",
     "loginTitle": "Connexion, {appName}",

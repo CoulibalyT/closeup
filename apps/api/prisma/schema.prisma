@@ -43,35 +43,44 @@ model Device {
 // players (and links a `User` to the `Player` that carries their history).
 // ------------------------------------------------------------------------------------------
 
+enum LinkKind {
+  PASSWORD_RESET
+  EMAIL_VERIFICATION
+}
+
 enum UserRole {
   PLAYER
   ADMIN
 }
 
 model User {
-  id           String          @id @default(uuid(7)) @db.Uuid
+  id              String          @id @default(uuid(7)) @db.Uuid
   /// Stored lower-cased: an address is one account however it was typed.
-  email        String          @unique
+  email           String          @unique
   /// argon2id, parameters included in the string.
-  passwordHash String
-  role         UserRole        @default(PLAYER)
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  bannedAt     DateTime?
+  passwordHash    String
+  role            UserRole        @default(PLAYER)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  bannedAt        DateTime?
   /// Language of the e-mails sent to them.
-  locale       String          @default("fr")
-  player       Player?
-  sessions     Session[]
-  auditLogs    AuditLog[]
-  resets       PasswordReset[]
+  locale          String          @default("fr")
+  /// When they followed the link in the e-mail. Null: the address was never proven.
+  emailVerifiedAt DateTime?
+  player          Player?
+  sessions        Session[]
+  auditLogs       AuditLog[]
+  resets          PasswordReset[]
 }
 
-/// A link sent by e-mail. One hour, one use, and like every token only its hash is stored.
+/// A link sent by e-mail: a password reset, or proof of the address. One hour, one use, and
+/// like every token only its hash is stored.
 model PasswordReset {
   id        String   @id @default(uuid(7)) @db.Uuid
   userId    String   @db.Uuid
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   tokenHash String   @unique
+  kind      LinkKind @default(PASSWORD_RESET)
   createdAt DateTime @default(now())
   expiresAt DateTime
 

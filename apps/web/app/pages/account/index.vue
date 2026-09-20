@@ -62,6 +62,13 @@ async function changePassword(): Promise<void> {
   }
 }
 
+// The address is not proven until the link in the e-mail is followed. Nothing waits for it.
+const resent = ref(false);
+async function resendVerification(): Promise<void> {
+  await session.request('POST', '/auth/email/resend').catch(() => undefined);
+  resent.value = true;
+}
+
 const confirming = ref(false);
 const confirmPassword = ref('');
 const deleteError = ref(false);
@@ -126,6 +133,13 @@ async function deleteAccount(): Promise<void> {
         <h2>{{ session.user.email }}</h2>
         <p v-if="session.user.nickname" class="muted">
           {{ t('account.playingAs', { nickname: session.user.nickname }) }}
+        </p>
+        <p v-if="!session.user.emailVerified" class="unverified">
+          {{ t('account.unverified') }}
+          <button v-if="!resent" type="button" class="link" @click="resendVerification">
+            {{ t('account.resendVerification') }}
+          </button>
+          <span v-else class="good">{{ t('account.verificationSent') }}</span>
         </p>
         <p>
           <NuxtLink :to="localePath('/stats')">{{ t('stats.heading') }}</NuxtLink>
@@ -201,6 +215,12 @@ async function deleteAccount(): Promise<void> {
 }
 .note {
   margin-top: var(--space-3);
+  font-size: 15px;
+}
+.unverified {
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  border-left: 3px solid var(--danger);
   font-size: 15px;
 }
 .block p + p,

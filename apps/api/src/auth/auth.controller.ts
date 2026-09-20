@@ -24,6 +24,7 @@ import {
   passwordResetSchema,
   registerSchema,
   type SessionUser,
+  verifyEmailSchema,
 } from '@closeup/shared';
 import type { z } from 'zod';
 import { AccountService } from '../account/account.service.js';
@@ -173,6 +174,22 @@ export class AuthController {
   }
 
   /** 204 whatever happened: neither the address nor the outcome is revealed. */
+  /** Proving the address. The answer never says whether the token existed for somebody else. */
+  @Post('email/verify')
+  @HttpCode(204)
+  async verifyEmail(@Body() body: unknown): Promise<void> {
+    const { token } = parse(verifyEmailSchema, body);
+    if (!(await this.auth.verifyEmail(token)))
+      throw new ConflictException({ code: 'LINK_INVALID' });
+  }
+
+  @Post('email/resend')
+  @HttpCode(204)
+  @UseGuards(SessionGuard)
+  async resendVerification(@Req() request: AdminRequest, @Ip() ip: string): Promise<void> {
+    await this.auth.resendVerification(request.user!.id, ip ?? '?');
+  }
+
   @Post('password/forgot')
   @HttpCode(204)
   async forgot(@Body() body: unknown, @Ip() ip: string): Promise<void> {

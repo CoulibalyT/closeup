@@ -29,4 +29,12 @@ describe('parseEnv', () => {
       /DATABASE_URL[\s\S]*REDIS_URL[\s\S]*API_PORT|API_PORT[\s\S]*DATABASE_URL[\s\S]*REDIS_URL/,
     );
   });
+
+  it('trusts the proxy only when it is told to, in so many words', () => {
+    expect(parseEnv(valid).TRUST_PROXY).toBe(false);
+    expect(parseEnv({ ...valid, TRUST_PROXY: '0' }).TRUST_PROXY).toBe(false);
+    expect(parseEnv({ ...valid, TRUST_PROXY: 'yes' }).TRUST_PROXY).toBe(false);
+    expect(parseEnv({ ...valid, TRUST_PROXY: '1' }).TRUST_PROXY).toBe(true);
+    expect(parseEnv({ ...valid, TRUST_PROXY: 'true' }).TRUST_PROXY).toBe(true);
+  });
 });
