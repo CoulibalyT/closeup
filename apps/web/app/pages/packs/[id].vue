@@ -62,7 +62,7 @@ async function report(): Promise<void> {
           <li v-for="(credit, index) in pack.cards" :key="index">
             <b>{{ credit.answer }}</b>
             <span class="muted">
-              {{ credit.author }} — {{ credit.licence }}
+              <CreditLine :author="credit.author" :licence="credit.licence" />
               <a v-if="credit.sourceUrl" :href="credit.sourceUrl" rel="noopener nofollow">
                 {{ t('catalogue.source') }}
               </a>

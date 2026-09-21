@@ -179,7 +179,6 @@
     "missed": "Not found",
     "answer": "It was: {answer}",
     "zone": "You were looking at {zone}.",
-    "credit": "Image: {author}, {licence}",
     "next": "Next round",
     "seeResult": "See the result",
     "watched": "Round over",
@@ -599,5 +598,56 @@
     "clockPending": "Measuring the clock offset…",
     "refresh": "Check now",
     "language": "Language"
+  },
+  "credit": {
+    "line": "Image: {author}, {licence}",
+    "lineCropped": "Image: {author}, {licence}, cropped"
+  },
+  "importer": {
+    "title": "Import, {appName}",
+    "heading": "Import from Wikimedia",
+    "pitch": "Well-known subjects found on Wikidata, with their freely licensed photo on Wikimedia Commons. Nothing is ticked beforehand: you choose. Every imported card then waits for its zoom points in the editor before it can be published.",
+    "preset": "Theme",
+    "presets": {
+      "animals": "Animals",
+      "fruits": "Fruit",
+      "dishes": "Dishes",
+      "instruments": "Musical instruments",
+      "tools": "Tools and objects",
+      "vehicles": "Vehicles",
+      "heritage": "World Heritage"
+    },
+    "search": "Search",
+    "searchAgain": "Search again",
+    "running": "Searching ({seconds} s). Wikidata sometimes takes more than a minute.",
+    "searchFailed": "Wikidata did not answer. Try again in a few minutes.",
+    "found": "{n} subject(s) found, {importable} of them importable.",
+    "target": "Into the pack",
+    "noPack": "Create a pack first, from the list of packs.",
+    "pickTop": "Tick the {n} best known",
+    "clear": "Untick all",
+    "picked": "{n} / {max} picked",
+    "import": "Import {n} card(s)",
+    "popularity": "{n} Wikipedias",
+    "difficulty": "difficulty {n}",
+    "alreadyIn": "Already in: {packs}",
+    "imported": "{n} card(s) imported. Their pictures are on their way; their zoom points are still to be placed in the editor.",
+    "skipped": "Skipped: {list}",
+    "openPack": "Open “{pack}”",
+    "rejections": {
+      "LICENCE": "Not a free licence",
+      "NO_AUTHOR": "Unknown author",
+      "PERSONALITY": "Identifiable person",
+      "RESTRICTED": "Trademark or insignia",
+      "FORMAT": "Unsupported format",
+      "TOO_SMALL": "Picture too small",
+      "NO_FRENCH_NAME": "No French name",
+      "NO_FILE": "File not found"
+    },
+    "skipReasons": {
+      "ALREADY_IN_PACK": "already in this pack",
+      "NOT_ELIGIBLE": "not importable",
+      "UNKNOWN": "not in the search"
+    }
   }
 }

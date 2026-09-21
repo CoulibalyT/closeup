@@ -444,14 +444,65 @@ Added in phase 9:
 - **An offline notice rather than an offline game**: this game is other people and a server. The
   shell loads from the cache and says what is missing.
 
-## Not done yet (after phase 9)
+Added in phase 10:
+
+- **The Wikidata + Commons importer is one more producer of cards** (`/admin/import`). A theme
+  (animals, fruit, dishes, musical instruments, tools and objects, vehicles, World Heritage) is
+  a SPARQL query sorted by popularity, the number of Wikipedias with an article; then Wikidata
+  gives the French and English names and their aliases, and Commons the author, licence and size
+  of the picture. Cards are created with their answers, credit and a difficulty guessed from
+  popularity; the worker downloads the picture (job `image.import`) and ingests it exactly like
+  an upload. **Nothing imported plays unseen**: every card still needs its zoom points.
+- **The admin picks; nothing is ticked beforehand.** The lists hold oddities no query avoids
+  cheaply: a tree and wheat among the animals, "Bos taurus" for a cow, Auschwitz among World
+  Heritage sites. Each subject shows why it cannot be imported when it cannot.
+- **No people.** The query excludes humans outright, and Commons' personality-rights flag
+  refuses a picture of an identifiable person; trademarks and insignia are refused too.
+- **What a picture needs**: public domain, CC0, CC BY or CC BY-SA (any version, any national
+  port); a named author, even in the public domain, since a card is only published with a full
+  credit; JPEG or PNG; a shorter side of at least 1000 px, because every card is looked at from
+  very close; a French name. The source link uses the Commons page id (`?curid=`), not the file
+  name, which can give the answer away.
+- **Every credit now links to its licence and says "cropped" when the licence asks for it**
+  (the CC BY family: every card is cut into zoom levels), wherever a player reads a credit.
+  `licenceTerms` in the shared package reads both "CC BY-SA 2.0 de" and "cc-by-sa-2.0-de".
+- **The public query service is slow and unreliable**, measured while building this: the same
+  query took 5 s, then 62 s; refusals came as 429, 500, 502 and 504 within the hour, and plain
+  network timeouts too. So a search runs in the background and is kept in Redis for six hours;
+  every call is tried four times (after `Retry-After` when there is one), network errors
+  included; and no query uses a transitive path ("descends from the animal kingdom" timed out
+  even on forty subjects). A failed search says so and can be run again ten minutes later.
+- **The worker downloads only from `upload.wikimedia.org` and `thumb.wikimedia.org`, over
+  HTTPS**, refuses redirects, bounds the size as announced and as received, and checks the first
+  bytes. The job carries a Commons file name, never an address: the address is asked of Commons
+  by the worker and checked before anything is fetched. An original over 15 MB comes as its
+  2560 px rendition, the largest standard step (asking for 3840 px returns the same file).
+- **Only house packs receive imported cards**: a player's pack holds pictures its owner vouched
+  for.
+- **Tried for real** against Wikidata and Commons from the local stack: 96 animals found, 54
+  importable (28 pictures too small, 8 without an author, 3 licences not free, 1 format, 2
+  without a French name); dog, cat and fish imported, downloaded by the worker and waiting for
+  their points. The first search of the day failed on timeouts, and said so.
+
+## Not done yet (after phase 10)
+
+- **No real people.** The brief's search "by occupation" (actors, singers, footballers) is not
+  built. A real face raises personality rights even under a free licence; the face-landmark
+  pipeline is ready for it, the decision is yours.
+- Answers come from Wikidata labels: some are Latin or too specific, and the admin fixes them in
+  the editor, which every imported card goes through anyway. The picture is the one Wikidata
+  names for the subject: there is no choice among the others on Commons.
+- An eighth of the animals were refused for having no author: some public domain files put the
+  name elsewhere than the field read (`Artist`). A quarter were refused as too small at 1000 px.
+- A search cannot be refreshed before its six hours are up, and nothing imports on a schedule.
+- Not deployed: the importer has only run from the local stack.
 
 - **Deployed once, at `https://loupette.fr`** (2026-09-21, OVHcloud VPS-1, 4 GB + 4 GB swap):
   Let's Encrypt for both names, 22 seed cards cut by the worker, admin login, nightly backups
   at 04:15. The deployment found four mistakes in `docs/deploy.md`, now fixed. How the worker
   holds up under several real games at once on a shared CPU is still unmeasured.
-- **SSH password login is still on** on that server: the one step of the guide that has to be
-  run by hand (see its section 1).
+- SSH on that server takes keys only since 2026-09-21. The first attempt changed nothing, which
+  is how the guide learned that a `99-` drop-in loses to the provider's `50-cloud-init.conf`.
 - **Still not tried on a real phone or a real TV**, which is the one thing that needs your
   hardware rather than more code.
 - No monitoring, no alerting and no log shipping: the answer to "is it up" is the status page

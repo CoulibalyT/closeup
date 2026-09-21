@@ -236,12 +236,10 @@ async function reopen(): Promise<void> {
             </svg>
           </div>
           <figcaption class="muted">
-            {{
-              t('reveal.credit', {
-                author: game.reveal.reveal.credit.author,
-                licence: game.reveal.reveal.credit.licence,
-              })
-            }}
+            <CreditLine
+              :author="game.reveal.reveal.credit.author"
+              :licence="game.reveal.reveal.credit.licence"
+            />
           </figcaption>
         </figure>
       </div>

@@ -56,6 +56,7 @@ async function toggle(pack: AdminPack): Promise<void> {
   <AdminShell :title="t('admin.packs')">
     <p class="tools">
       <NuxtLink :to="localePath('/admin/reports')">{{ t('admin.reports') }}</NuxtLink>
+      <NuxtLink :to="localePath('/admin/import')">{{ t('importer.heading') }}</NuxtLink>
     </p>
     <p v-if="failed" class="error" role="alert">{{ t('admin.failed') }}</p>
     <p v-if="loading" class="muted">{{ t('admin.loading') }}</p>

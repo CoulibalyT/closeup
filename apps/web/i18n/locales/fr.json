@@ -179,7 +179,6 @@
     "missed": "Pas trouvé",
     "answer": "C'était : {answer}",
     "zone": "On te montrait {zone}.",
-    "credit": "Image : {author}, {licence}",
     "next": "Manche suivante",
     "seeResult": "Voir le résultat",
     "watched": "Manche terminée",
@@ -599,5 +598,56 @@
     "clockPending": "Mesure du décalage d'horloge…",
     "refresh": "Vérifier maintenant",
     "language": "Langue"
+  },
+  "credit": {
+    "line": "Image : {author}, {licence}",
+    "lineCropped": "Image : {author}, {licence}, recadrée"
+  },
+  "importer": {
+    "title": "Importer, {appName}",
+    "heading": "Importer depuis Wikimedia",
+    "pitch": "Des sujets connus trouvés sur Wikidata, avec leur photo sous licence libre sur Wikimedia Commons. Rien n’est coché d’avance : c’est toi qui choisis. Chaque carte importée attend ensuite ses points de zoom dans l’éditeur avant de pouvoir être publiée.",
+    "preset": "Thème",
+    "presets": {
+      "animals": "Animaux",
+      "fruits": "Fruits",
+      "dishes": "Plats",
+      "instruments": "Instruments de musique",
+      "tools": "Outils et objets",
+      "vehicles": "Véhicules",
+      "heritage": "Patrimoine mondial"
+    },
+    "search": "Chercher",
+    "searchAgain": "Relancer la recherche",
+    "running": "Recherche en cours ({seconds} s). Wikidata met parfois plus d’une minute.",
+    "searchFailed": "Wikidata n’a pas répondu. Réessaie dans quelques minutes.",
+    "found": "{n} sujet(s) trouvé(s), dont {importable} importable(s).",
+    "target": "Pack de destination",
+    "noPack": "Crée d’abord un pack depuis la liste des packs.",
+    "pickTop": "Cocher les {n} plus connus",
+    "clear": "Tout décocher",
+    "picked": "{n} / {max} choisi(s)",
+    "import": "Importer {n} carte(s)",
+    "popularity": "{n} Wikipédias",
+    "difficulty": "difficulté {n}",
+    "alreadyIn": "Déjà dans : {packs}",
+    "imported": "{n} carte(s) importée(s). Leurs images arrivent ; il reste à placer leurs points de zoom dans l’éditeur.",
+    "skipped": "Ignorés : {list}",
+    "openPack": "Ouvrir « {pack} »",
+    "rejections": {
+      "LICENCE": "Licence non libre",
+      "NO_AUTHOR": "Auteur inconnu",
+      "PERSONALITY": "Personne identifiable",
+      "RESTRICTED": "Marque ou insigne",
+      "FORMAT": "Format non pris en charge",
+      "TOO_SMALL": "Image trop petite",
+      "NO_FRENCH_NAME": "Pas de nom en français",
+      "NO_FILE": "Fichier introuvable"
+    },
+    "skipReasons": {
+      "ALREADY_IN_PACK": "déjà dans ce pack",
+      "NOT_ELIGIBLE": "non importable",
+      "UNKNOWN": "absent de la recherche"
+    }
   }
 }

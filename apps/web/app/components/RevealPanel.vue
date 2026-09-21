@@ -65,12 +65,10 @@ onBeforeUnmount(() => clearInterval(timer));
           </svg>
         </div>
         <figcaption class="muted">
-          {{
-            t('reveal.credit', {
-              author: reveal.reveal.credit.author,
-              licence: reveal.reveal.credit.licence,
-            })
-          }}
+          <CreditLine
+            :author="reveal.reveal.credit.author"
+            :licence="reveal.reveal.credit.licence"
+          />
         </figcaption>
       </figure>
     </div>
