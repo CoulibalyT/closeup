@@ -152,33 +152,37 @@ const playSolo = () =>
           <NuxtLink :to="localePath('/account')">{{ t('account.short') }}</NuxtLink>
         </nav>
 
-        <h1 class="display wordmark">{{ appName }}</h1>
-        <p class="pitch">{{ t('home.pitch') }}</p>
+        <div class="hero">
+          <div class="intro">
+            <h1 class="display wordmark">{{ appName }}</h1>
+            <p class="pitch">{{ t('home.pitch') }}</p>
+          </div>
 
-        <form class="strip" @submit.prevent="joinParty">
-          <label for="code">{{ t('home.codeLabel') }}</label>
-          <input
-            id="code"
-            :value="joinCode"
-            type="text"
-            class="code"
-            inputmode="text"
-            autocapitalize="characters"
-            autocomplete="off"
-            spellcheck="false"
-            :maxlength="ROOM.codeLength"
-            :placeholder="t('home.codePlaceholder')"
-            @input="cleanCode"
-            @paste="pasteCode"
-          />
-          <button type="submit" class="button" :disabled="busy || !joinCodeOk">
-            {{ t('home.join') }}
-          </button>
-        </form>
+          <form class="strip" @submit.prevent="joinParty">
+            <label for="code">{{ t('home.codeLabel') }}</label>
+            <input
+              id="code"
+              :value="joinCode"
+              type="text"
+              class="code"
+              inputmode="text"
+              autocapitalize="characters"
+              autocomplete="off"
+              spellcheck="false"
+              :maxlength="ROOM.codeLength"
+              :placeholder="t('home.codePlaceholder')"
+              @input="cleanCode"
+              @paste="pasteCode"
+            />
+            <button type="submit" class="button" :disabled="busy || !joinCodeOk">
+              {{ t('home.join') }}
+            </button>
+          </form>
+        </div>
       </div>
     </section>
 
-    <section class="tiles" :aria-label="t('home.orStart')">
+    <section class="tiles wrap" :aria-label="t('home.orStart')">
       <h2 class="lead">{{ t('home.orStart') }}</h2>
 
       <button type="button" class="tile first" :disabled="busy" @click="openPanel('create')">
@@ -208,7 +212,7 @@ const playSolo = () =>
       <p v-if="failed && !panelOpen" class="error" role="alert">{{ t('home.failed') }}</p>
     </section>
 
-    <nav class="more" :aria-label="t('home.more')">
+    <nav class="more wrap" :aria-label="t('home.more')">
       <NuxtLink :to="localePath('/packs')">{{ t('catalogue.short') }}</NuxtLink>
       <NuxtLink :to="localePath('/me/packs')">{{ t('myPacks.heading') }}</NuxtLink>
       <NuxtLink :to="localePath('/rankings')">{{ t('rankings.heading') }}</NuxtLink>
@@ -275,19 +279,22 @@ const playSolo = () =>
 
 <style scoped>
 .home {
+  /* One page width shared by the curtain, the tiles and the foot, so that their left edges
+     line up at every size. The breakpoints at the end only change this and the grids. */
+  --page: 460px;
   display: flex;
   flex-direction: column;
   min-height: 100dvh;
 }
 .wrap {
-  max-width: 460px;
-  margin: 0 auto;
+  width: min(var(--page), 100% - 2 * var(--space-4));
+  margin-inline: auto;
 }
 
 /* The booth curtain: one flat field of colour, folds barely there. Everything that matters
    sits on the strip in front of it. */
 .curtain {
-  padding: calc(var(--space-4) + env(safe-area-inset-top)) var(--space-4) var(--space-10);
+  padding: calc(var(--space-4) + env(safe-area-inset-top)) 0 var(--space-10);
   background-color: var(--accent);
   background-image: repeating-linear-gradient(90deg, rgb(0 0 0 / 6%) 0 2px, transparent 2px 30px);
   color: var(--accent-ink);
@@ -313,12 +320,20 @@ const playSolo = () =>
   text-decoration: none;
   opacity: 1;
 }
-.wordmark {
+.hero {
+  display: grid;
+  gap: var(--space-10);
   margin-top: var(--space-6);
-  /* The display face is stretched to 140%, so a character is about 1.4× as wide as usual:
-     15vw broke "Loupette" across two lines on a 414 px phone. `anywhere` stays as the last
-     resort for a longer CLOSEUP_DISPLAY_NAME, but it should never be needed. */
-  font-size: clamp(40px, 11vw, 64px);
+}
+/* The wordmark is sized on its own column, not on the window. Sized on the window, it broke
+   into "Loupett / e" wherever the column stopped growing before the window did. In the
+   stretched display face "Loupette" is about 7.3 em wide, so 13cqi fills the column with a
+   little to spare. `anywhere` stays as the last resort for a longer CLOSEUP_DISPLAY_NAME. */
+.intro {
+  container-type: inline-size;
+}
+.wordmark {
+  font-size: min(13cqi, 112px);
   overflow-wrap: anywhere;
 }
 .pitch {
@@ -331,7 +346,8 @@ const playSolo = () =>
 .strip {
   display: grid;
   gap: var(--space-3);
-  margin-top: var(--space-10);
+  /* A code is five characters: past this, the field only gets emptier. */
+  max-width: 440px;
   padding: var(--space-4);
   border-radius: var(--radius);
   background: var(--surface);
@@ -350,10 +366,11 @@ const playSolo = () =>
 .tiles {
   display: grid;
   gap: var(--space-3);
-  width: 100%;
-  max-width: 460px;
-  margin: 0 auto;
-  padding: var(--space-6) var(--space-4);
+  padding-block: var(--space-6);
+}
+.lead,
+.tiles .error {
+  grid-column: 1 / -1;
 }
 .lead {
   color: var(--muted);
@@ -362,6 +379,9 @@ const playSolo = () =>
 }
 .tile {
   display: grid;
+  /* Tiles in a row share one height; without this, the extra space would push the number,
+     the name and the hint apart instead of staying below the hint. */
+  align-content: start;
   gap: var(--space-1);
   padding: var(--space-4);
   border: 1.5px solid var(--line);
@@ -371,6 +391,12 @@ const playSolo = () =>
   text-align: left;
   text-decoration: none;
   cursor: pointer;
+  transition: border-color 120ms ease-out;
+}
+@media (hover: hover) {
+  .tile:not(:disabled):hover {
+    border-color: var(--accent);
+  }
 }
 /* The way in that most people want, marked without a second filled colour. */
 .tile.first {
@@ -391,6 +417,8 @@ const playSolo = () =>
   font-size: 21px;
   font-stretch: 140%;
   font-weight: 800;
+  /* `.display` is set tight for a one-line wordmark; a name on two lines needs air. */
+  line-height: 1.15;
 }
 .tile .hint {
   color: var(--muted);
@@ -400,19 +428,63 @@ const playSolo = () =>
 .more {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
-  width: 100%;
-  max-width: 460px;
-  margin: auto auto 0;
-  padding: var(--space-4) var(--space-4) var(--space-6);
+  column-gap: var(--space-6);
+  margin-top: auto;
+  padding-block: var(--space-4) var(--space-6);
 }
 .more a {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
-  padding: 0 var(--space-2);
   color: var(--muted);
   font-size: 15px;
+}
+
+/* Tablet: the same column, wider, and the tiles two by two. */
+@media (min-width: 720px) {
+  .home {
+    --page: 720px;
+  }
+  .pitch {
+    font-size: 21px;
+  }
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Desktop: the name on the left, the code on the right, the four ways in on one row. */
+@media (min-width: 1080px) {
+  .home {
+    --page: 1160px;
+  }
+  .curtain {
+    padding-bottom: 96px;
+  }
+  .hero {
+    grid-template-columns: minmax(0, 1fr) 420px;
+    align-items: center;
+    gap: 80px;
+    margin-top: 64px;
+  }
+  .pitch {
+    max-width: 32ch;
+    font-size: 23px;
+  }
+  .strip {
+    padding: var(--space-6);
+  }
+  .tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding-block: var(--space-10);
+  }
+  .tile {
+    min-height: 190px;
+    padding: var(--space-6) var(--space-4);
+  }
+  .tile .name {
+    font-size: 23px;
+  }
 }
 
 dialog {
