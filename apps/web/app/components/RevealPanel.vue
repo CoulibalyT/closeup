@@ -189,9 +189,10 @@ figcaption {
     align-content: start;
     padding-top: var(--space-6);
   }
+  /* "Manche terminée": 44 px keeps "terminée" whole in the 380 px column, with room to spare. */
   .verdict {
     grid-area: verdict;
-    font-size: 48px;
+    font-size: 44px;
   }
   .answer {
     grid-area: answer;

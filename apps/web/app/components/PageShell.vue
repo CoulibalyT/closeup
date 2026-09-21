@@ -177,8 +177,13 @@ const { appName } = useRuntimeConfig().public;
     font-weight: 700;
     text-decoration: none;
   }
+  /* A twelve-letter word ("Confirmation") is about 10.5 em wide in the display face: 48 px is
+     the most the 560 px column holds without splitting it. Wide pages have the room for more. */
   .page > h1 {
     margin-top: 0;
+    font-size: 48px;
+  }
+  .page.wide > h1 {
     font-size: 56px;
   }
   .page:not(.wide) > :not(.bar) {

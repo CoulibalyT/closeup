@@ -113,7 +113,9 @@ async function join(): Promise<void> {
   padding: calc(var(--space-10) + env(safe-area-inset-top)) var(--space-4) var(--space-6);
 }
 h1 {
-  font-size: clamp(30px, 10vw, 44px);
+  /* In the stretched display face a long French word ("introuvable") is about 9.3 em wide:
+     10vw split it across two lines on a 390 px phone. The same step as PageShell. */
+  font-size: clamp(28px, 8.5vw, 44px);
   overflow-wrap: anywhere;
 }
 .form {
@@ -147,8 +149,9 @@ input {
     max-width: 520px;
     padding-top: var(--space-6);
   }
+  /* 488 px of column: 44 px keeps a twelve-letter word on one line. */
   h1 {
-    font-size: 56px;
+    font-size: 44px;
   }
 }
 </style>

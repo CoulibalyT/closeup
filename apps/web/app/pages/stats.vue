@@ -173,10 +173,11 @@ dd {
 .lists {
   display: contents;
 }
-/* Computer: the six figures on one line, the two lists side by side. */
+/* Computer: the figures three by three, the two lists side by side. Six on a line looked
+   tidier at 1440 px but left 130 px a figure at 1080 px, where a four-digit score overflowed. */
 @media (min-width: 1080px) {
   .figures {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--space-3);
   }
   .figures div {
