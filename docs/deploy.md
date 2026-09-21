@@ -13,6 +13,12 @@ This is written for someone deploying for the first time. It takes about half an
   2 GB), which is why 4 GB wants the swap file below. 8 GB skips that worry entirely.
 - A **domain** pointing at the machine: an `A` record on the IPv4 address, and an `AAAA` record
   if the machine has IPv6. Let's Encrypt checks it, so it must resolve before you start.
+  A freshly bought domain usually comes with its registrar's own records already in place, so
+  expect to **change** the `A` of the bare domain and of `www` rather than create them. Caddy
+  serves both names, redirecting `www` to the bare domain.
+  If the zone carries an SPF record ending in `-all` (registrars add one with their mailboxes),
+  remember it before setting up outgoing e-mail: the provider that sends for you must be added
+  to that same record, never to a second one.
 - An **SMTP account** if you want password-reset and address-confirmation e-mails to leave.
   Without one the stack runs, and those messages are simply not sent (see below).
 
