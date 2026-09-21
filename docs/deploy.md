@@ -57,7 +57,8 @@ sudo mkswap /swapfile && sudo swapon /swapfile
 echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 # Swap is the safety net, not the plan: only lean on it under pressure.
 sudo sysctl -w vm.swappiness=10
-echo 'vm.swappiness=10' | sudo tee -a /etc/sysctl.conf
+# A drop-in, not /etc/sysctl.conf: recent Ubuntu images no longer ship that file.
+echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-swappiness.conf
 ```
 
 Then Docker, and an account for the game so that it does not run out of your own home:
@@ -76,6 +77,16 @@ Leave only what is needed open:
 
 ```sh
 sudo ufw allow OpenSSH && sudo ufw allow 80 && sudo ufw allow 443 && sudo ufw enable
+```
+
+Then, **from a second terminal that is already logged in with your key**, turn password login off.
+Keep that session open until a fresh `ssh` works: it is your way back if something is wrong,
+along with the provider's web console.
+
+```sh
+printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\nPermitRootLogin no\n' \
+  | sudo tee /etc/ssh/sshd_config.d/99-hardening.conf
+sudo sshd -t && sudo systemctl reload ssh
 ```
 
 Postgres, Redis and the API are on a private Docker network and have **no published ports**:
@@ -114,9 +125,15 @@ Fill in every line of `.env`. Four of them decide whether the stack starts at al
 The two secrets are generated, not invented:
 
 ```sh
-openssl rand -base64 32   # POSTGRES_PASSWORD
+openssl rand -hex 32      # POSTGRES_PASSWORD
 openssl rand -base64 32   # MEDIA_SECRET
 ```
+
+**Hex for the database password, not base64.** It ends up inside `DATABASE_URL`, and base64
+contains `/` and `+`: the URL no longer parses, and the `migrate` container fails with
+`P1013: invalid port number`. If that already happened, the password is baked into the
+database volume on its first start, so changing `.env` is not enough — on a fresh install with
+nothing to lose, `docker compose -f docker-compose.prod.yml down -v` and start again.
 
 `MEDIA_SECRET` signs the short-lived image URLs. The API refuses to start in production with the
 development default, which is the point. Changing it later only invalidates the URLs in flight.
@@ -158,6 +175,11 @@ $COMPOSE exec -e ADMIN_EMAIL=you@example.org -e ADMIN_PASSWORD='a long passphras
 Then open `https://loupette.fr/admin` and make some cards. Running `create-admin` again for the
 same address resets its password and ends its sessions.
 
+If you script these steps instead of typing them (`ssh server 'bash -s' < steps.sh`), add
+`-T` and `< /dev/null` to every `exec`: `docker compose exec` reads its standard input, and in a
+piped script that input _is the rest of the script_. It swallows every line after it, and the
+script ends early without an error.
+
 ## 4. E-mail
 
 Set `SMTP_URL` in `.env` and restart the API:
@@ -194,14 +216,19 @@ set -eu
 cd "$HOME/closeup"
 C="docker compose -f docker-compose.prod.yml"
 STAMP=$(date +%F)
-$C exec -T postgres pg_dump -U closeup closeup | gzip > "$HOME/backups/db-$STAMP.sql.gz"
-$C run --rm -v "$HOME/backups:/backup" --entrypoint sh api -c \
-  "tar czf /backup/media-$STAMP.tar.gz -C /data media"
+# Both stream to stdout and are written by this shell, as `closeup`. Mounting ~/backups into
+# the container instead fails: it runs as `node`, which cannot write to a folder it does not own.
+$C exec -T postgres pg_dump -U closeup closeup < /dev/null | gzip > "$HOME/backups/db-$STAMP.sql.gz"
+$C run --rm --no-deps -T --entrypoint sh api -c 'tar czf - -C /data media' \
+  < /dev/null > "$HOME/backups/media-$STAMP.tar.gz"
 # Keep a fortnight here; the copy that matters is the one somewhere else.
 find "$HOME/backups" -name '*.gz' -mtime +14 -delete
 SH
 chmod +x ~/backup.sh
-(crontab -l 2>/dev/null; echo "15 4 * * * $HOME/backup.sh") | crontab -
+~/backup.sh && ls -lh ~/backups   # once by hand: a backup that was never run is a guess
+# `|| true`: on the first install the crontab is empty, grep finds nothing and exits 1.
+{ crontab -l 2>/dev/null | grep -v backup.sh || true
+  echo '15 4 * * * $HOME/backup.sh >> $HOME/backups/cron.log 2>&1'; } | crontab -
 ```
 
 **A backup on the same machine is not a backup.** Send `~/backups` somewhere else — a storage
