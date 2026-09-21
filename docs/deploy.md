@@ -85,9 +85,16 @@ along with the provider's web console.
 
 ```sh
 printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\nPermitRootLogin no\n' \
-  | sudo tee /etc/ssh/sshd_config.d/99-hardening.conf
+  | sudo tee /etc/ssh/sshd_config.d/01-hardening.conf
 sudo sshd -t && sudo systemctl reload ssh
+# What sshd actually uses, not what the file says. All three must read "no".
+sudo sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin) '
 ```
+
+The `01-` is the point. For `sshd` the **first** value read wins, and the files in that folder
+are read in alphabetical order. A provider that delivered the machine with a password leaves a
+`50-cloud-init.conf` saying `PasswordAuthentication yes`, which silently beats any file named
+after it — a `99-hardening.conf` looks applied and changes nothing.
 
 Postgres, Redis and the API are on a private Docker network and have **no published ports**:
 they are not reachable from outside, and that is on purpose.
