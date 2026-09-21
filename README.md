@@ -446,9 +446,12 @@ Added in phase 9:
 
 ## Not done yet (after phase 9)
 
-- **Never deployed to a real VPS.** The whole stack was built and played locally against Caddy
-  on `localhost`, and CI does the same on every push. Certificates from Let's Encrypt, a real
-  domain, and how the worker behaves on a small shared CPU are all untried.
+- **Deployed once, at `https://loupette.fr`** (2026-09-21, OVHcloud VPS-1, 4 GB + 4 GB swap):
+  Let's Encrypt for both names, 22 seed cards cut by the worker, admin login, nightly backups
+  at 04:15. The deployment found four mistakes in `docs/deploy.md`, now fixed. How the worker
+  holds up under several real games at once on a shared CPU is still unmeasured.
+- **SSH password login is still on** on that server: the one step of the guide that has to be
+  run by hand (see its section 1).
 - **Still not tried on a real phone or a real TV**, which is the one thing that needs your
   hardware rather than more code.
 - No monitoring, no alerting and no log shipping: the answer to "is it up" is the status page
