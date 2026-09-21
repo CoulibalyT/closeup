@@ -33,8 +33,12 @@
       "bigscreen": "The picture goes on a TV or a laptop. Phones are controllers: answers and bonuses."
     },
     "bigScreen": "Big screen",
-    "bigScreenHint": "This device shows the picture to everyone, and everyone plays from their phone. The first person to join picks the settings.",
-    "bigScreenOpen": "Use this device as the screen"
+    "bigScreenHint": "The picture goes on the TV, phones become the controllers.",
+    "friendsHint": "You open the game, you share the code, everyone joins you.",
+    "soloHint": "Just you and the pictures, to get your eye in.",
+    "orStart": "Or start a game",
+    "more": "The rest",
+    "close": "Close"
   },
   "join": {
     "title": "Join a game, {appName}",

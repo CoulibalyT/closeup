@@ -33,8 +33,12 @@
       "bigscreen": "L'image passe sur une télé ou un ordi. Les téléphones servent de manette : réponse et bonus."
     },
     "bigScreen": "Grand écran",
-    "bigScreenHint": "Cet appareil affiche l'image pour tout le monde, chacun joue depuis son téléphone. La première personne qui rejoint choisit les réglages.",
-    "bigScreenOpen": "Utiliser cet appareil comme écran"
+    "bigScreenHint": "L'image passe sur la télé, les téléphones servent de manette.",
+    "friendsHint": "Tu lances la partie, tu partages le code, tout le monde te rejoint.",
+    "soloHint": "Juste toi et les images, pour prendre le coup d'œil.",
+    "orStart": "Ou lance une partie",
+    "more": "Le reste",
+    "close": "Fermer"
   },
   "join": {
     "title": "Rejoindre une partie, {appName}",
