@@ -19,36 +19,63 @@ This is written for someone deploying for the first time. It takes about half an
   A freshly bought domain usually comes with its registrar's own records already in place, so
   expect to **change** the `A` of the bare domain and of `www` rather than create them. Caddy
   serves both names, redirecting `www` to the bare domain.
+  If you add a `CAA` record — and you should — allow **both** authorities Caddy uses, or you
+  lose its fallback without noticing:
+
+  ```
+  loupette.fr.  CAA  0 issue "letsencrypt.org"
+  loupette.fr.  CAA  0 issue "sectigo.com"
+  ```
+
+  Caddy asks Let's Encrypt first and falls back to ZeroSSL, which issues through Sectigo. With
+  only the first line, the day Let's Encrypt is unreachable the fallback is refused by your own
+  DNS. Nothing breaks while Let's Encrypt answers, which is exactly what makes it easy to miss.
+
   If the zone carries an SPF record ending in `-all` (registrars add one with their mailboxes),
   remember it before setting up outgoing e-mail: the provider that sends for you must be added
   to that same record, never to a second one.
+
 - An **SMTP account** if you want password-reset and address-confirmation e-mails to leave.
   Without one the stack runs, and those messages are simply not sent (see below).
 
 ## 1. The machine
 
+Log in as whatever account the provider gave you. Most disable direct `root` login and deliver a
+user with `sudo`: `ubuntu` on Ubuntu images, `debian` on Debian ones. Everything below runs as
+that user, which is why it says `sudo`.
+
 ```sh
-ssh root@your-server
-adduser closeup && usermod -aG sudo closeup
-# Docker, from Docker's own repository (Debian/Ubuntu):
-curl -fsSL https://get.docker.com | sh
-usermod -aG docker closeup
+ssh ubuntu@your-server-ip
 ```
 
-Leave only what is needed open. With `ufw`:
+**Swap first, before anything else.** On a 4 GB machine a build that runs out of memory is killed
+rather than slowed, and most VPS images ship with no swap at all:
 
 ```sh
-ufw allow OpenSSH && ufw allow 80 && ufw allow 443 && ufw enable
-```
-
-**On a 4 GB machine, give it swap before anything else.** Most VPS images ship without any, and
-a build that runs out of memory is killed rather than slowed:
-
-```sh
-fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
-echo '/swapfile none swap sw 0 0' >> /etc/fstab
+sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile
+sudo mkswap /swapfile && sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 # Swap is the safety net, not the plan: only lean on it under pressure.
-sysctl -w vm.swappiness=10 && echo 'vm.swappiness=10' >> /etc/sysctl.conf
+sudo sysctl -w vm.swappiness=10
+echo 'vm.swappiness=10' | sudo tee -a /etc/sysctl.conf
+```
+
+Then Docker, and an account for the game so that it does not run out of your own home:
+
+```sh
+curl -fsSL https://get.docker.com | sudo sh
+sudo adduser --disabled-password --gecos '' closeup
+sudo usermod -aG docker closeup
+# Your key, so you can reach that account directly:
+sudo install -d -m 700 -o closeup -g closeup /home/closeup/.ssh
+sudo cp ~/.ssh/authorized_keys /home/closeup/.ssh/
+sudo chown closeup:closeup /home/closeup/.ssh/authorized_keys
+```
+
+Leave only what is needed open:
+
+```sh
+sudo ufw allow OpenSSH && sudo ufw allow 80 && sudo ufw allow 443 && sudo ufw enable
 ```
 
 Postgres, Redis and the API are on a private Docker network and have **no published ports**:
@@ -75,7 +102,16 @@ git clone git@github.com:CoulibalyT/closeup.git && cd closeup
 cp .env.prod.example .env
 ```
 
-Fill in `.env`. The two secrets are generated, not invented:
+Fill in every line of `.env`. Four of them decide whether the stack starts at all:
+
+| Setting              | What it is                                                     |
+| -------------------- | -------------------------------------------------------------- |
+| `CLOSEUP_DOMAIN`     | The domain Caddy answers on, and asks a certificate for        |
+| `CLOSEUP_ACME_EMAIL` | Where Let's Encrypt writes if a certificate is about to expire |
+| `POSTGRES_PASSWORD`  | Generated, see below                                           |
+| `MEDIA_SECRET`       | Generated, see below                                           |
+
+The two secrets are generated, not invented:
 
 ```sh
 openssl rand -base64 32   # POSTGRES_PASSWORD
