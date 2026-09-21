@@ -8,8 +8,9 @@ This is written for someone deploying for the first time. It takes about half an
 ## What you need
 
 - A VPS with **4 GB of RAM**, 2 vCPU and 40 GB of disk, running a recent Debian or Ubuntu.
-  The worker loads the face-detection models (~300 MB) and `sharp` peaks while it cuts crops;
-  2 GB works but leaves nothing spare. 8 GB is comfortable and costs a few euros more.
+  The game itself is modest: about 1.8 GB with everything running and the worker cutting crops.
+  What needs room is **building the images on the machine** (the Nuxt build alone reaches 1.5 to
+  2 GB), which is why 4 GB wants the swap file below. 8 GB skips that worry entirely.
 - A **domain** pointing at the machine: an `A` record on the IPv4 address, and an `AAAA` record
   if the machine has IPv6. Let's Encrypt checks it, so it must resolve before you start.
 - An **SMTP account** if you want password-reset and address-confirmation e-mails to leave.
@@ -29,6 +30,16 @@ Leave only what is needed open. With `ufw`:
 
 ```sh
 ufw allow OpenSSH && ufw allow 80 && ufw allow 443 && ufw enable
+```
+
+**On a 4 GB machine, give it swap before anything else.** Most VPS images ship without any, and
+a build that runs out of memory is killed rather than slowed:
+
+```sh
+fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
+# Swap is the safety net, not the plan: only lean on it under pressure.
+sysctl -w vm.swappiness=10 && echo 'vm.swappiness=10' >> /etc/sysctl.conf
 ```
 
 Postgres, Redis and the API are on a private Docker network and have **no published ports**:
@@ -152,11 +163,18 @@ cd ~/closeup && git pull
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
+On a 4 GB machine, build with the stack stopped: `docker compose -f docker-compose.prod.yml down`
+first, then the command above. It costs a few minutes of downtime and removes any chance of the
+build being killed while Postgres and the worker hold their memory. Pick an hour when nobody is
+playing — this is an evening game.
+
 The `migrate` container applies any new migration before the API starts. Rooms live in Redis and
 are recovered at boot, so a deploy in the middle of an evening interrupts the games for the few
 seconds the API takes to come back, and they resume where they were.
 
-Clean up old images now and then: `docker image prune -f`.
+Clean up old images now and then, or a 40 GB disk fills up faster than you would think: each
+build leaves a layer behind. `docker system prune -f` after a deploy, and `docker system df` to
+see where the space went.
 
 ## What this deployment assumes
 
