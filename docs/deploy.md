@@ -11,6 +11,9 @@ This is written for someone deploying for the first time. It takes about half an
   The game itself is modest: about 1.8 GB with everything running and the worker cutting crops.
   What needs room is **building the images on the machine** (the Nuxt build alone reaches 1.5 to
   2 GB), which is why 4 GB wants the swap file below. 8 GB skips that worry entirely.
+- **SSH access by key.** If the provider delivered the machine with a password, put your key on
+  it first (`ssh-copy-id you@the-ip`), check that it works, and only then turn password login
+  off. A server with a password and port 22 open is found by scanners within the hour.
 - A **domain** pointing at the machine: an `A` record on the IPv4 address, and an `AAAA` record
   if the machine has IPv6. Let's Encrypt checks it, so it must resolve before you start.
   A freshly bought domain usually comes with its registrar's own records already in place, so
@@ -53,9 +56,22 @@ they are not reachable from outside, and that is on purpose.
 
 ## 2. The stack
 
+The repository is private, so the machine needs its own read-only access. Make a deploy key on
+the server and hand GitHub the public half:
+
 ```sh
 su - closeup
-git clone https://github.com/CoulibalyT/closeup.git && cd closeup
+ssh-keygen -t ed25519 -f ~/.ssh/github_deploy -N ''
+cat ~/.ssh/github_deploy.pub
+printf 'Host github.com\n  IdentityFile ~/.ssh/github_deploy\n' >> ~/.ssh/config
+```
+
+Paste that public key into **GitHub → the repository → Settings → Deploy keys → Add deploy key**,
+and leave "Allow write access" **unticked**: the server only ever reads. A deploy key is scoped to
+one repository, which a personal access token is not.
+
+```sh
+git clone git@github.com:CoulibalyT/closeup.git && cd closeup
 cp .env.prod.example .env
 ```
 
