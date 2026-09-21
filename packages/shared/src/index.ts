@@ -15,5 +15,7 @@ export * from './schemas/admin.js';
 export * from './schemas/account.js';
 export * from './schemas/moderation.js';
 export * from './schemas/packs.js';
+export * from './schemas/importer.js';
 export * from './rules/publication.js';
 export * from './rules/upload.js';
+export * from './rules/licence.js';

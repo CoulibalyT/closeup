@@ -372,6 +372,7 @@ export class AdminContentService {
       publicMatchSafe: pack.publicMatchSafe,
       visibility: pack.visibility,
       restricted: pack.restricted,
+      byPlayer: pack.ownerId !== null,
       cards: Object.fromEntries(
         counts.filter((row) => row.packId === pack.id).map((row) => [row.status, row._count]),
       ),

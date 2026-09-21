@@ -6,6 +6,7 @@ import { ConfigModule } from './config/app-config.js';
 import { GameModule } from './game/game.module.js';
 import { HealthModule } from './health/health.module.js';
 import { HistoryModule } from './history/history.module.js';
+import { ImporterModule } from './importer/importer.module.js';
 import { IdentityModule } from './identity/identity.module.js';
 import { MailModule } from './mail/mail.module.js';
 import { ModerationModule } from './moderation/moderation.module.js';
@@ -32,6 +33,7 @@ import { RedisModule } from './redis/redis.module.js';
     HealthModule,
     GameModule,
     AdminModule,
+    ImporterModule,
     PacksModule,
   ],
 })

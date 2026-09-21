@@ -96,6 +96,8 @@ export interface AdminPack extends PackInput {
   slug: string | null;
   visibility: PackVisibility;
   restricted: boolean;
+  /** A player's pack. Only house packs receive imported cards. */
+  byPlayer: boolean;
   /** How many cards per status, e.g. `{ LIVE: 8, NEEDS_POINTS: 1 }`. */
   cards: Partial<Record<CardStatus, number>>;
   updatedAt: string;

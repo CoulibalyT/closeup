@@ -15,6 +15,8 @@ export const MediaJob = {
   processCard: 'card.process',
   /** `{ cardId, incomingKey }`: an uploaded file becomes the card's private original. */
   ingestImage: 'image.ingest',
+  /** `{ cardId, file }`: a Commons file, downloaded, then ingested like an upload. */
+  importImage: 'image.import',
 } as const;
 
 export const WORKER_HEARTBEAT_KEY = 'closeup:worker:heartbeat';

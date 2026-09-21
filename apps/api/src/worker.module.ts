@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from './config/app-config.js';
+import { CommonsImageService } from './importer/commons-image.service.js';
+import { WIKIMEDIA, WikimediaHttpClient } from './importer/wikimedia.client.js';
 import { CropService } from './media/crop.service.js';
 import { MediaModule } from './media/media.module.js';
 import { FACE_DETECTOR } from './pipeline/face/detector.js';
@@ -17,6 +19,8 @@ import { RedisModule } from './redis/redis.module.js';
     CropService,
     IngestService,
     { provide: FACE_DETECTOR, useClass: FaceApiDetector },
+    { provide: WIKIMEDIA, useFactory: () => new WikimediaHttpClient() },
+    CommonsImageService,
     MediaProcessor,
     WorkerHeartbeat,
   ],
