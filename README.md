@@ -1,8 +1,10 @@
 # closeup
 
 Multiplayer party game for the web: everyone sees an extreme close-up that slowly zooms out, and
-races to guess what it is. `closeup` is a codename; the player-facing name lives in one place
-(`packages/shared/src/brand.ts`, overridable with `CLOSEUP_DISPLAY_NAME`).
+races to guess what it is. It is called **Loupette** and lives at **loupette.fr**; `closeup`
+stays the codename of the repository, its packages and its environment variables. The
+player-facing name is written in one place (`packages/shared/src/brand.ts`, overridable with
+`CLOSEUP_DISPLAY_NAME`).
 
 - The brief: [docs/brief.md](docs/brief.md)
 - The validated solo prototype: [docs/prototype/gros-plan.html](docs/prototype/gros-plan.html)

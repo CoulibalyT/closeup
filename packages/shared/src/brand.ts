@@ -1,9 +1,12 @@
 /**
- * The game has no final name yet. `codename` is used for packages, env vars and storage keys and
- * never changes. `displayName` is the only place the player-facing name is written; the web app
- * lets `CLOSEUP_DISPLAY_NAME` override it at build time.
+ * `codename` names packages, environment variables and storage keys, and never changes: it is
+ * what the repository is built on. `displayName` is the only place the player-facing name is
+ * written, and `CLOSEUP_DISPLAY_NAME` overrides it at build time.
+ *
+ * The game is called **Loupette**: it says the lens it is played through, and the miss it is
+ * played for. The domain carries no accent, the name does.
  */
 export const brand = {
   codename: 'closeup',
-  displayName: 'Closeup',
+  displayName: 'Loupette',
 } as const;

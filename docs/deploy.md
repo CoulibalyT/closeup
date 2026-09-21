@@ -1,4 +1,4 @@
-# Deploying closeup
+# Deploying Loupette
 
 One small VPS, one Docker Compose stack, one domain. Caddy is the only door: it gets the
 certificate, serves the built game and passes `/api` to the API. Nothing else is exposed.
@@ -103,7 +103,7 @@ $COMPOSE exec -e ADMIN_EMAIL=you@example.org -e ADMIN_PASSWORD='a long passphras
   api node dist/create-admin.js
 ```
 
-Then open `https://your-domain/admin` and make some cards. Running `create-admin` again for the
+Then open `https://loupette.fr/admin` and make some cards. Running `create-admin` again for the
 same address resets its password and ends its sessions.
 
 ## 4. E-mail
@@ -112,7 +112,7 @@ Set `SMTP_URL` in `.env` and restart the API:
 
 ```
 SMTP_URL=smtp://apikey:the-key@smtp.example.org:587
-MAIL_FROM=closeup <no-reply@your-domain>
+MAIL_FROM=Loupette <no-reply@loupette.fr>
 ```
 
 Without it nothing is sent: in production the API logs a warning and carries on. Players can
@@ -120,10 +120,12 @@ still sign up and play; only "forgot my password" and the address confirmation s
 which means an account whose password is lost cannot be recovered. Port 25 is blocked on most
 VPS providers, so use the submission port (587) of a transactional provider.
 
-Add an SPF record (and DKIM, which your provider will give you) or the messages land in spam:
+Add the provider to the SPF record (and DKIM, which they will give you) or the messages land in
+spam. If the zone already has an SPF — registrars add one for their own mailboxes — fold the
+provider into **that** record; a second SPF record breaks both:
 
 ```
-your-domain.  TXT  "v=spf1 include:spf.your-provider.example ~all"
+loupette.fr.  TXT  "v=spf1 include:mx.ovh.com include:spf.your-provider.example -all"
 ```
 
 ## 5. Backups
@@ -202,10 +204,10 @@ $C ps                        # who is up, who is restarting
 $C logs --tail 100 api       # the server
 $C logs --tail 100 worker    # images, crops, face detection
 $C logs --tail 100 web       # Caddy, certificates
-curl -s https://your-domain/api/health/ready | jq    # Postgres and Redis, seen from the API
+curl -s https://loupette.fr/api/health/ready | jq    # Postgres and Redis, seen from the API
 ```
 
-The status page at `https://your-domain/status` says the same thing in the browser, including
+The status page at `https://loupette.fr/status` says the same thing in the browser, including
 whether the worker is consuming its queue.
 
 A few failures that look like bugs and are not:

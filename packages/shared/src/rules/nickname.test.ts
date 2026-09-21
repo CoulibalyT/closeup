@@ -40,6 +40,7 @@ describe('checkNickname', () => {
     expect(checkNickname('Admin')).toBe('reserved');
     expect(checkNickname('modérateur')).toBe('reserved');
     expect(checkNickname('Closeup')).toBe('reserved');
+    expect(checkNickname('Loupette')).toBe('reserved');
     // Only whole: a nickname that merely contains it is somebody's name.
     expect(checkNickname('Adminou')).toBe('ok');
   });

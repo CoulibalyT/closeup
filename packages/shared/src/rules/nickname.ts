@@ -45,6 +45,7 @@ const RESERVED = [
   'moderateur',
   'moderator',
   'closeup',
+  'loupette',
   'systeme',
   'system',
 ];
@@ -84,7 +85,9 @@ export function checkNickname(nickname: string): NicknameVerdict {
 
   const flat = flattenNickname(trimmed);
   if (!flat) return 'too_short';
-  if (RESERVED.includes(flat)) return 'reserved';
+  // Flattened on both sides, like the banned list: "Loupette" flattens to "loupete", so a
+  // reserved word with a double letter would otherwise never match itself.
+  if (RESERVED.some((word) => flattenNickname(word) === flat)) return 'reserved';
   // Stems are flattened too: the list is written as people write, not as the filter reads.
   if (BANNED.some((word) => flat.includes(flattenNickname(word)))) return 'banned';
   return 'ok';
