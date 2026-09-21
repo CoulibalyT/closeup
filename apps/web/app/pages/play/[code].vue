@@ -15,6 +15,11 @@ const countdown = ref(0);
 let countdownTimer: ReturnType<typeof setInterval> | undefined;
 
 const solo = computed(() => game.mode === 'solo');
+const inRound = computed(
+  () => (game.stage === 'countdown' || game.stage === 'playing') && !!game.round,
+);
+// On a computer the ranking has a column of its own: everyone fits, not only the top three.
+const wide = useWideScreen();
 // Big-screen mode: the image is on the shared screen, this phone only answers and plays bonuses.
 const controller = computed(() => game.display === 'bigscreen');
 // A malus lasts a few seconds: a ticking clock makes it end on screen without a server event.
@@ -84,7 +89,7 @@ async function quit(): Promise<void> {
 </script>
 
 <template>
-  <main class="screen">
+  <main class="screen" :class="{ 'in-round': inRound, [`at-${game.stage}`]: true }">
     <header v-if="game.round && !['ended', 'lobby'].includes(game.stage)" class="top">
       <span>{{ t('play.round', { n: game.round.index + 1, total: game.totalRounds }) }}</span>
       <b>{{ game.score }}</b>
@@ -171,7 +176,7 @@ async function quit(): Promise<void> {
         :you="game.you"
         :found-ids="game.answeredIds"
         :gains="game.roundGains"
-        :limit="3"
+        :limit="wide ? undefined : 3"
       />
 
       <!-- In big-screen mode a blur or a flip cannot touch the shared image: it hits the
@@ -448,5 +453,86 @@ async function quit(): Promise<void> {
   min-height: 44px;
   padding: 0 var(--space-3);
   font-size: 15px;
+}
+
+/* Computer: the round spreads out the way the shared screen does. The lens takes the height it
+   can, and a column on the right holds what a phone stacks under it: the news of the round,
+   the bonuses, the whole ranking, and the answer at the bottom. Same breakpoint as
+   useWideScreen. */
+@media (min-width: 1080px) {
+  .screen {
+    max-width: 1240px;
+    padding-inline: var(--space-6);
+  }
+  .screen.in-round {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'top top'
+      'alert alert'
+      'stage feed'
+      'stage bonus'
+      'stage ranking'
+      'stage controls';
+    column-gap: 48px;
+    padding-bottom: var(--space-6);
+  }
+  .in-round .top {
+    grid-area: top;
+    padding-inline: 0;
+    font-size: 17px;
+  }
+  .in-round .no-screen {
+    grid-area: alert;
+    margin-inline: 0;
+  }
+  .in-round .stage {
+    grid-area: stage;
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: var(--space-6);
+    padding: var(--space-6) 0 0;
+  }
+  .in-round .stage.controller {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* Whatever is left of the window's height once the value and its note are under it. */
+  .in-round .stage:not(.controller) .lens-box {
+    flex: none;
+    width: min(100%, var(--viewport-height) - 250px, 720px);
+    max-height: none;
+  }
+  .in-round .waiting {
+    font-size: 120px;
+  }
+  .in-round .worth {
+    font-size: 64px;
+  }
+  .in-round .feed {
+    grid-area: feed;
+    padding-top: var(--space-6);
+  }
+  .in-round .bonuses {
+    grid-area: bonus;
+  }
+  .in-round .live {
+    grid-area: ranking;
+    padding: var(--space-4) 0;
+    overflow-y: auto;
+  }
+  .in-round .controls {
+    grid-area: controls;
+    overflow: hidden;
+    border-radius: var(--radius);
+  }
+  /* A link-like button: as wide as its words, under the left column of the lobby. */
+  .quit {
+    align-self: flex-start;
+  }
+  /* The end of a game is a result, not a layout: a centred column reads better than 1240 px. */
+  .end {
+    width: min(640px, 100%);
+    margin-inline: auto;
+  }
 }
 </style>

@@ -112,174 +112,180 @@ const screenMissing = computed(() => bigScreen.value && game.screens === 0);
 
 <template>
   <section class="lobby">
-    <p class="muted">{{ t('lobby.codeLabel') }}</p>
-    <h1 class="display code">{{ game.code }}</h1>
+    <!-- Two groups, which only become columns on a computer: who is here and how to bring more,
+         then what the host decides. On a phone both wrappers step aside (display: contents). -->
+    <div class="guests">
+      <p class="muted">{{ t('lobby.codeLabel') }}</p>
+      <h1 class="display code">{{ game.code }}</h1>
 
-    <div class="invite">
-      <img v-if="qrSrc" class="qr" :src="qrSrc" :alt="t('lobby.qrAlt')" />
-      <div>
-        <p>{{ t('lobby.inviteHint') }}</p>
-        <button type="button" class="button quiet" @click="share">
-          {{ shared ? t('lobby.copied') : canShareNatively ? t('lobby.share') : t('lobby.copy') }}
+      <div class="invite">
+        <img v-if="qrSrc" class="qr" :src="qrSrc" :alt="t('lobby.qrAlt')" />
+        <div>
+          <p>{{ t('lobby.inviteHint') }}</p>
+          <button type="button" class="button quiet" @click="share">
+            {{ shared ? t('lobby.copied') : canShareNatively ? t('lobby.share') : t('lobby.copy') }}
+          </button>
+        </div>
+      </div>
+
+      <div v-if="bigScreen" class="screen-status" :class="{ on: !screenMissing }" role="status">
+        <template v-if="screenMissing">
+          <p>
+            <b>{{ t('lobby.screenOpen') }}</b>
+          </p>
+          <p class="url">{{ screenUrl }}</p>
+          <NuxtLink class="here" :to="screenPath" target="_blank">{{
+            t('lobby.screenHere')
+          }}</NuxtLink>
+        </template>
+        <p v-else>
+          <b>{{ t('lobby.screenOn') }}</b>
+        </p>
+      </div>
+
+      <h2>{{ t('lobby.players', { n: game.players.length, max: ROOM.maxPlayers }) }}</h2>
+      <ul class="players">
+        <li v-for="player in game.players" :key="player.id" :class="{ offline: !player.connected }">
+          <span class="name">
+            {{ player.nickname }}
+            <small v-if="player.id === game.you">{{ t('lobby.you') }}</small>
+            <small v-if="player.id === game.hostId">{{ t('lobby.host') }}</small>
+            <small v-if="!player.connected">{{ t('lobby.offline') }}</small>
+          </span>
+          <button
+            v-if="game.isHost && player.id !== game.you"
+            type="button"
+            class="remove"
+            @click="game.kick(player.id)"
+          >
+            {{ t('lobby.remove') }}
+          </button>
+        </li>
+      </ul>
+    </div>
+
+    <div class="setup">
+      <template v-if="game.isHost">
+        <fieldset>
+          <legend>{{ t('home.display') }}</legend>
+          <label v-for="mode in DISPLAY_MODES" :key="mode">
+            <input
+              type="radio"
+              name="lobby-display"
+              :checked="draft.display === mode"
+              @change="setDisplay(mode)"
+            />
+            <span>{{ t(`home.displayMode.${mode}`) }}</span>
+          </label>
+          <p class="muted hint">{{ t(`home.displayHint.${draft.display}`) }}</p>
+        </fieldset>
+        <fieldset class="packs">
+          <legend>{{ t('lobby.packs') }}</legend>
+          <p class="muted hint">
+            {{
+              draft.packIds.length
+                ? t('lobby.packsChosen', { n: draft.packIds.length })
+                : t('lobby.packsAll')
+            }}
+          </p>
+          <button type="button" class="button quiet small" @click="packsOpen = !packsOpen">
+            {{ t(packsOpen ? 'lobby.packsClose' : 'lobby.packsChoose') }}
+          </button>
+          <ul v-if="packsOpen" class="plain pack-list">
+            <li v-for="pack in packs" :key="pack.id">
+              <label class="check">
+                <input
+                  type="checkbox"
+                  :checked="draft.packIds.includes(pack.id)"
+                  @change="togglePack(pack.id)"
+                />
+                <span>
+                  {{ pack.title }}
+                  <small class="muted">
+                    {{ t('lobby.packCards', { n: pack.cards }) }}
+                    <template v-if="pack.byPlayer"> · {{ t('lobby.packMine') }}</template>
+                  </small>
+                </span>
+              </label>
+            </li>
+          </ul>
+        </fieldset>
+        <fieldset>
+          <legend>{{ t('home.rounds') }}</legend>
+          <label v-for="n in ROOM.roundsOptions" :key="n">
+            <input
+              type="radio"
+              name="lobby-rounds"
+              :value="n"
+              :checked="draft.rounds === n"
+              @change="setRounds(n)"
+            />
+            <span>{{ n }}</span>
+          </label>
+        </fieldset>
+        <fieldset>
+          <legend>{{ t('home.answerMode') }}</legend>
+          <label>
+            <input
+              type="radio"
+              name="lobby-mode"
+              :checked="draft.answerMode === 'text'"
+              @change="setMode('text')"
+            />
+            <span>{{ t('home.text') }}</span>
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="lobby-mode"
+              :checked="draft.answerMode === 'mcq'"
+              @change="setMode('mcq')"
+            />
+            <span>{{ t('home.mcq') }}</span>
+          </label>
+        </fieldset>
+        <fieldset>
+          <legend>{{ t('home.scoring') }}</legend>
+          <label v-for="mode in SCORING_MODES" :key="mode">
+            <input
+              type="radio"
+              name="lobby-scoring"
+              :checked="draft.scoring === mode"
+              @change="setScoring(mode)"
+            />
+            <span>{{ t(`home.scoringMode.${mode}`) }}</span>
+          </label>
+          <p class="muted hint">{{ t(`home.scoringHint.${draft.scoring}`) }}</p>
+        </fieldset>
+      </template>
+      <p v-else class="muted">
+        {{
+          t('lobby.settingsSummary', {
+            rounds: game.totalRounds,
+            mode: t(game.answerMode === 'text' ? 'lobby.modeText' : 'lobby.modeMcq'),
+          })
+        }}
+        {{ t(`home.scoringHint.${game.scoring}`) }}
+        <template v-if="bigScreen">{{ t('home.displayHint.bigscreen') }}</template>
+      </p>
+
+      <div class="actions">
+        <p v-if="game.isHost && !enoughPlayers" class="muted">{{ t('lobby.needPlayers') }}</p>
+        <p v-else-if="game.isHost && screenMissing" class="muted">{{ t('lobby.needScreen') }}</p>
+        <p v-else-if="!game.isHost" class="muted">{{ t('lobby.waitingHost') }}</p>
+        <p v-if="startError" class="error" role="alert">
+          {{ t(startError === 'NO_SCREEN' ? 'lobby.needScreen' : 'lobby.startFailed') }}
+        </p>
+        <button
+          v-if="game.isHost"
+          type="button"
+          class="button"
+          :disabled="!enoughPlayers || screenMissing || starting"
+          @click="start"
+        >
+          {{ t('lobby.start') }}
         </button>
       </div>
-    </div>
-
-    <div v-if="bigScreen" class="screen-status" :class="{ on: !screenMissing }" role="status">
-      <template v-if="screenMissing">
-        <p>
-          <b>{{ t('lobby.screenOpen') }}</b>
-        </p>
-        <p class="url">{{ screenUrl }}</p>
-        <NuxtLink class="here" :to="screenPath" target="_blank">{{
-          t('lobby.screenHere')
-        }}</NuxtLink>
-      </template>
-      <p v-else>
-        <b>{{ t('lobby.screenOn') }}</b>
-      </p>
-    </div>
-
-    <h2>{{ t('lobby.players', { n: game.players.length, max: ROOM.maxPlayers }) }}</h2>
-    <ul class="players">
-      <li v-for="player in game.players" :key="player.id" :class="{ offline: !player.connected }">
-        <span class="name">
-          {{ player.nickname }}
-          <small v-if="player.id === game.you">{{ t('lobby.you') }}</small>
-          <small v-if="player.id === game.hostId">{{ t('lobby.host') }}</small>
-          <small v-if="!player.connected">{{ t('lobby.offline') }}</small>
-        </span>
-        <button
-          v-if="game.isHost && player.id !== game.you"
-          type="button"
-          class="remove"
-          @click="game.kick(player.id)"
-        >
-          {{ t('lobby.remove') }}
-        </button>
-      </li>
-    </ul>
-
-    <template v-if="game.isHost">
-      <fieldset>
-        <legend>{{ t('home.display') }}</legend>
-        <label v-for="mode in DISPLAY_MODES" :key="mode">
-          <input
-            type="radio"
-            name="lobby-display"
-            :checked="draft.display === mode"
-            @change="setDisplay(mode)"
-          />
-          <span>{{ t(`home.displayMode.${mode}`) }}</span>
-        </label>
-        <p class="muted hint">{{ t(`home.displayHint.${draft.display}`) }}</p>
-      </fieldset>
-      <fieldset class="packs">
-        <legend>{{ t('lobby.packs') }}</legend>
-        <p class="muted hint">
-          {{
-            draft.packIds.length
-              ? t('lobby.packsChosen', { n: draft.packIds.length })
-              : t('lobby.packsAll')
-          }}
-        </p>
-        <button type="button" class="button quiet small" @click="packsOpen = !packsOpen">
-          {{ t(packsOpen ? 'lobby.packsClose' : 'lobby.packsChoose') }}
-        </button>
-        <ul v-if="packsOpen" class="plain pack-list">
-          <li v-for="pack in packs" :key="pack.id">
-            <label class="check">
-              <input
-                type="checkbox"
-                :checked="draft.packIds.includes(pack.id)"
-                @change="togglePack(pack.id)"
-              />
-              <span>
-                {{ pack.title }}
-                <small class="muted">
-                  {{ t('lobby.packCards', { n: pack.cards }) }}
-                  <template v-if="pack.byPlayer"> · {{ t('lobby.packMine') }}</template>
-                </small>
-              </span>
-            </label>
-          </li>
-        </ul>
-      </fieldset>
-      <fieldset>
-        <legend>{{ t('home.rounds') }}</legend>
-        <label v-for="n in ROOM.roundsOptions" :key="n">
-          <input
-            type="radio"
-            name="lobby-rounds"
-            :value="n"
-            :checked="draft.rounds === n"
-            @change="setRounds(n)"
-          />
-          <span>{{ n }}</span>
-        </label>
-      </fieldset>
-      <fieldset>
-        <legend>{{ t('home.answerMode') }}</legend>
-        <label>
-          <input
-            type="radio"
-            name="lobby-mode"
-            :checked="draft.answerMode === 'text'"
-            @change="setMode('text')"
-          />
-          <span>{{ t('home.text') }}</span>
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="lobby-mode"
-            :checked="draft.answerMode === 'mcq'"
-            @change="setMode('mcq')"
-          />
-          <span>{{ t('home.mcq') }}</span>
-        </label>
-      </fieldset>
-      <fieldset>
-        <legend>{{ t('home.scoring') }}</legend>
-        <label v-for="mode in SCORING_MODES" :key="mode">
-          <input
-            type="radio"
-            name="lobby-scoring"
-            :checked="draft.scoring === mode"
-            @change="setScoring(mode)"
-          />
-          <span>{{ t(`home.scoringMode.${mode}`) }}</span>
-        </label>
-        <p class="muted hint">{{ t(`home.scoringHint.${draft.scoring}`) }}</p>
-      </fieldset>
-    </template>
-    <p v-else class="muted">
-      {{
-        t('lobby.settingsSummary', {
-          rounds: game.totalRounds,
-          mode: t(game.answerMode === 'text' ? 'lobby.modeText' : 'lobby.modeMcq'),
-        })
-      }}
-      {{ t(`home.scoringHint.${game.scoring}`) }}
-      <template v-if="bigScreen">{{ t('home.displayHint.bigscreen') }}</template>
-    </p>
-
-    <div class="actions">
-      <p v-if="game.isHost && !enoughPlayers" class="muted">{{ t('lobby.needPlayers') }}</p>
-      <p v-else-if="game.isHost && screenMissing" class="muted">{{ t('lobby.needScreen') }}</p>
-      <p v-else-if="!game.isHost" class="muted">{{ t('lobby.waitingHost') }}</p>
-      <p v-if="startError" class="error" role="alert">
-        {{ t(startError === 'NO_SCREEN' ? 'lobby.needScreen' : 'lobby.startFailed') }}
-      </p>
-      <button
-        v-if="game.isHost"
-        type="button"
-        class="button"
-        :disabled="!enoughPlayers || screenMissing || starting"
-        @click="start"
-      >
-        {{ t('lobby.start') }}
-      </button>
     </div>
   </section>
 </template>
@@ -469,5 +475,32 @@ label input:focus-visible + span {
 }
 .error {
   color: var(--danger);
+}
+
+.guests,
+.setup {
+  display: contents;
+}
+/* Computer: the invitation and the players on the left, the host's choices on the right, the
+   start button under them. Same breakpoint as useWideScreen. */
+@media (min-width: 1080px) {
+  .lobby {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 64px;
+    align-items: start;
+    padding-top: var(--space-10);
+  }
+  .guests,
+  .setup {
+    display: flex;
+    flex-direction: column;
+  }
+  .code {
+    font-size: 96px;
+  }
+  .actions {
+    margin-top: 0;
+  }
 }
 </style>

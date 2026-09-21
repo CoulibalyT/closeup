@@ -50,7 +50,7 @@ onBeforeUnmount(() => clearInterval(timer));
       <template v-else>{{ t('reveal.watched') }}</template>
     </h1>
     <p class="answer">{{ t('reveal.answer', { answer: reveal.reveal.answer }) }}</p>
-    <p v-if="reveal.reveal.zoneLabel" class="muted">
+    <p v-if="reveal.reveal.zoneLabel" class="muted zone">
       {{ t('reveal.zone', { zone: reveal.reveal.zoneLabel }) }}
     </p>
 
@@ -170,5 +170,62 @@ figcaption {
   gap: var(--space-2);
   margin-top: auto;
   padding-top: var(--space-4);
+}
+
+/* Computer: the photo on the left, as large as the window allows; the verdict, the answer and
+   the scores beside it. Same breakpoint as useWideScreen. */
+@media (min-width: 1080px) {
+  .reveal {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'print verdict'
+      'print answer'
+      'print zone'
+      'print scores'
+      'print foot';
+    column-gap: 48px;
+    align-content: start;
+    padding-top: var(--space-6);
+  }
+  .verdict {
+    grid-area: verdict;
+    font-size: 48px;
+  }
+  .answer {
+    grid-area: answer;
+    font-size: 23px;
+  }
+  .zone {
+    grid-area: zone;
+  }
+  .print,
+  .print.party {
+    grid-area: print;
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: var(--space-6);
+    max-width: none;
+    margin-top: 0;
+  }
+  /* The photo shrinks to fit the height, and the box around it shrinks with it: the circle
+     that marks the zone is drawn over that box, so the two must stay the same size. */
+  .photo {
+    width: fit-content;
+    max-width: 100%;
+  }
+  .photo img {
+    width: auto;
+    max-width: 100%;
+    max-height: calc(var(--viewport-height) - 170px);
+  }
+  .scores {
+    grid-area: scores;
+    overflow-y: auto;
+  }
+  .foot {
+    grid-area: foot;
+    margin-top: 0;
+  }
 }
 </style>

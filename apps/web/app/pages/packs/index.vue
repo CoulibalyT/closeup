@@ -34,7 +34,7 @@ onMounted(load);
 </script>
 
 <template>
-  <PageShell :title="t('catalogue.heading')">
+  <PageShell wide :title="t('catalogue.heading')">
     <p class="muted">{{ t('catalogue.pitch') }}</p>
 
     <div class="filters">

@@ -1,13 +1,28 @@
 <script setup lang="ts">
-/** Frame of the pages around the game (account, statistics, rankings): a title and the way home. */
-defineProps<{ title: string }>();
+/**
+ * Frame of the pages around the game (account, statistics, rankings, packs): a title and the
+ * way home. On a computer the way home becomes a site header, and `wide` lets a page of lists
+ * use the width; forms keep a centred column, where a long line would only be harder to read.
+ */
+withDefaults(defineProps<{ title: string; wide?: boolean }>(), { wide: false });
 const { t } = useI18n();
 const localePath = useLocalePath();
+const { appName } = useRuntimeConfig().public;
 </script>
 
 <template>
-  <main class="page">
-    <NuxtLink class="back" :to="localePath('/')">← {{ t('play.home') }}</NuxtLink>
+  <main class="page" :class="{ wide }">
+    <header class="bar">
+      <NuxtLink class="back" :to="localePath('/')">← {{ t('play.home') }}</NuxtLink>
+      <NuxtLink class="brand display" :to="localePath('/')">{{ appName }}</NuxtLink>
+      <nav class="site" :aria-label="t('home.more')">
+        <NuxtLink :to="localePath('/packs')">{{ t('catalogue.short') }}</NuxtLink>
+        <NuxtLink :to="localePath('/me/packs')">{{ t('myPacks.heading') }}</NuxtLink>
+        <NuxtLink :to="localePath('/rankings')">{{ t('rankings.heading') }}</NuxtLink>
+        <NuxtLink :to="localePath('/stats')">{{ t('stats.short') }}</NuxtLink>
+        <NuxtLink :to="localePath('/account')">{{ t('account.short') }}</NuxtLink>
+      </nav>
+    </header>
     <h1 class="display">{{ title }}</h1>
     <slot />
   </main>
@@ -22,6 +37,15 @@ const localePath = useLocalePath();
   max-width: 460px;
   margin: 0 auto;
   padding: calc(var(--space-4) + env(safe-area-inset-top)) var(--space-4) var(--space-6);
+}
+/* On a phone the header is only the way back: the wrapper steps aside so that the link stays a
+   direct child of the column, as it always was. */
+.page > .bar {
+  display: contents;
+}
+.page .brand,
+.page .site {
+  display: none;
 }
 .page .back {
   display: inline-flex;
@@ -108,5 +132,58 @@ const localePath = useLocalePath();
   border-color: var(--ink);
   background: var(--ink);
   color: var(--bg);
+}
+
+/* Computer: a site header across the top, then either the page's own width (`wide`) or a
+   centred column. Same breakpoint as useWideScreen. */
+@media (min-width: 1080px) {
+  .page {
+    max-width: 1208px;
+    padding-inline: var(--space-6);
+  }
+  .page > .bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-6);
+    margin-bottom: var(--space-10);
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid var(--line);
+  }
+  .page .back {
+    display: none;
+  }
+  .page .brand {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap);
+    color: var(--ink);
+    font-size: 26px;
+    font-stretch: 140%;
+    text-decoration: none;
+  }
+  .page .site {
+    display: flex;
+    gap: var(--space-6);
+    margin-left: auto;
+  }
+  .page .site a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap);
+    color: var(--muted);
+  }
+  .page .site a[aria-current='page'] {
+    color: var(--ink);
+    font-weight: 700;
+    text-decoration: none;
+  }
+  .page > h1 {
+    margin-top: 0;
+    font-size: 56px;
+  }
+  .page:not(.wide) > :not(.bar) {
+    width: min(560px, 100%);
+    margin-inline: auto;
+  }
 }
 </style>

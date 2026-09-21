@@ -75,7 +75,7 @@ async function remove(): Promise<void> {
 </script>
 
 <template>
-  <PageShell :title="pack?.titleFr ?? t('catalogue.pack')">
+  <PageShell wide :title="pack?.titleFr ?? t('catalogue.pack')">
     <p v-if="failed" class="error" role="alert">{{ t('admin.failed') }}</p>
 
     <template v-if="pack">

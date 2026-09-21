@@ -140,4 +140,15 @@ input {
 .error {
   color: var(--danger);
 }
+/* Computer: one field is not a page layout; it is a step, centred in the window. */
+@media (min-width: 1080px) {
+  .join {
+    align-content: center;
+    max-width: 520px;
+    padding-top: var(--space-6);
+  }
+  h1 {
+    font-size: 56px;
+  }
+}
 </style>

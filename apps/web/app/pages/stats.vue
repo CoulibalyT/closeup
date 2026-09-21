@@ -41,7 +41,7 @@ function configLabel(key: string): string {
 </script>
 
 <template>
-  <PageShell :title="t('stats.heading')">
+  <PageShell wide :title="t('stats.heading')">
     <p v-if="loading" class="muted">{{ t('admin.loading') }}</p>
 
     <template v-else-if="!stats || !stats.games">
@@ -85,34 +85,37 @@ function configLabel(key: string): string {
         </div>
       </dl>
 
-      <section v-if="stats.soloBests.length" class="block">
-        <h2>{{ t('stats.soloBests') }}</h2>
-        <ul class="rows">
-          <li v-for="best in stats.soloBests" :key="best.configKey">
-            <span>{{ configLabel(best.configKey) }}</span>
-            <b>{{ best.score }}</b>
-          </li>
-        </ul>
-      </section>
+      <!-- Side by side on a computer; on a phone the wrapper steps aside. -->
+      <div class="lists">
+        <section v-if="stats.soloBests.length" class="block">
+          <h2>{{ t('stats.soloBests') }}</h2>
+          <ul class="rows">
+            <li v-for="best in stats.soloBests" :key="best.configKey">
+              <span>{{ configLabel(best.configKey) }}</span>
+              <b>{{ best.score }}</b>
+            </li>
+          </ul>
+        </section>
 
-      <section class="block">
-        <h2>{{ t('stats.recent') }}</h2>
-        <ul class="rows">
-          <li v-for="game in stats.recent" :key="game.gameId">
-            <span>
-              {{ day(game.endedAt) }}
-              <small class="muted">
-                {{
-                  game.mode === 'solo'
-                    ? t('stats.solo')
-                    : t('stats.rank', { rank: game.rank, players: game.playerCount })
-                }}
-              </small>
-            </span>
-            <b>{{ game.score }}</b>
-          </li>
-        </ul>
-      </section>
+        <section class="block">
+          <h2>{{ t('stats.recent') }}</h2>
+          <ul class="rows">
+            <li v-for="game in stats.recent" :key="game.gameId">
+              <span>
+                {{ day(game.endedAt) }}
+                <small class="muted">
+                  {{
+                    game.mode === 'solo'
+                      ? t('stats.solo')
+                      : t('stats.rank', { rank: game.rank, players: game.playerCount })
+                  }}
+                </small>
+              </span>
+              <b>{{ game.score }}</b>
+            </li>
+          </ul>
+        </section>
+      </div>
 
       <p v-if="!stats.hasAccount" class="block nudge">
         {{ t('stats.guestNudge') }}
@@ -166,5 +169,29 @@ dd {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
+}
+.lists {
+  display: contents;
+}
+/* Computer: the six figures on one line, the two lists side by side. */
+@media (min-width: 1080px) {
+  .figures {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+  .figures div {
+    padding: var(--space-4);
+  }
+  dd {
+    font-size: 40px;
+  }
+  /* One column per list, equal widths: the solo bests only exist once a solo game is played. */
+  .lists {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+    align-items: start;
+  }
 }
 </style>

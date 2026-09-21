@@ -46,11 +46,11 @@ async function report(): Promise<void> {
 </script>
 
 <template>
-  <PageShell :title="pack?.title ?? t('catalogue.pack')">
+  <PageShell wide :title="pack?.title ?? t('catalogue.pack')">
     <p v-if="missing" class="block">{{ t('catalogue.missing') }}</p>
 
     <template v-else-if="pack">
-      <p v-if="pack.description">{{ pack.description }}</p>
+      <p v-if="pack.description" class="description">{{ pack.description }}</p>
       <p v-if="pack.authorNickname" class="muted">
         {{ t('catalogue.by', { author: pack.authorNickname }) }}
       </p>
@@ -140,5 +140,19 @@ textarea {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
+}
+/* Computer: the credits in columns; prose and the report form keep a readable measure. */
+@media (min-width: 1080px) {
+  .credits {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    column-gap: var(--space-6);
+  }
+  .description {
+    max-width: 70ch;
+  }
+  form {
+    max-width: 560px;
+  }
 }
 </style>
