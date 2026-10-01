@@ -114,7 +114,7 @@ async function reopen(): Promise<void> {
 </script>
 
 <template>
-  <main class="tv">
+  <main class="tv cabin" :class="`at-${game.stage}`">
     <header class="bar">
       <span class="display brand">{{ appName }}</span>
       <span v-if="game.round && (inRound || game.stage === 'reveal')" class="muted">
@@ -532,8 +532,82 @@ figcaption {
   margin-top: 0;
 }
 
+/* A TV or a laptop: the cabin, readable from across the room. The strip and the code to join
+   are placed on the curtain; the sections keep their own two columns to its right. */
+@media (min-width: 1080px) and (orientation: landscape) {
+  .tv {
+    --panel: 16vw;
+    position: relative;
+    padding-left: calc(var(--panel) + 4vmin);
+  }
+  /* The lobby's invitation is the curtain itself: wider, and the section starts at the edge. */
+  .tv.at-lobby {
+    --panel: 34vw;
+    padding-left: 4vmin;
+  }
+  .bar .brand {
+    position: absolute;
+    top: 2.5vmin;
+    left: 2.4vw;
+    color: var(--curtain-ink);
+  }
+  .bar .chip {
+    position: absolute;
+    left: 2.4vw;
+    bottom: 4vmin;
+    width: calc(var(--panel) - 4.8vw);
+    color: var(--curtain-ink);
+  }
+  .bar .chip b {
+    display: block;
+    margin: 0.2em 0 0;
+    color: inherit;
+    font-size: 2em;
+  }
+  .shot {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* Under the name, and short enough to leave the foot of the curtain to the code to join. */
+  .shot .strip {
+    position: absolute;
+    top: 11vh;
+    left: calc(var(--panel) / 2);
+    width: min(var(--panel) * 0.6, 15vh);
+    translate: -50% 0;
+  }
+  .lens-box {
+    width: min(100%, 86vh);
+  }
+  /* The column is narrower beside the curtain: the answer is sized on it, so that a long word
+     ("coccinelle") shrinks instead of breaking. */
+  .side {
+    container-type: inline-size;
+  }
+  .answer {
+    font-size: min(120px, 8.5vmin, 9.5cqi);
+  }
+  .split.lobby {
+    grid-template-columns: calc(var(--panel) - 8vmin) minmax(0, 1fr);
+    column-gap: 8vmin;
+  }
+  .lobby .invite {
+    color: var(--curtain-ink);
+    container-type: inline-size;
+  }
+  .lobby .invite .muted {
+    color: inherit;
+  }
+  .code {
+    font-size: min(180px, 18cqi);
+  }
+  .qr {
+    width: min(100%, 52vmin);
+  }
+}
+/* A TV standing upright keeps its single column, and no curtain. */
 @media (orientation: portrait) {
   .tv {
+    --panel: 0px;
     height: auto;
     min-height: 100dvh;
     overflow: visible;
