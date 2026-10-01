@@ -170,42 +170,38 @@ figcaption {
   padding-top: var(--space-4);
 }
 
-/* Computer: the photo on the left, as large as the window allows; the verdict, the answer and
-   the scores beside it. Same breakpoint as useWideScreen. */
+/* Computer: in the cabin, the complete strip on the curtain, the whole photo in the middle, and
+   the verdict, the answer, the scores and the button in the column on the right. The custom
+   properties come from the play page. Same breakpoint as useWideScreen. */
 @media (min-width: 1080px) {
   .reveal {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 380px;
+    grid-template-columns: var(--panel, 21vw) minmax(0, 1fr) var(--side, 400px);
     grid-template-rows: auto auto auto minmax(0, 1fr) auto;
     grid-template-areas:
-      'print verdict'
-      'print answer'
-      'print zone'
-      'print scores'
-      'print foot';
-    column-gap: 48px;
-    align-content: start;
-    padding-top: var(--space-6);
-  }
-  /* "Manche terminée": 44 px keeps "terminée" whole in the 380 px column, with room to spare. */
-  .verdict {
-    grid-area: verdict;
-    font-size: 44px;
-  }
-  .answer {
-    grid-area: answer;
-    font-size: 23px;
-  }
-  .zone {
-    grid-area: zone;
+      'strip print verdict'
+      'strip print answer'
+      'strip print zone'
+      'strip print scores'
+      'strip print foot';
+    column-gap: var(--gutter, 48px);
+    padding: var(--space-6) var(--gutter, 48px) var(--space-10) 0;
   }
   .print,
   .print.party {
+    display: contents;
+  }
+  .strip {
+    grid-area: strip;
+    align-self: center;
+    justify-self: center;
+    width: min(var(--panel, 21vw) * 0.5, (var(--viewport-height) - 220px) / 4);
+  }
+  figure {
     grid-area: print;
-    grid-template-columns: 88px minmax(0, 1fr);
-    gap: var(--space-6);
-    max-width: none;
-    margin-top: 0;
+    align-self: center;
+    justify-self: center;
+    min-width: 0;
   }
   /* The photo shrinks to fit the height, and the box around it shrinks with it: the circle
      that marks the zone is drawn over that box, so the two must stay the same size. */
@@ -218,13 +214,30 @@ figcaption {
     max-width: 100%;
     max-height: calc(var(--viewport-height) - 170px);
   }
+  /* "terminée" is the longest word a verdict holds: about 8.6 em of column per em of type. */
+  .verdict {
+    grid-area: verdict;
+    font-size: calc(var(--side, 400px) / 8.6);
+  }
+  .answer {
+    grid-area: answer;
+    font-size: 26px;
+  }
+  .zone {
+    grid-area: zone;
+  }
   .scores {
     grid-area: scores;
+    margin-top: var(--space-6);
     overflow-y: auto;
   }
   .foot {
     grid-area: foot;
     margin-top: 0;
+  }
+  .foot .button {
+    min-height: 64px;
+    font-size: 19px;
   }
 }
 </style>

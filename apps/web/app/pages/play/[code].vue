@@ -226,59 +226,63 @@ async function quit(): Promise<void> {
     />
 
     <section v-else-if="game.stage === 'ended' && game.end" class="end">
-      <p class="muted">{{ t('end.title') }}</p>
-      <h1 class="display total">{{ game.score }}</h1>
+      <div class="result">
+        <p class="muted">{{ t('end.title') }}</p>
+        <h1 class="display total">{{ game.score }}</h1>
+      </div>
 
-      <template v-if="solo">
-        <p>{{ t('end.found', { n: game.foundCount, total: game.totalRounds }) }}</p>
-        <p
-          v-if="game.end.personalBest"
-          class="best"
-          :class="{ fresh: game.end.personalBest.isNew }"
-        >
-          {{
-            game.end.personalBest.isNew
-              ? t('end.newBest')
-              : t('end.best', { score: game.end.personalBest.score })
-          }}
-        </p>
-      </template>
-      <RankingList v-else class="final" :players="game.end.ranking" :you="game.you" />
-
-      <!-- Public games put strangers together: the way to say something went wrong is here. -->
-      <section v-if="game.mode === 'public'" class="report-zone">
-        <template v-if="reporting">
-          <ReportDialog
-            :player-id="reporting.id"
-            :nickname="reporting.nickname"
-            @close="reporting = null"
-          />
+      <div class="outcome">
+        <template v-if="solo">
+          <p>{{ t('end.found', { n: game.foundCount, total: game.totalRounds }) }}</p>
+          <p
+            v-if="game.end.personalBest"
+            class="best"
+            :class="{ fresh: game.end.personalBest.isNew }"
+          >
+            {{
+              game.end.personalBest.isNew
+                ? t('end.newBest')
+                : t('end.best', { score: game.end.personalBest.score })
+            }}
+          </p>
         </template>
-        <template v-else>
-          <p class="muted">{{ t('report.who') }}</p>
-          <div class="targets">
-            <button
-              v-for="player in others"
-              :key="player.id"
-              type="button"
-              class="button quiet small"
-              @click="reporting = player"
-            >
-              {{ player.nickname }}
-            </button>
-          </div>
-        </template>
-      </section>
+        <RankingList v-else class="final" :players="game.end.ranking" :you="game.you" />
 
-      <div class="actions">
-        <button v-if="solo" type="button" class="button" :disabled="busy" @click="replaySolo">
-          {{ t('end.replay') }}
-        </button>
-        <button v-else-if="game.isHost" type="button" class="button" @click="game.playAgain">
-          {{ t('end.replayParty') }}
-        </button>
-        <p v-else class="muted">{{ t('end.waitingHost') }}</p>
-        <button type="button" class="button quiet" @click="quit">{{ t('play.home') }}</button>
+        <!-- Public games put strangers together: the way to say something went wrong is here. -->
+        <section v-if="game.mode === 'public'" class="report-zone">
+          <template v-if="reporting">
+            <ReportDialog
+              :player-id="reporting.id"
+              :nickname="reporting.nickname"
+              @close="reporting = null"
+            />
+          </template>
+          <template v-else>
+            <p class="muted">{{ t('report.who') }}</p>
+            <div class="targets">
+              <button
+                v-for="player in others"
+                :key="player.id"
+                type="button"
+                class="button quiet small"
+                @click="reporting = player"
+              >
+                {{ player.nickname }}
+              </button>
+            </div>
+          </template>
+        </section>
+
+        <div class="actions">
+          <button v-if="solo" type="button" class="button" :disabled="busy" @click="replaySolo">
+            {{ t('end.replay') }}
+          </button>
+          <button v-else-if="game.isHost" type="button" class="button" @click="game.playAgain">
+            {{ t('end.replayParty') }}
+          </button>
+          <p v-else class="muted">{{ t('end.waitingHost') }}</p>
+          <button type="button" class="button quiet" @click="quit">{{ t('play.home') }}</button>
+        </div>
       </div>
     </section>
   </main>
@@ -430,6 +434,11 @@ async function quit(): Promise<void> {
   padding: var(--space-10) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom));
   overflow-y: auto;
 }
+/* Two groups that only become columns on a computer. */
+.result,
+.outcome {
+  display: contents;
+}
 .total {
   font-size: clamp(56px, 20vw, 88px);
 }
@@ -540,7 +549,10 @@ async function quit(): Promise<void> {
   }
   /* The name at the top of the curtain, as on every other page. Out of the flow, so that no
      layout below has to make room for it. */
-  .screen.cabin::before {
+  .screen.cabin::before,
+  .screen.at-lost::before,
+  .screen.at-full::before,
+  .screen.at-kicked::before {
     content: attr(data-brand);
     position: absolute;
     top: var(--space-6);
@@ -638,10 +650,104 @@ async function quit(): Promise<void> {
     font-size: 17px;
   }
 
-  /* The end of a game is a result, not a layout: a centred column reads better than 1240 px. */
-  .end {
-    width: min(640px, 100%);
-    margin-inline: auto;
+  /* During the reveal the round and score line belongs to the right-hand column. */
+  .screen.cabin.at-reveal .top {
+    width: var(--side);
+    margin: 0 var(--gutter) 0 auto;
+    padding: var(--space-10) 0 0;
+    font-size: 17px;
+  }
+
+  /* The end of a game: the total on the curtain, what it means on the right. */
+  .cabin .end {
+    display: grid;
+    grid-template-columns: var(--panel) minmax(0, 1fr);
+    column-gap: var(--gutter);
+    padding: 0 var(--gutter) 0 0;
+  }
+  .cabin .result {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: var(--space-10) var(--space-6);
+    color: var(--curtain-ink);
+    container-type: inline-size;
+  }
+  .cabin .result .muted {
+    color: inherit;
+    font-size: 19px;
+  }
+  /* "12 480" is about 5.5 em wide in the display face. */
+  .cabin .total {
+    font-size: min(176px, 17cqi);
+  }
+  .cabin .outcome {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    justify-self: center;
+    width: min(720px, 100%);
+    min-height: 0;
+    padding: var(--space-10) 0;
+    overflow-y: auto;
+    font-size: 19px;
+  }
+  /* The first three of a party as a podium of cards, the rest as a list under them. */
+  .cabin .final {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
+    font-size: 19px;
+  }
+  .cabin .final :deep(li) {
+    grid-column: 1 / -1;
+  }
+  .cabin .final :deep(li:nth-child(-n + 3)) {
+    grid-column: auto;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 140px;
+    padding: var(--space-4);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 21px;
+  }
+  /* The winner's card takes the curtain's colour: a podium, not three equal boxes. */
+  .cabin .final :deep(li:first-child) {
+    min-height: 172px;
+    background: var(--curtain);
+    color: var(--curtain-ink);
+    font-size: 25px;
+  }
+  .cabin .actions {
+    margin-top: 0;
+  }
+  .cabin .actions .button {
+    min-height: 64px;
+    font-size: 19px;
+  }
+
+  /* A notice: the curtain across the top, the message in a block centred under it. */
+  .screen.at-lost,
+  .screen.at-full,
+  .screen.at-kicked {
+    position: relative;
+    max-width: none;
+    padding: 0;
+    background:
+      var(--curtain-folds) 0 0 / 100% 38vh no-repeat,
+      linear-gradient(var(--curtain), var(--curtain)) 0 0 / 100% 38vh no-repeat,
+      var(--bg);
+  }
+  .at-lost .notice,
+  .at-full .notice,
+  .at-kicked .notice {
+    width: min(560px, 100% - 2 * var(--space-10));
+    margin: 30vh auto auto;
+    padding: var(--space-10);
+    border-radius: var(--radius);
+    background: var(--surface);
   }
 }
 </style>
