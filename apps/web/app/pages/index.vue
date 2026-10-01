@@ -453,37 +453,85 @@ const playSolo = () =>
   }
 }
 
-/* Desktop: the name on the left, the code on the right, the four ways in on one row. */
+/* Desktop: the curtain is the left half, with the name, the pitch and the code; the four ways
+   in are the four frames of a strip on the right, the other links above them. */
 @media (min-width: 1080px) {
   .home {
-    --page: 1160px;
+    display: grid;
+    grid-template-columns: 48vw minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 100dvh;
   }
   .curtain {
-    padding-bottom: 96px;
+    grid-column: 1;
+    grid-row: 1 / -1;
+    display: flex;
+    padding: var(--space-6) 4vw var(--space-10);
+  }
+  .curtain .wrap {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    margin: 0;
   }
   .hero {
-    grid-template-columns: minmax(0, 1fr) 420px;
-    align-items: center;
-    gap: 80px;
-    margin-top: 64px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-10);
+    margin-block: auto;
+  }
+  .wordmark {
+    font-size: min(13cqi, 176px);
   }
   .pitch {
-    max-width: 32ch;
+    max-width: 30ch;
     font-size: 23px;
+    text-wrap: balance;
   }
   .strip {
+    max-width: 520px;
     padding: var(--space-6);
   }
+  .more {
+    grid-column: 2;
+    grid-row: 1;
+    width: auto;
+    margin: 0;
+    padding: var(--space-6) 4vw 0;
+  }
   .tiles {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    padding-block: var(--space-10);
+    grid-column: 2;
+    grid-row: 2;
+    grid-template-columns: minmax(0, 1fr);
+    /* The label keeps its own height; the four tiles share the rest. */
+    grid-template-rows: auto repeat(4, minmax(0, 1fr));
+    width: auto;
+    margin: 0;
+    padding: var(--space-4) 4vw var(--space-10);
+  }
+  .lead {
+    align-self: end;
   }
   .tile {
-    min-height: 190px;
-    padding: var(--space-6) var(--space-4);
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    column-gap: var(--space-6);
+    align-content: center;
+    padding: var(--space-4) var(--space-6);
+  }
+  .tile .n {
+    grid-row: 1 / -1;
+    align-self: center;
+    color: var(--accent);
+    font-size: clamp(44px, 4vw, 72px);
+    font-stretch: 140%;
+    font-weight: 800;
+    letter-spacing: 0;
   }
   .tile .name {
-    font-size: 23px;
+    font-size: clamp(22px, 1.8vw, 32px);
+  }
+  .tile .hint {
+    font-size: 17px;
   }
 }
 
