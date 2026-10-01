@@ -124,4 +124,19 @@ select {
   overflow: hidden;
   clip-path: inset(50%);
 }
+
+/* Computer: fewer, larger covers per row. */
+@media (min-width: 1080px) {
+  .packs {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: var(--space-6);
+  }
+  .packs a {
+    font-size: 19px;
+    font-weight: 700;
+  }
+  .packs p {
+    font-size: 15px;
+  }
+}
 </style>

@@ -30,7 +30,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <PageShell :title="t('rankings.heading')">
+  <PageShell wide :title="t('rankings.heading')">
     <div class="tabs" role="group" :aria-label="t('rankings.period')">
       <button
         v-for="p in RANKING_PERIODS"
@@ -120,5 +120,47 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
+}
+
+/* Computer: the first three as a podium of cards, the rest of the board on two columns. */
+@media (min-width: 1080px) {
+  .tabs,
+  .rule {
+    max-width: 560px;
+  }
+  .board {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    column-gap: var(--space-6);
+    row-gap: var(--space-2);
+    margin-top: var(--space-6);
+  }
+  .board li {
+    grid-column: span 3;
+  }
+  .board li:nth-child(-n + 3) {
+    grid-column: span 2;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    align-content: space-between;
+    min-height: 160px;
+    padding: var(--space-4);
+    border: 0;
+    border-radius: var(--radius);
+    background: var(--surface);
+    font-size: 21px;
+  }
+  .board li:nth-child(-n + 3) .rank {
+    grid-column: 1 / -1;
+    color: var(--accent);
+    font: 800 56px/1 var(--font-display);
+    font-stretch: 140%;
+  }
+  .board li:nth-child(-n + 3) .who {
+    white-space: normal;
+  }
+  .board li.apart {
+    grid-column: 1 / -1;
+  }
 }
 </style>

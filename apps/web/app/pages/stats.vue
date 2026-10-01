@@ -181,10 +181,15 @@ dd {
     gap: var(--space-3);
   }
   .figures div {
-    padding: var(--space-4);
+    padding: var(--space-6);
+    container-type: inline-size;
   }
   dd {
-    font-size: 40px;
+    font-family: var(--font-display);
+    font-stretch: 140%;
+    font-weight: 800;
+    /* A six-digit total is about 5.5 em wide in the display face. */
+    font-size: min(64px, 17cqi);
   }
   /* One column per list, equal widths: the solo bests only exist once a solo game is played. */
   .lists {

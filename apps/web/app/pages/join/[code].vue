@@ -60,24 +60,26 @@ async function join(): Promise<void> {
     </template>
 
     <template v-else-if="summary">
-      <p class="muted">{{ t('join.room', { code }) }}</p>
-      <!-- A room opened from a big screen has no host until its first player: that is them. -->
-      <h1 class="display">
-        {{
-          summary.hostNickname
-            ? t('join.invites', { host: summary.hostNickname })
-            : t('join.firstIn')
-        }}
-      </h1>
-      <p class="muted">
-        {{
-          t('join.details', {
-            players: summary.playerCount,
-            rounds: summary.rounds,
-            mode: t(summary.answerMode === 'text' ? 'lobby.modeText' : 'lobby.modeMcq'),
-          })
-        }}
-      </p>
+      <header class="invitation">
+        <p class="muted">{{ t('join.room', { code }) }}</p>
+        <!-- A room opened from a big screen has no host until its first player: that is them. -->
+        <h1 class="display">
+          {{
+            summary.hostNickname
+              ? t('join.invites', { host: summary.hostNickname })
+              : t('join.firstIn')
+          }}
+        </h1>
+        <p class="muted">
+          {{
+            t('join.details', {
+              players: summary.playerCount,
+              rounds: summary.rounds,
+              mode: t(summary.answerMode === 'text' ? 'lobby.modeText' : 'lobby.modeMcq'),
+            })
+          }}
+        </p>
+      </header>
 
       <p v-if="over" role="alert">{{ t('join.over') }}</p>
       <p v-else-if="full" role="alert">{{ t('join.full') }}</p>
@@ -142,16 +144,47 @@ input {
 .error {
   color: var(--danger);
 }
-/* Computer: one field is not a page layout; it is a step, centred in the window. */
+.invitation {
+  display: contents;
+}
+/* Computer: who invites, in the curtain band; the one field centred under it. */
 @media (min-width: 1080px) {
   .join {
-    align-content: center;
-    max-width: 520px;
-    padding-top: var(--space-6);
+    max-width: none;
+    align-content: start;
+    padding: 0 0 var(--space-10);
   }
-  /* 488 px of column: 44 px keeps a twelve-letter word on one line. */
-  h1 {
+  .invitation {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-10) max(var(--space-10), (100% - 1208px) / 2);
+    background-color: var(--curtain);
+    background-image: var(--curtain-folds);
+    color: var(--curtain-ink);
+    container-type: inline-size;
+  }
+  .invitation .muted {
+    color: inherit;
+    font-size: 19px;
+  }
+  /* A twelve-letter word is about 10.5 em wide: 9.5cqi keeps it whole on the band. */
+  .invitation h1 {
+    font-size: min(96px, 9.5cqi);
+    line-height: 1.08;
+  }
+  /* Without an invitation (loading, a room that does not exist) there is no band: one step,
+     centred in the window, as before. */
+  .join:not(:has(.invitation)) {
+    align-content: center;
+    padding-top: var(--space-10);
+  }
+  /* 488 px of column: 44 px keeps a twelve-letter word ("introuvable") on one line. */
+  .join > h1 {
     font-size: 44px;
+  }
+  .join > :not(.invitation) {
+    width: min(520px, 100% - 2 * var(--space-10));
+    margin-inline: auto;
   }
 }
 </style>

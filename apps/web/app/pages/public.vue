@@ -117,4 +117,16 @@ async function join(): Promise<void> {
 .count {
   font-size: clamp(56px, 20vw, 88px);
 }
+
+/* Computer: who is waiting, very large in the middle. */
+@media (min-width: 1080px) {
+  .waiting {
+    justify-items: center;
+    padding-block: var(--space-10);
+    text-align: center;
+  }
+  .count {
+    font-size: 176px;
+  }
+}
 </style>
