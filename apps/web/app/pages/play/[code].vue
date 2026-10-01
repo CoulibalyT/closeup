@@ -650,6 +650,15 @@ async function quit(): Promise<void> {
     font-size: 17px;
   }
 
+  /* Leaving the lobby is a link at the foot of the curtain. */
+  .screen.cabin.at-lobby .quit {
+    position: absolute;
+    left: var(--space-10);
+    bottom: var(--space-6);
+    margin: 0;
+    color: var(--curtain-ink);
+  }
+
   /* During the reveal the round and score line belongs to the right-hand column. */
   .screen.cabin.at-reveal .top {
     width: var(--side);

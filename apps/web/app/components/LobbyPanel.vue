@@ -115,37 +115,42 @@ const screenMissing = computed(() => bigScreen.value && game.screens === 0);
     <!-- Two groups, which only become columns on a computer: who is here and how to bring more,
          then what the host decides. On a phone both wrappers step aside (display: contents). -->
     <div class="guests">
-      <p class="muted">{{ t('lobby.codeLabel') }}</p>
-      <h1 class="display code">{{ game.code }}</h1>
+      <div class="booth">
+        <p class="muted code-label">{{ t('lobby.codeLabel') }}</p>
+        <h1 class="display code">{{ game.code }}</h1>
 
-      <div class="invite">
-        <img v-if="qrSrc" class="qr" :src="qrSrc" :alt="t('lobby.qrAlt')" />
-        <div>
-          <p>{{ t('lobby.inviteHint') }}</p>
-          <button type="button" class="button quiet" @click="share">
-            {{ shared ? t('lobby.copied') : canShareNatively ? t('lobby.share') : t('lobby.copy') }}
-          </button>
+        <div class="invite">
+          <img v-if="qrSrc" class="qr" :src="qrSrc" :alt="t('lobby.qrAlt')" />
+          <div>
+            <p>{{ t('lobby.inviteHint') }}</p>
+            <button type="button" class="button quiet" @click="share">
+              {{
+                shared ? t('lobby.copied') : canShareNatively ? t('lobby.share') : t('lobby.copy')
+              }}
+            </button>
+          </div>
         </div>
-      </div>
 
-      <div v-if="bigScreen" class="screen-status" :class="{ on: !screenMissing }" role="status">
-        <template v-if="screenMissing">
-          <p>
-            <b>{{ t('lobby.screenOpen') }}</b>
+        <div v-if="bigScreen" class="screen-status" :class="{ on: !screenMissing }" role="status">
+          <template v-if="screenMissing">
+            <p>
+              <b>{{ t('lobby.screenOpen') }}</b>
+            </p>
+            <p class="url">{{ screenUrl }}</p>
+            <NuxtLink class="here" :to="screenPath" target="_blank">{{
+              t('lobby.screenHere')
+            }}</NuxtLink>
+          </template>
+          <p v-else>
+            <b>{{ t('lobby.screenOn') }}</b>
           </p>
-          <p class="url">{{ screenUrl }}</p>
-          <NuxtLink class="here" :to="screenPath" target="_blank">{{
-            t('lobby.screenHere')
-          }}</NuxtLink>
-        </template>
-        <p v-else>
-          <b>{{ t('lobby.screenOn') }}</b>
-        </p>
+        </div>
       </div>
 
       <h2>{{ t('lobby.players', { n: game.players.length, max: ROOM.maxPlayers }) }}</h2>
       <ul class="players">
         <li v-for="player in game.players" :key="player.id" :class="{ offline: !player.connected }">
+          <span class="initial" aria-hidden="true">{{ [...player.nickname][0] }}</span>
           <span class="name">
             {{ player.nickname }}
             <small v-if="player.id === game.you">{{ t('lobby.you') }}</small>
@@ -478,29 +483,150 @@ label input:focus-visible + span {
 }
 
 .guests,
-.setup {
+.setup,
+.booth {
   display: contents;
 }
-/* Computer: the invitation and the players on the left, the host's choices on the right, the
-   start button under them. Same breakpoint as useWideScreen. */
+/* A player's initial is a computer's card face; a phone lists names. */
+.initial {
+  display: none;
+}
+/* Computer: the code, the QR code and the way to invite on the curtain; the players as cards
+   and the host's choices on the right. Same breakpoint as useWideScreen. */
 @media (min-width: 1080px) {
   .lobby {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    column-gap: 64px;
+    grid-template-columns: var(--panel, 30vw) minmax(0, 1fr);
+    /* The last row takes what the booth's height leaves, so the first three keep their own. */
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+    column-gap: var(--gutter, 48px);
     align-items: start;
-    padding-top: var(--space-10);
+    padding: 0 var(--gutter, 48px) 0 0;
   }
-  .guests,
-  .setup {
+  .booth {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    /* The lobby scrolls when the settings are long: the booth stays on screen. */
+    position: sticky;
+    top: 0;
+    height: var(--viewport-height);
     display: flex;
     flex-direction: column;
+    justify-content: center;
+    gap: var(--space-4);
+    padding: var(--space-10);
+    color: var(--curtain-ink);
+    container-type: inline-size;
   }
+  .booth .muted,
+  .booth .invite p {
+    color: inherit;
+    font-size: 17px;
+  }
+  /* Five letters spaced 0.04 em are about 5.2 em wide in the display face. */
   .code {
-    font-size: 96px;
+    font-size: min(128px, 18cqi);
+  }
+  .invite {
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: 0;
+  }
+  .qr {
+    width: min(100%, 280px);
+    height: auto;
+    aspect-ratio: 1;
+    padding: 10px;
+  }
+  /* On the curtain, green and dashed ink would not read: the box speaks in the curtain's ink. */
+  .booth .screen-status,
+  .booth .screen-status.on {
+    border: 1.5px solid var(--curtain-ink);
+    color: var(--curtain-ink);
+  }
+  .booth .screen-status .here {
+    color: inherit;
+  }
+  .guests > h2 {
+    grid-column: 2;
+    grid-row: 1;
+    margin-top: var(--space-10);
+    font-family: var(--font-display);
+    font-size: 32px;
+    font-stretch: 140%;
+  }
+  .players {
+    grid-column: 2;
+    grid-row: 2;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: var(--space-3);
+    align-content: start;
+  }
+  .players li,
+  .players li:nth-child(odd) {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: var(--space-2);
+    min-height: 168px;
+    padding: var(--space-4);
+    background: var(--surface);
+  }
+  .initial {
+    display: block;
+    color: var(--accent);
+    font: 800 56px/1 var(--font-display);
+    font-stretch: 140%;
+    text-transform: uppercase;
+  }
+  /* A card has the room for a long nickname and its tags on two lines. */
+  .name {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+  .remove {
+    margin-top: auto;
+    padding: 0;
+  }
+  /* The host's choices two by two, so that the start button stays in sight. */
+  .setup {
+    grid-column: 2;
+    grid-row: 3;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--space-6);
+    align-items: start;
+    margin-top: var(--space-6);
+    padding-bottom: var(--space-10);
+  }
+  .setup > .packs,
+  .setup > p,
+  .setup > .actions {
+    grid-column: 1 / -1;
+  }
+  /* The short choices pair up first; the packs list, which grows, comes after them. */
+  .setup > .packs {
+    order: 1;
+  }
+  .setup > p,
+  .setup > .actions {
+    order: 2;
+  }
+  .packs > .button {
+    align-self: flex-start;
+  }
+  .pack-list {
+    width: 100%;
+    padding: 0;
+    list-style: none;
   }
   .actions {
     margin-top: 0;
+  }
+  .actions .button {
+    min-height: 64px;
+    font-size: 19px;
   }
 }
 </style>
