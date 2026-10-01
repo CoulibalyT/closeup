@@ -12,11 +12,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../app.module.js';
 import { AuthService } from '../auth/auth.service.js';
 import { configureApp } from '../bootstrap.js';
+import { FACE_DETECTOR } from '../pipeline/face/detector.js';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { REDIS } from '../redis/redis.module.js';
 import { listen } from '../testing/listen.js';
 import { WorkerModule } from '../worker.module.js';
-import type { CommonsFile, WikimediaApi } from './wikimedia.client.js';
+import type { CommonsFile, PersonFacts, WikimediaApi } from './wikimedia.client.js';
 import { WIKIMEDIA } from './wikimedia.client.js';
 
 const PASSWORD = 'a long enough passphrase';
@@ -48,6 +49,39 @@ function fakeWikimedia(picture: Buffer): WikimediaApi & { downloads: string[] } 
     ['Violin.png', file('Violin.png', { width: 700, height: 951, mime: 'image/png' })],
     ['Crowd.jpg', file('Crowd.jpg', {}, { Restrictions: 'personality' })],
     ['Nameless.jpg', file('Nameless.jpg')],
+    ['Omar.jpg', file('Omar.jpg', {}, { Restrictions: 'personality' })],
+    ['Omar2.jpg', file('Omar2.jpg')],
+  ]);
+  // Two namesakes, and a famous item that is not a person.
+  const person = (overrides: Partial<PersonFacts>): PersonFacts => ({
+    human: true,
+    file: null,
+    popularity: 10,
+    frenchArticle: true,
+    description: null,
+    familyNameQid: null,
+    ...overrides,
+  });
+  const people = new Map<string, PersonFacts>([
+    [
+      'Q501',
+      person({
+        file: 'Omar.jpg',
+        popularity: 120,
+        description: 'acteur français',
+        familyNameQid: 'Q9501',
+      }),
+    ],
+    ['Q502', person({ file: 'Omar2.jpg', popularity: 30, description: 'footballeur sénégalais' })],
+    [
+      'Q503',
+      person({
+        human: false,
+        file: 'Paris.jpg',
+        popularity: 300,
+        description: 'capitale de la France',
+      }),
+    ],
   ]);
   const downloads: string[] = [];
   return {
@@ -55,6 +89,9 @@ function fakeWikimedia(picture: Buffer): WikimediaApi & { downloads: string[] } 
     async sparql(query) {
       // A search that fails, to see the admin told so.
       if (query.includes('Q39546')) throw new Error('query.wikidata.org did not answer (HTTP 504)');
+      if (query.includes('Q33999')) return [{ qid: 'Q501', popularity: 120, file: 'Omar.jpg' }];
+      // The other occupation queries of the people themes find nobody here.
+      if (query.includes('wdt:P106')) return [];
       return [
         { qid: 'Q140', popularity: 180, file: 'Lion.jpg' },
         { qid: 'Q8355', popularity: 170, file: 'Violin.png' },
@@ -68,6 +105,9 @@ function fakeWikimedia(picture: Buffer): WikimediaApi & { downloads: string[] } 
         Q8355: { fr: 'violon', en: 'violin' },
         Q777: { fr: 'foule', en: 'crowd' },
         Q999: { en: 'nameless' },
+        Q501: { fr: 'Omar Sy', en: 'Omar Sy' },
+        Q502: { fr: 'Omar Sy' },
+        Q9501: { fr: 'Sy', en: 'Sy' },
       };
       return new Map(
         qids.map((qid) => [
@@ -78,6 +118,13 @@ function fakeWikimedia(picture: Buffer): WikimediaApi & { downloads: string[] } 
           },
         ]),
       );
+    },
+    async people(qids) {
+      return new Map(qids.flatMap((qid) => (people.has(qid) ? [[qid, people.get(qid)!]] : [])));
+    },
+    async searchHumans(name) {
+      if (name === 'Omar Sy') return ['Q501', 'Q502'];
+      return name === 'Paris' ? ['Q503'] : [];
     },
     async files(names) {
       return new Map(names.flatMap((name) => (files.has(name) ? [[name, files.get(name)!]] : [])));
@@ -128,6 +175,19 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('Wikimedia importer', () 
     return pack.id;
   }
 
+  async function celebrityPack(): Promise<string> {
+    const pack = await app.get(PrismaService).pack.create({
+      data: {
+        titleFr: `Stars ${run}`,
+        titleEn: `Stars ${run}`,
+        category: 'CELEBRITY',
+        restricted: true,
+      },
+    });
+    packIds.push(pack.id);
+    return pack.id;
+  }
+
   beforeAll(async () => {
     mediaDir = await mkdtemp(join(tmpdir(), 'closeup-import-'));
     Object.assign(process.env, {
@@ -151,9 +211,24 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('Wikimedia importer', () 
     app = moduleRef.createNestApplication({ logger: false });
     configureApp(app);
     url = await listen(app);
+    // One clear face in the middle of the 1600 × 1200 test picture, its eyes 200 px apart.
+    const oneFace = {
+      score: 0.95,
+      box: { x: 500, y: 200, width: 600, height: 700 },
+      landmarks: {
+        leftEye: { x: 700, y: 500 },
+        rightEye: { x: 900, y: 500 },
+        nose: { x: 800, y: 620 },
+        mouth: { x: 800, y: 720 },
+        chin: { x: 800, y: 820 },
+        brow: { x: 800, y: 440 },
+      },
+    };
     worker = await Test.createTestingModule({ imports: [WorkerModule] })
       .overrideProvider(WIKIMEDIA)
       .useValue(wikimedia)
+      .overrideProvider(FACE_DETECTOR)
+      .useValue({ detect: async () => [oneFace] })
       .compile();
     worker.useLogger(false);
     await worker.init();
@@ -225,6 +300,7 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('Wikimedia importer', () 
     expect(response.status).toBe(201);
     expect((await response.json()) as ImportResult).toEqual({
       created: 1,
+      cardIds: [expect.any(String)],
       skipped: [
         { qid: 'Q8355', reason: 'NOT_ELIGIBLE' },
         { qid: 'Q12345', reason: 'UNKNOWN' },
@@ -272,6 +348,7 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('Wikimedia importer', () 
     });
     expect(await again.json()).toEqual({
       created: 0,
+      cardIds: [],
       skipped: [{ qid: 'Q140', reason: 'ALREADY_IN_PACK' }],
     });
     const search = await searched('animals');
@@ -298,5 +375,67 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('Wikimedia importer', () 
     expect(noSearch.status).toBe(409);
     await app.get(PrismaService).pack.deleteMany({ where: { id: playerPack } });
     await app.get(PrismaService).player.delete({ where: { id: player.id } });
+  });
+
+  it('finds actors, a personality flag notwithstanding, with the family name as an alias', async () => {
+    await send('POST', '/admin/import/searches', { preset: 'actors' });
+    const search = await searched('actors');
+    expect(search.candidates[0]).toMatchObject({
+      qid: 'Q501',
+      rejection: null,
+      description: 'acteur français',
+      answers: { fr: { text: 'Omar Sy', aliases: ['Sy'] } },
+    });
+  });
+
+  it('searches a list of names: namesakes grouped, unknown names reported', async () => {
+    await send('POST', '/admin/import/searches', {
+      preset: 'names',
+      names: ['Omar Sy', 'Paris', 'Personne Inconnue'],
+    });
+    const search = await searched('names');
+    expect(search.candidates.map((candidate) => [candidate.qid, candidate.query])).toEqual([
+      ['Q501', 'Omar Sy'],
+      ['Q502', 'Omar Sy'],
+    ]);
+    expect(search.unmatched).toEqual(['Paris', 'Personne Inconnue']);
+  });
+
+  it('imports people into a celebrity pack only, as persons', async () => {
+    const animals = await newPack();
+    const refused = await send('POST', '/admin/import', {
+      preset: 'actors',
+      packId: animals,
+      qids: ['Q501'],
+    });
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toMatchObject({ code: 'PACK_NOT_FOR_PEOPLE' });
+
+    const stars = await celebrityPack();
+    const result = (await (
+      await send('POST', '/admin/import', { preset: 'actors', packId: stars, qids: ['Q501'] })
+    ).json()) as ImportResult;
+    expect(result.created).toBe(1);
+    expect(result.cardIds).toHaveLength(1);
+    const card = await app
+      .get(PrismaService)
+      .card.findUniqueOrThrow({ where: { id: result.cardIds[0]! } });
+    expect(card).toMatchObject({ category: 'CELEBRITY', isPerson: true });
+  });
+
+  it('gives an imported person with one clear face their points and their crops', async () => {
+    const stars = await celebrityPack();
+    const { cardIds } = (await (
+      await send('POST', '/admin/import', { preset: 'actors', packId: stars, qids: ['Q501'] })
+    ).json()) as ImportResult;
+    let card: AdminCard | undefined;
+    for (let i = 0; i < 75; i++) {
+      card = (await (await call(`/admin/cards/${cardIds[0]}`)).json()) as AdminCard;
+      if (card.status !== 'PROCESSING') break;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    expect(card?.status).toBe('READY');
+    expect(card?.zoomPoints).toHaveLength(5);
+    expect(card?.zoomPoints.every((point) => point.cropsReady)).toBe(true);
   });
 });

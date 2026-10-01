@@ -93,20 +93,27 @@ export class AdminContentService {
   }
 
   async createPack(input: PackInput, actor: SessionUser): Promise<AdminPack> {
-    const pack = await this.prisma.pack.create({
-      // Real people and fictional characters start restricted: off the landing page and SEO.
-      data: { ...input, restricted: RESTRICTED_CATEGORIES.includes(input.category) },
-    });
+    const pack = await this.prisma.pack.create({ data: { ...input, ...this.packFlags(input) } });
     await this.audit(actor, 'pack.create', 'pack', pack.id, input.titleFr);
     return this.packView(pack, []);
   }
 
+  /**
+   * Real people and fictional characters are restricted (off the landing page, the catalogue,
+   * the default games), and never safe for strangers.
+   */
+  private packFlags(input: PackInput): { restricted: boolean } {
+    const restricted = RESTRICTED_CATEGORIES.includes(input.category);
+    if (restricted && input.publicMatchSafe) {
+      throw new ConflictException({ code: 'RESTRICTED_PUBLIC_MATCH' });
+    }
+    return { restricted };
+  }
+
   async updatePack(id: string, input: PackInput, actor: SessionUser): Promise<AdminPack> {
     await this.requirePack(id);
-    const pack = await this.prisma.pack.update({
-      where: { id },
-      data: { ...input, restricted: RESTRICTED_CATEGORIES.includes(input.category) },
-    });
+    const flags = this.packFlags(input);
+    const pack = await this.prisma.pack.update({ where: { id }, data: { ...input, ...flags } });
     await this.audit(actor, 'pack.update', 'pack', id);
     return (await this.getPack(pack.id)).pack;
   }

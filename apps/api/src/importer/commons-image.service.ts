@@ -1,8 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
-import { UPLOAD } from '@closeup/shared';
+import { type FaceDetection, UPLOAD } from '@closeup/shared';
+import { CropService } from '../media/crop.service.js';
 import { STORAGE, type StorageDriver, storageKeys } from '../media/storage.js';
+import { autoZoomPoints } from '../pipeline/face/proposals.js';
 import { IngestService } from '../pipeline/ingest.service.js';
+import { PrismaService } from '../prisma/prisma.module.js';
 import { isCommonsMediaUrl } from './commons-download.js';
 import { WIKIMEDIA, type WikimediaApi } from './wikimedia.client.js';
 
@@ -15,7 +18,8 @@ const RENDITION_WIDTH = 2560;
 /**
  * The worker's half of an import: the picture of one card, from Commons to the same ingestion
  * as an upload (decode, strip metadata, resize, store). The job carries a file name, never an
- * address: the address is asked of Commons here, and checked before anything is downloaded.
+ * address: the address is asked of Commons here, and checked before anything is downloaded. An
+ * imported person whose picture shows one clear face comes out ready, its points placed.
  */
 @Injectable()
 export class CommonsImageService {
@@ -23,6 +27,8 @@ export class CommonsImageService {
     @Inject(WIKIMEDIA) private readonly wikimedia: WikimediaApi,
     @Inject(STORAGE) private readonly storage: StorageDriver,
     private readonly ingest: IngestService,
+    private readonly prisma: PrismaService,
+    private readonly crops: CropService,
   ) {}
 
   async importImage(cardId: string, file: string): Promise<{ status: string }> {
@@ -35,6 +41,23 @@ export class CommonsImageService {
 
     const incomingKey = storageKeys.incoming(randomUUID());
     await this.storage.put(incomingKey, await this.wikimedia.download(url));
-    return this.ingest.ingest(cardId, incomingKey);
+    const ingested = await this.ingest.ingest(cardId, incomingKey);
+    if (ingested.status !== 'NEEDS_POINTS') return ingested;
+
+    // The detector's points, the crops cut here, in the same job: ready without a click.
+    const card = await this.prisma.card.findUniqueOrThrow({
+      where: { id: cardId },
+      include: { image: true },
+    });
+    const points =
+      card.isPerson && card.image
+        ? autoZoomPoints(card.detection as FaceDetection | null, card.image)
+        : null;
+    if (!points) return ingested;
+    await this.prisma.card.update({
+      where: { id: cardId },
+      data: { status: 'PROCESSING', zoomPoints: { create: points } },
+    });
+    return this.crops.processCard(cardId, false);
   }
 }

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { answerFrom, difficultyFor, judgeFile, plainText, toCandidate } from './candidates.js';
+import {
+  answerFrom,
+  difficultyFor,
+  familyAlias,
+  judgeFile,
+  plainText,
+  toCandidate,
+} from './candidates.js';
 import type { CommonsFile } from './wikimedia.client.js';
 
 /** A picture Commons describes the way it describes most of them: CC BY-SA, JPEG, large. */
@@ -178,5 +185,47 @@ describe('plainText', () => {
     expect(plainText('Steinway &amp; Sons, <i>Hamburg</i>')).toBe('Steinway & Sons, Hamburg');
     expect(plainText('O&#39;Brien&nbsp;&#x2014; <a href="x">site</a>')).toBe("O'Brien — site");
     expect(plainText('<b>a</b>\n\n  <br/>b')).toBe('a b');
+  });
+});
+
+describe('people', () => {
+  it('lets a person through the personality flag, never a trademark', () => {
+    const flagged = picture({}, { Restrictions: 'personality' });
+    expect(judgeFile(flagged)).toEqual({ rejection: 'PERSONALITY' });
+    expect(judgeFile(flagged, { people: true })).toHaveProperty('credit');
+    const trademark = picture({}, { Restrictions: 'personality|trademarked' });
+    expect(judgeFile(trademark, { people: true })).toEqual({ rejection: 'RESTRICTED' });
+  });
+
+  it('takes the family name from Wikidata, else the last word, never a numeral', () => {
+    expect(familyAlias('Omar Sy', 'Sy')).toBe('Sy');
+    expect(familyAlias('Zinédine Zidane', undefined)).toBe('Zidane');
+    expect(familyAlias('Napoléon Ier', undefined)).toBeNull();
+    expect(familyAlias('Louis XIV', undefined)).toBeNull();
+    expect(familyAlias('Madonna', undefined)).toBeNull();
+    // The same as the whole name: nothing to add.
+    expect(familyAlias('Pelé', 'Pelé')).toBeNull();
+  });
+
+  it('builds a person with the family name among the aliases, once', () => {
+    const candidate = toCandidate(
+      { qid: 'Q1', popularity: 120, file: 'Omar.jpg' },
+      { labels: { fr: 'Omar Sy', en: 'Omar Sy' }, aliases: { fr: ['Sy'], en: [] } },
+      picture({}, { Restrictions: 'personality' }),
+      { description: 'acteur français', familyName: { fr: 'Sy', en: 'Sy' }, query: 'omar sy' },
+    );
+    expect(candidate.rejection).toBeNull();
+    expect(candidate.answers.fr).toEqual({ text: 'Omar Sy', aliases: ['Sy'] });
+    expect(candidate.answers.en).toEqual({ text: 'Omar Sy', aliases: ['Sy'] });
+    expect(candidate).toMatchObject({ description: 'acteur français', query: 'omar sy' });
+  });
+
+  it('keeps a subject that is not a person exactly as before', () => {
+    const candidate = toCandidate(
+      { qid: 'Q140', popularity: 180, file: 'Lion.jpg' },
+      { labels: { fr: 'lion' }, aliases: { fr: [], en: [] } },
+      picture(),
+    );
+    expect(candidate).toMatchObject({ query: null, description: null });
   });
 });

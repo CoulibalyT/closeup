@@ -18,6 +18,14 @@ export const PREVIEW_WIDTH = 330;
 /** A candidate as the server keeps it: what the admin sees, plus the file to download. */
 export type StoredCandidate = ImportCandidate & { file: string };
 
+/** What the importer knows of a person, beyond their item: given only for the people sources. */
+export interface PersonCandidateFacts {
+  description: string | null;
+  familyName: { fr?: string; en?: string };
+  /** The line of a name search this person answers, if any. */
+  query: string | null;
+}
+
 /**
  * One subject found by a search, turned into what the admin decides on. Whether it can be
  * imported is decided here, once, from what Wikimedia said; the reasons are shown to the admin.
@@ -26,12 +34,17 @@ export function toCandidate(
   row: SparqlRow,
   entity: WikidataEntity | undefined,
   file: CommonsFile | undefined,
+  person?: PersonCandidateFacts,
 ): StoredCandidate {
-  const answers = {
-    fr: answerFrom(entity?.labels.fr, entity?.aliases.fr),
-    en: answerFrom(entity?.labels.en, entity?.aliases.en),
+  const answer = (locale: 'fr' | 'en') => {
+    const label = entity?.labels[locale];
+    const extra = person && label ? familyAlias(label, person.familyName[locale]) : null;
+    return answerFrom(label, [...(entity?.aliases[locale] ?? []), ...(extra ? [extra] : [])]);
   };
-  const judged = file ? judgeFile(file) : { rejection: 'NO_FILE' as const };
+  const answers = { fr: answer('fr'), en: answer('en') };
+  const judged = file
+    ? judgeFile(file, { people: Boolean(person) })
+    : { rejection: 'NO_FILE' as const };
   const rejection = 'rejection' in judged ? judged.rejection : answers.fr ? null : 'NO_FRENCH_NAME';
   return {
     qid: row.qid,
@@ -45,6 +58,8 @@ export function toCandidate(
     credit: 'credit' in judged ? judged.credit : null,
     rejection,
     importedIn: [],
+    query: person?.query ?? null,
+    description: person?.description ?? null,
   };
 }
 
@@ -54,9 +69,11 @@ export function toCandidate(
  */
 export function judgeFile(
   file: CommonsFile,
+  options: { people?: boolean } = {},
 ): { credit: NonNullable<ImportCandidate['credit']> } | { rejection: ImportRejection } {
   const restrictions = (file.metadata.Restrictions ?? '').toLowerCase().split('|');
-  if (restrictions.includes('personality')) return { rejection: 'PERSONALITY' };
+  // People: the owner accepted the image-rights risk of identifiable persons (see the README).
+  if (restrictions.includes('personality') && !options.people) return { rejection: 'PERSONALITY' };
   if (restrictions.some((flag) => flag === 'trademarked' || flag === 'insignia')) {
     return { rejection: 'RESTRICTED' };
   }
@@ -100,6 +117,24 @@ export function answerFrom(label: string | undefined, aliases: string[] = []): I
     if (kept.length === ALIASES_MAX) break;
   }
   return { text, aliases: kept };
+}
+
+/** "1er", "Ier", "XIV", "Jr": the end of a name that is not a family name. */
+const NOT_A_FAMILY_NAME = /^(?:[IVXLC]+|\d+|\d*(?:er|re|e|ème)|Ier|Ire|Jr\.?|Sr\.?)$/i;
+
+/**
+ * The family name alone, accepted as an answer for a person (the brief). Wikidata's family name
+ * when it has one; otherwise the last word, unless the name is one word or ends with a numeral
+ * ("Louis XIV" is not "XIV").
+ */
+export function familyAlias(name: string, familyName: string | undefined): string | null {
+  const whole = tidy(name);
+  const given = familyName ? tidy(familyName) : '';
+  if (given) return sameness(given) === sameness(whole) ? null : given;
+  const words = whole.split(' ');
+  const last = words.at(-1) ?? '';
+  if (words.length < 2 || last.length < 2 || NOT_A_FAMILY_NAME.test(last)) return null;
+  return last;
 }
 
 /** The better known, the easier: a first guess the admin can change in the editor. */

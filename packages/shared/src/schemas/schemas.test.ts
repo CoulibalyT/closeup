@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { ackSchema, fail, nicknameSchema, ok, roomCodeSchema } from './common.js';
 import { handshakeAuthSchema, roomJoinSchema, roundGuessSchema, timePingSchema } from './events.js';
+import {
+  IMPORT_SOURCE_CATEGORY,
+  importInputSchema,
+  importSearchInputSchema,
+  isPeopleSource,
+} from './importer.js';
 import { readinessSchema } from './rest.js';
 
 describe('roomCodeSchema', () => {
@@ -77,5 +83,44 @@ describe('readinessSchema', () => {
       details: { postgres: { status: 'up' }, redis: { status: 'down', message: 'timeout' } },
     };
     expect(readinessSchema.parse(body).details.redis?.status).toBe('down');
+  });
+});
+
+describe('importer contract', () => {
+  it('knows which sources bring people, all of them celebrities', () => {
+    for (const source of ['actors', 'musicians', 'sports', 'historical', 'names'] as const) {
+      expect(isPeopleSource(source)).toBe(true);
+      expect(IMPORT_SOURCE_CATEGORY[source]).toBe('CELEBRITY');
+    }
+    expect(isPeopleSource('animals')).toBe(false);
+  });
+
+  it('takes a list of names, trimmed, without blanks, at most forty', () => {
+    const parsed = importSearchInputSchema.parse({
+      preset: 'names',
+      names: ['  Omar Sy ', 'Zinédine Zidane'],
+    });
+    expect(parsed).toEqual({ preset: 'names', names: ['Omar Sy', 'Zinédine Zidane'] });
+    expect(importSearchInputSchema.safeParse({ preset: 'names', names: [' '] }).success).toBe(
+      false,
+    );
+    expect(
+      importSearchInputSchema.safeParse({ preset: 'names', names: Array(41).fill('Omar Sy') })
+        .success,
+    ).toBe(false);
+    // A preset search carries no names.
+    expect(importSearchInputSchema.safeParse({ preset: 'actors', names: ['x'] }).success).toBe(
+      false,
+    );
+  });
+
+  it('imports from any source', () => {
+    expect(
+      importInputSchema.safeParse({
+        preset: 'names',
+        packId: '01a0b654-cd55-70bd-88ff-2bfc79e37199',
+        qids: ['Q123'],
+      }).success,
+    ).toBe(true);
   });
 });

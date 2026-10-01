@@ -8,7 +8,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { importInputSchema, importPresetSchema, importSearchInputSchema } from '@closeup/shared';
+import { importInputSchema, importSearchInputSchema, importSourceSchema } from '@closeup/shared';
 import type { z } from 'zod';
 import { AdminGuard, type AdminRequest } from '../auth/admin.guard.js';
 import { ImporterService } from './importer.service.js';
@@ -25,15 +25,15 @@ function parse<S extends z.ZodType>(schema: S, value: unknown): z.infer<S> {
 export class ImporterController {
   constructor(private readonly importer: ImporterService) {}
 
-  /** The last search for a preset, if any. Polled while one runs. */
+  /** The last search for a source (a preset, or `names`), if any. Polled while one runs. */
   @Get('searches/:preset')
   async search(@Param('preset') preset: string) {
-    return { search: await this.importer.get(parse(importPresetSchema, preset)) };
+    return { search: await this.importer.get(parse(importSourceSchema, preset)) };
   }
 
   @Post('searches')
   async start(@Body() body: unknown) {
-    return { search: await this.importer.start(parse(importSearchInputSchema, body).preset) };
+    return { search: await this.importer.start(parse(importSearchInputSchema, body)) };
   }
 
   @Post()

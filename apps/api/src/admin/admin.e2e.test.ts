@@ -153,6 +153,34 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('back-office', () => {
     expect(pack).toMatchObject({ restricted: false, visibility: 'PRIVATE', cards: {} });
   });
 
+  it('never lets a restricted pack be marked safe for strangers', async () => {
+    const refused = await send('POST', '/admin/packs', {
+      titleFr: 'Têtes connues',
+      titleEn: 'Famous faces',
+      category: 'CELEBRITY',
+      publicMatchSafe: true,
+    });
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toMatchObject({ code: 'RESTRICTED_PUBLIC_MATCH' });
+
+    const safe = (await (
+      await send('POST', '/admin/packs', {
+        titleFr: 'Objets sûrs',
+        titleEn: 'Safe objects',
+        category: 'OBJECT',
+        publicMatchSafe: true,
+      })
+    ).json()) as AdminPack;
+    const moved = await send('PUT', `/admin/packs/${safe.id}`, {
+      titleFr: 'Objets sûrs',
+      titleEn: 'Safe objects',
+      category: 'CELEBRITY',
+      publicMatchSafe: true,
+    });
+    expect(moved.status).toBe(409);
+    await app.get(PrismaService).pack.delete({ where: { id: safe.id } });
+  });
+
   it('refuses an upload before storing anything: no rights, not an image, another site', async () => {
     const created = await send('POST', `/admin/packs/${pack.id}/cards`, {
       category: 'OBJECT',

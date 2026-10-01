@@ -145,3 +145,45 @@ describe('retryDelay', () => {
     expect(retryDelay('soon', 3)).toBe(15_000);
   });
 });
+
+describe('person facts', () => {
+  it('reads the claims, sitelinks and description of an item', async () => {
+    const fetch = replies(
+      json({
+        entities: {
+          Q1: {
+            descriptions: { fr: { value: 'acteur français' } },
+            sitelinks: { frwiki: {}, enwiki: {}, dewiki: {} },
+            claims: {
+              P31: [{ mainsnak: { datavalue: { value: { id: 'Q5' } } } }],
+              P18: [{ mainsnak: { datavalue: { value: 'Omar Sy 2012.jpg' } } }],
+              P734: [{ mainsnak: { datavalue: { value: { id: 'Q42' } } } }],
+            },
+          },
+          Q2: { descriptions: {}, sitelinks: { enwiki: {} }, claims: {} },
+        },
+      }),
+    );
+    const client = new WikimediaHttpClient({ fetch, sleep: async () => undefined });
+    const facts = await client.people(['Q1', 'Q2']);
+    expect(facts.get('Q1')).toEqual({
+      human: true,
+      file: 'Omar Sy 2012.jpg',
+      popularity: 3,
+      frenchArticle: true,
+      description: 'acteur français',
+      familyNameQid: 'Q42',
+    });
+    expect(facts.get('Q2')).toMatchObject({ human: false, file: null, frenchArticle: false });
+    expect(String(fetch.mock.calls[0]![0])).toContain('props=claims%7Csitelinks%7Cdescriptions');
+  });
+
+  it('searches items by name in French, best match first', async () => {
+    const fetch = replies(json({ search: [{ id: 'Q1' }, { id: 'Q7' }, { id: 'P31' }] }));
+    const client = new WikimediaHttpClient({ fetch, sleep: async () => undefined });
+    expect(await client.searchHumans('Omar Sy')).toEqual(['Q1', 'Q7']);
+    const url = String(fetch.mock.calls[0]![0]);
+    expect(url).toContain('action=wbsearchentities');
+    expect(url).toContain('search=Omar%20Sy');
+  });
+});

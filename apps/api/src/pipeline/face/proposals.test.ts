@@ -2,7 +2,7 @@ import type { Point } from '@closeup/shared';
 import { describe, expect, it } from 'vitest';
 import type { DetectedFace } from './detector.js';
 import { zonesFrom68 } from './face-api.detector.js';
-import { assessFaces } from './proposals.js';
+import { assessFaces, autoZoomPoints } from './proposals.js';
 
 /** A level face whose eyes are `d` pixels apart, around (cx, cy). */
 function face(d: number, cx = 1000, cy = 800, size = d * 3): DetectedFace {
@@ -85,5 +85,35 @@ describe('zonesFrom68', () => {
       chin: { x: 140, y: 335 },
       brow: { x: 140, y: 170 },
     });
+  });
+});
+
+describe('autoZoomPoints', () => {
+  const size = { width: 2000, height: 1500 };
+
+  it('turns one clear face into five points inside the image, the right eye left out', () => {
+    const points = autoZoomPoints(assessFaces([face(200)]), size)!;
+    expect(points.map((p) => p.labelEn)).toEqual([
+      'an eye',
+      'the nose',
+      'the mouth',
+      'the chin',
+      'the forehead',
+    ]);
+    expect(points.every((p) => p.origin === 'AUTO' && p.x <= 2000 && p.y <= 1500)).toBe(true);
+  });
+
+  it('proposes nothing for no face, several faces, a small face or no detection', () => {
+    expect(autoZoomPoints(assessFaces([]), size)).toBeNull();
+    expect(autoZoomPoints(assessFaces([face(200, 500), face(200, 1500)]), size)).toBeNull();
+    expect(autoZoomPoints(assessFaces([face(69)]), size)).toBeNull();
+    expect(autoZoomPoints(null, size)).toBeNull();
+  });
+
+  it('drops a point outside the picture rather than send the editor an impossible one', () => {
+    // The chin (800 + 1.6 × 200 = 1120) falls below a picture 1000 px high.
+    const points = autoZoomPoints(assessFaces([face(200)]), { width: 2000, height: 1000 })!;
+    expect(points.map((p) => p.labelEn)).not.toContain('the chin');
+    expect(points.every((p) => p.y <= 1000)).toBe(true);
   });
 });

@@ -1,11 +1,14 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
-  IMPORT_PRESET_CATEGORY,
+  IMPORT_SOURCE_CATEGORY,
   type ImportInput,
   type ImportPreset,
   type ImportResult,
   type ImportSearch,
+  type ImportSearchInput,
+  type ImportSource,
+  isPeopleSource,
   type SessionUser,
 } from '@closeup/shared';
 import type { Queue } from 'bullmq';
@@ -15,8 +18,13 @@ import { MEDIA_QUEUE, MediaJob } from '../pipeline/media-queue.js';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { REDIS } from '../redis/redis.module.js';
 import { PREVIEW_WIDTH, type StoredCandidate, toCandidate } from './candidates.js';
-import { searchQuery } from './presets.js';
-import { WIKIMEDIA, type WikimediaApi } from './wikimedia.client.js';
+import { SEARCH_LIMIT, searchQueries } from './presets.js';
+import {
+  type PersonFacts,
+  type SparqlRow,
+  WIKIMEDIA,
+  type WikimediaApi,
+} from './wikimedia.client.js';
 
 type StoredSearch = Omit<ImportSearch, 'candidates'> & { candidates: StoredCandidate[] };
 
@@ -26,6 +34,8 @@ const DONE_TTL_S = 6 * 3600;
 const PENDING_TTL_S = 10 * 60;
 /** Four attempts of 70 s at most, and the pauses between them: past this, it was lost. */
 const STALE_MS = 8 * 60_000;
+/** Namesakes kept for one line of a name search, the best known first. */
+const NAMESAKES = 3;
 /** A download that failed is tried again later: Commons, too, has its moments. */
 const IMPORT_JOB = { attempts: 3, backoff: { type: 'exponential', delay: 10_000 } } as const;
 
@@ -49,9 +59,9 @@ export class ImporterService {
     @InjectQueue(MEDIA_QUEUE) private readonly queue: Queue,
   ) {}
 
-  /** The last search for a preset, with the packs where each subject already is. */
-  async get(preset: ImportPreset): Promise<StoredSearch | null> {
-    const search = await this.read(preset);
+  /** The last search for a source, with the packs where each subject already is. */
+  async get(source: ImportSource): Promise<StoredSearch | null> {
+    const search = await this.read(source);
     if (!search?.candidates.length) return search;
 
     const cards = await this.prisma.card.findMany({
@@ -72,29 +82,132 @@ export class ImporterService {
   }
 
   /** Starts a search unless one is under way or recent. Answers at once; the admin polls. */
-  async start(preset: ImportPreset): Promise<StoredSearch | null> {
-    const current = await this.read(preset);
+  async start(input: ImportSearchInput): Promise<StoredSearch | null> {
+    const source = input.preset;
+    const current = await this.read(source);
     const lost =
       current?.state === 'running' && Date.now() - Date.parse(current.startedAt) > STALE_MS;
-    if (!current || current.state === 'failed' || lost) {
+    // A new list of names always starts a new search: the last one answered other names.
+    if (!current || current.state === 'failed' || lost || source === 'names') {
       const startedAt = new Date().toISOString();
       await this.write(
-        { preset, state: 'running', startedAt, finishedAt: null, candidates: [] },
+        {
+          preset: source,
+          state: 'running',
+          startedAt,
+          finishedAt: null,
+          candidates: [],
+          unmatched: [],
+        },
         PENDING_TTL_S,
       );
-      void this.run(preset, startedAt);
+      void this.run(input, startedAt);
     }
-    return this.get(preset);
+    return this.get(source);
   }
 
-  /** What the query service, Wikidata and Commons say about the subjects of one preset. */
-  async search(preset: ImportPreset): Promise<StoredCandidate[]> {
-    const rows = await this.wikimedia.sparql(searchQuery(preset));
+  /** What the query service, Wikidata and Commons say about the subjects of one search. */
+  async search(
+    input: ImportSearchInput,
+  ): Promise<{ candidates: StoredCandidate[]; unmatched: string[] }> {
+    if (input.preset === 'names') return this.searchNames(input.names);
+    const rows = await this.rows(input.preset);
+    if (isPeopleSource(input.preset)) {
+      return { candidates: await this.candidatesForPeople(rows, new Map()), unmatched: [] };
+    }
     const [entities, files] = await Promise.all([
       this.wikimedia.entities(rows.map((row) => row.qid)),
       this.wikimedia.files([...new Set(rows.map((row) => row.file))], PREVIEW_WIDTH),
     ]);
-    return rows.map((row) => toCandidate(row, entities.get(row.qid), files.get(row.file)));
+    return {
+      candidates: rows.map((row) => toCandidate(row, entities.get(row.qid), files.get(row.file))),
+      unmatched: [],
+    };
+  }
+
+  /**
+   * The subjects of a preset, its queries run one after the other (people come in several small
+   * queries) and merged, the best known first. One that fails is left out as long as another
+   * answered: the search fails only when none did.
+   */
+  private async rows(preset: ImportPreset): Promise<SparqlRow[]> {
+    const best = new Map<string, SparqlRow>();
+    let failure: unknown = null;
+    let answered = false;
+    for (const query of searchQueries(preset)) {
+      try {
+        for (const row of await this.wikimedia.sparql(query)) {
+          if ((best.get(row.qid)?.popularity ?? -1) < row.popularity) best.set(row.qid, row);
+        }
+        answered = true;
+      } catch (error) {
+        failure = error;
+        this.logger.warn(`Search ${preset}: one query failed: ${String(error)}`);
+      }
+    }
+    if (!answered) throw failure;
+    return [...best.values()].sort((a, b) => b.popularity - a.popularity).slice(0, SEARCH_LIMIT);
+  }
+
+  /** Each line: the humans that match it, best known first, a few namesakes at most. */
+  private async searchNames(
+    names: string[],
+  ): Promise<{ candidates: StoredCandidate[]; unmatched: string[] }> {
+    const lines = [...new Set(names)];
+    const hits = await Promise.all(lines.map((name) => this.wikimedia.searchHumans(name)));
+    const facts = await this.wikimedia.people([...new Set(hits.flat())]);
+    const rows: SparqlRow[] = [];
+    const queryOf = new Map<string, string>();
+    const unmatched: string[] = [];
+    lines.forEach((name, index) => {
+      const humans = (hits[index] ?? [])
+        .flatMap((qid) => {
+          const person = facts.get(qid);
+          return person?.human && person.frenchArticle ? [{ qid, person }] : [];
+        })
+        .sort((a, b) => b.person.popularity - a.person.popularity)
+        .slice(0, NAMESAKES);
+      if (!humans.length) unmatched.push(name);
+      for (const { qid, person } of humans) {
+        // The same person under two lines is listed once, under the first.
+        if (queryOf.has(qid)) continue;
+        queryOf.set(qid, name);
+        rows.push({ qid, popularity: person.popularity, file: person.file ?? '' });
+      }
+    });
+    return { candidates: await this.candidatesForPeople(rows, queryOf, facts), unmatched };
+  }
+
+  /**
+   * People as candidates: their description, their family name as an alias, the line of a name
+   * search they answer. A person without a picture is listed, refused for want of a file.
+   */
+  private async candidatesForPeople(
+    rows: SparqlRow[],
+    queryOf: Map<string, string>,
+    known?: Map<string, PersonFacts>,
+  ): Promise<StoredCandidate[]> {
+    const facts = known ?? (await this.wikimedia.people(rows.map((row) => row.qid)));
+    const familyQids = [
+      ...new Set([...facts.values()].flatMap((f) => (f.familyNameQid ? [f.familyNameQid] : []))),
+    ];
+    const [entities, files, families] = await Promise.all([
+      this.wikimedia.entities(rows.map((row) => row.qid)),
+      this.wikimedia.files(
+        [...new Set(rows.map((row) => row.file).filter(Boolean))],
+        PREVIEW_WIDTH,
+      ),
+      this.wikimedia.entities(familyQids),
+    ]);
+    return rows.map((row) => {
+      const person = facts.get(row.qid);
+      const family = person?.familyNameQid ? families.get(person.familyNameQid) : undefined;
+      return toCandidate(row, entities.get(row.qid), row.file ? files.get(row.file) : undefined, {
+        description: person?.description ?? null,
+        familyName: { fr: family?.labels.fr, en: family?.labels.en },
+        query: queryOf.get(row.qid) ?? null,
+      });
+    });
   }
 
   /**
@@ -106,11 +219,15 @@ export class ImporterService {
     // A player's pack holds pictures its owner confirmed the rights to: not the place for these.
     const pack = await this.prisma.pack.findUnique({ where: { id: packId } });
     if (!pack || pack.ownerId) throw new NotFoundException({ code: 'PACK_NOT_FOUND' });
+    // Real people go into celebrity packs, which are restricted: never into a pack of objects.
+    if (isPeopleSource(preset) && pack.category !== 'CELEBRITY') {
+      throw new ConflictException({ code: 'PACK_NOT_FOR_PEOPLE' });
+    }
     const search = await this.read(preset);
     if (search?.state !== 'done') throw new ConflictException({ code: 'SEARCH_EXPIRED' });
 
     const found = new Map(search.candidates.map((candidate) => [candidate.qid, candidate]));
-    const result: ImportResult = { created: 0, skipped: [] };
+    const result: ImportResult = { created: 0, cardIds: [], skipped: [] };
     for (const qid of new Set(qids)) {
       const candidate = found.get(qid);
       if (!candidate) {
@@ -128,6 +245,7 @@ export class ImporterService {
       }
       await this.queue.add(MediaJob.importImage, { cardId, file: candidate.file }, IMPORT_JOB);
       result.created += 1;
+      result.cardIds.push(cardId);
     }
 
     await this.prisma.auditLog.create({
@@ -144,7 +262,7 @@ export class ImporterService {
 
   private async createCard(
     packId: string,
-    preset: ImportPreset,
+    preset: ImportSource,
     candidate: StoredCandidate,
   ): Promise<string | null> {
     const slug = slugOf(candidate.qid);
@@ -164,9 +282,9 @@ export class ImporterService {
           slug,
           source: 'WIKIMEDIA',
           status: 'PROCESSING',
-          category: IMPORT_PRESET_CATEGORY[preset],
+          category: IMPORT_SOURCE_CATEGORY[preset],
           difficulty: candidate.difficulty,
-          isPerson: false,
+          isPerson: isPeopleSource(preset),
           creditAuthor: candidate.credit!.author,
           creditLicence: candidate.credit!.licence,
           creditSourceUrl: candidate.credit!.sourceUrl,
@@ -182,28 +300,36 @@ export class ImporterService {
     }
   }
 
-  private async run(preset: ImportPreset, startedAt: string): Promise<void> {
+  private async run(input: ImportSearchInput, startedAt: string): Promise<void> {
+    const preset = input.preset;
     let finished: StoredSearch;
     try {
-      const candidates = await this.search(preset);
-      finished = { preset, state: 'done', startedAt, finishedAt: now(), candidates };
+      const { candidates, unmatched } = await this.search(input);
+      finished = { preset, state: 'done', startedAt, finishedAt: now(), candidates, unmatched };
       const importable = candidates.filter((candidate) => !candidate.rejection).length;
       this.logger.log(`Search ${preset}: ${candidates.length} found, ${importable} importable`);
     } catch (error) {
       this.logger.warn(`Search ${preset} failed: ${String(error)}`);
-      finished = { preset, state: 'failed', startedAt, finishedAt: now(), candidates: [] };
+      finished = {
+        preset,
+        state: 'failed',
+        startedAt,
+        finishedAt: now(),
+        candidates: [],
+        unmatched: [],
+      };
     }
     await this.write(finished, finished.state === 'done' ? DONE_TTL_S : PENDING_TTL_S).catch(
       (error: unknown) => this.logger.error(`Search ${preset} could not be kept: ${String(error)}`),
     );
   }
 
-  private key(preset: ImportPreset): string {
+  private key(preset: ImportSource): string {
     // The queue prefix keeps apart the searches of test runs and of the stack on the same Redis.
     return `closeup:import:${this.config.env.QUEUE_PREFIX}:${preset}`;
   }
 
-  private async read(preset: ImportPreset): Promise<StoredSearch | null> {
+  private async read(preset: ImportSource): Promise<StoredSearch | null> {
     const raw = await this.redis.get(this.key(preset));
     return raw ? (JSON.parse(raw) as StoredSearch) : null;
   }

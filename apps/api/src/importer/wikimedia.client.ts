@@ -17,6 +17,22 @@ export interface WikidataEntity {
   aliases: { fr: string[]; en: string[] };
 }
 
+/** What makes a Wikidata item a person the importer can use. */
+export interface PersonFacts {
+  /** An instance of "human" (Q5). */
+  human: boolean;
+  /** Its main picture (P18), a Commons file name. */
+  file: string | null;
+  /** The number of Wikipedias with an article about it. */
+  popularity: number;
+  /** An article on the French Wikipedia: known to the players. */
+  frenchArticle: boolean;
+  /** "footballeur français", in French when there is one. */
+  description: string | null;
+  /** The item of their family name (P734), whose label is the alias. */
+  familyNameQid: string | null;
+}
+
 export interface CommonsFile {
   pageId: number;
   /** The original. */
@@ -36,6 +52,9 @@ export interface CommonsFile {
 export interface WikimediaApi {
   sparql(query: string): Promise<SparqlRow[]>;
   entities(qids: string[]): Promise<Map<string, WikidataEntity>>;
+  people(qids: string[]): Promise<Map<string, PersonFacts>>;
+  /** Items whose name matches, best first: humans or not, the caller checks. */
+  searchHumans(name: string): Promise<string[]>;
   /** Keyed by the name given, whatever Commons normalised it to. */
   files(names: string[], thumbWidth: number): Promise<Map<string, CommonsFile>>;
   /** The bytes of a picture at a Commons media address (see `downloadCommonsMedia`). */
@@ -112,6 +131,45 @@ export class WikimediaHttpClient implements WikimediaApi {
       }
     }
     return found;
+  }
+
+  async people(qids: string[]): Promise<Map<string, PersonFacts>> {
+    const found = new Map<string, PersonFacts>();
+    for (const ids of batches(qids)) {
+      const body = (await this.request(
+        'https://www.wikidata.org/w/api.php?action=wbgetentities&format=json' +
+          '&props=' +
+          encodeURIComponent('claims|sitelinks|descriptions') +
+          '&languages=fr|en&ids=' +
+          ids.join('|'),
+      )) as { entities?: Record<string, RawPerson> };
+      for (const [id, entity] of Object.entries(body.entities ?? {})) {
+        if (entity.missing !== undefined) continue;
+        const values = (property: string) =>
+          (entity.claims?.[property] ?? []).map((claim) => claim.mainsnak?.datavalue?.value);
+        const file = values('P18')[0];
+        const family = values('P734')[0];
+        const sitelinks = entity.sitelinks ?? {};
+        found.set(id, {
+          human: values('P31').some((value) => itemId(value) === 'Q5'),
+          file: typeof file === 'string' ? file : null,
+          popularity: Object.keys(sitelinks).length,
+          frenchArticle: 'frwiki' in sitelinks,
+          description: entity.descriptions?.fr?.value ?? entity.descriptions?.en?.value ?? null,
+          familyNameQid: itemId(family),
+        });
+      }
+    }
+    return found;
+  }
+
+  async searchHumans(name: string): Promise<string[]> {
+    const body = (await this.request(
+      'https://www.wikidata.org/w/api.php?action=wbsearchentities&format=json&type=item' +
+        '&language=fr&uselang=fr&limit=7&search=' +
+        encodeURIComponent(name),
+    )) as { search?: { id: string }[] };
+    return (body.search ?? []).map((hit) => hit.id).filter((id) => /^Q\d+$/.test(id));
   }
 
   async files(names: string[], thumbWidth: number): Promise<Map<string, CommonsFile>> {
@@ -206,6 +264,19 @@ function batches<T>(items: T[]): T[][] {
     groups.push(items.slice(start, start + BATCH));
   }
   return groups;
+}
+
+/** The id of an item a claim points to (`{ id: "Q5" }`), or null for anything else. */
+function itemId(value: unknown): string | null {
+  const id = (value as { id?: unknown } | null | undefined)?.id;
+  return typeof id === 'string' ? id : null;
+}
+
+interface RawPerson {
+  missing?: string;
+  descriptions?: Record<string, { value: string } | undefined>;
+  sitelinks?: Record<string, unknown>;
+  claims?: Record<string, { mainsnak?: { datavalue?: { value?: unknown } } }[] | undefined>;
 }
 
 interface RawEntity {
