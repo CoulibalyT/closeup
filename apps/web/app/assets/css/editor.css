@@ -162,3 +162,30 @@
   padding: 0;
   list-style: none;
 }
+
+/* Computer: the back-office bar is the curtain band, and the page title is sized on its
+   column. Same breakpoint as useWideScreen. */
+@media (min-width: 1080px) {
+  .admin-bar {
+    padding: var(--space-6) max(var(--space-10), (100% - 1180px) / 2);
+    border: 0;
+    background-color: var(--curtain);
+    background-image: var(--curtain-folds);
+    color: var(--curtain-ink);
+  }
+  .admin-bar .brand {
+    color: inherit;
+    font-size: 28px;
+  }
+  .admin-bar .muted,
+  .admin-bar .link {
+    color: inherit;
+  }
+  .admin-main {
+    container-type: inline-size;
+  }
+  .admin-main > h1 {
+    margin-top: var(--space-6);
+    font-size: min(64px, 9.5cqi);
+  }
+}

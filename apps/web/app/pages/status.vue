@@ -52,7 +52,7 @@ onBeforeUnmount(() => clearInterval(timer));
 </script>
 
 <template>
-  <main class="page">
+  <main class="status">
     <header class="head">
       <h1>{{ t('status.title', { appName }) }}</h1>
       <nav :aria-label="t('status.language')">
@@ -97,7 +97,9 @@ onBeforeUnmount(() => clearInterval(timer));
 </template>
 
 <style scoped>
-.page {
+/* Not `.page`: PageShell styles that class globally, and once a PageShell page had been visited
+   its rules reached this page too. */
+.status {
   max-width: 36rem;
   margin: 0 auto;
   padding: 2rem 1rem;
@@ -144,5 +146,61 @@ onBeforeUnmount(() => clearInterval(timer));
   min-height: 44px;
   padding: 0 1rem;
   font: inherit;
+}
+/* Computer: the title in the curtain band, the six services as a three-by-two grid. */
+@media (min-width: 1080px) {
+  /* Three columns, as on the pages around the game: the band spans them, the rest takes the
+     middle one. */
+  .status {
+    display: grid;
+    grid-template-columns:
+      minmax(var(--space-10), 1fr)
+      min(1080px, 100% - 2 * var(--space-10))
+      minmax(var(--space-10), 1fr);
+    row-gap: var(--space-6);
+    align-content: start;
+    max-width: none;
+    padding: 0 0 var(--space-10);
+  }
+  .status > * {
+    grid-column: 2;
+  }
+  .head {
+    grid-column: 1 / -1;
+    padding: var(--space-10) max(var(--space-10), (100% - 1080px) / 2);
+    background-color: var(--curtain);
+    background-image: var(--curtain-folds);
+    color: var(--curtain-ink);
+  }
+  .head h1 {
+    font-family: var(--font-display);
+    font-size: 56px;
+    font-stretch: 140%;
+  }
+  .rows {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+  .rows li {
+    flex-direction: column;
+    min-height: 120px;
+    padding: var(--space-4);
+    border: 0;
+    border-radius: var(--radius);
+    background: var(--surface);
+    font-size: 19px;
+  }
+  .refresh {
+    justify-self: start;
+    min-height: var(--tap);
+    padding: 0 var(--space-6);
+    border: 1.5px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--ink);
+    font-weight: 700;
+    cursor: pointer;
+  }
 }
 </style>
