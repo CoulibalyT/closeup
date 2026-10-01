@@ -21,6 +21,11 @@
   --ring: var(--accent);
   --ring-track: var(--line);
   --focus: var(--accent);
+  /* The booth curtain (home, cabin panel, page band): the accent and its folds. Defined once
+     from the accent, so both themes follow. */
+  --curtain: var(--accent);
+  --curtain-ink: var(--accent-ink);
+  --curtain-folds: repeating-linear-gradient(90deg, rgb(0 0 0 / 6%) 0 2px, transparent 2px 30px);
 
   --font-text: 'Instrument Sans Variable', ui-sans-serif, sans-serif;
   --font-display: 'Anybody Variable', var(--font-text);
@@ -141,6 +146,17 @@ input {
 
 .muted {
   color: var(--muted);
+}
+
+/* A computer: the cabin's curtain runs down the left edge, `--panel` wide, behind whatever the
+   page places there. Drawn as a background so that no element has to move for it. */
+@media (min-width: 1080px) {
+  .cabin {
+    background:
+      var(--curtain-folds) 0 0 / var(--panel) 100% no-repeat,
+      linear-gradient(var(--curtain), var(--curtain)) 0 0 / var(--panel) 100% no-repeat,
+      var(--bg);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

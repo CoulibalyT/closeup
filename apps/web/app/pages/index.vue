@@ -295,9 +295,9 @@ const playSolo = () =>
    sits on the strip in front of it. */
 .curtain {
   padding: calc(var(--space-4) + env(safe-area-inset-top)) 0 var(--space-10);
-  background-color: var(--accent);
-  background-image: repeating-linear-gradient(90deg, rgb(0 0 0 / 6%) 0 2px, transparent 2px 30px);
-  color: var(--accent-ink);
+  background-color: var(--curtain);
+  background-image: var(--curtain-folds);
+  color: var(--curtain-ink);
 }
 .top {
   display: flex;

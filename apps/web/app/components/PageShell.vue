@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /**
  * Frame of the pages around the game (account, statistics, rankings, packs): a title and the
- * way home. On a computer the way home becomes a site header, and `wide` lets a page of lists
- * use the width; forms keep a centred column, where a long line would only be harder to read.
+ * way home. On a computer the header becomes the curtain band, title included, and `wide` lets a
+ * page of lists use the width; forms keep a centred column, where a long line would only be
+ * harder to read.
  */
 withDefaults(defineProps<{ title: string; wide?: boolean }>(), { wide: false });
 const { t } = useI18n();
@@ -22,8 +23,8 @@ const { appName } = useRuntimeConfig().public;
         <NuxtLink :to="localePath('/stats')">{{ t('stats.short') }}</NuxtLink>
         <NuxtLink :to="localePath('/account')">{{ t('account.short') }}</NuxtLink>
       </nav>
+      <h1 class="display title">{{ title }}</h1>
     </header>
-    <h1 class="display">{{ title }}</h1>
     <slot />
   </main>
 </template>
@@ -54,7 +55,7 @@ const { appName } = useRuntimeConfig().public;
   min-height: var(--tap);
   color: var(--muted);
 }
-.page > h1 {
+.page .title {
   margin: var(--space-2) 0 var(--space-4);
   /* The display face is 140% wide: a long word ("Classement") needs a smaller step than usual. */
   font-size: clamp(28px, 8.5vw, 44px);
@@ -134,61 +135,84 @@ const { appName } = useRuntimeConfig().public;
   color: var(--bg);
 }
 
-/* Computer: a site header across the top, then either the page's own width (`wide`) or a
-   centred column. Same breakpoint as useWideScreen. */
+/* Computer: the header becomes the curtain band, with the name, the links and the title; the
+   page's content sits under it in the 1208 px column (`wide`) or the 560 px one. Same breakpoint
+   as useWideScreen. */
 @media (min-width: 1080px) {
+  /* Three columns: the band spans them, the content takes the middle one. The pages' own rules
+     set their margins, so the centring cannot rely on `margin: auto`. */
   .page {
-    max-width: 1208px;
-    padding-inline: var(--space-6);
+    display: grid;
+    grid-template-columns:
+      minmax(var(--space-10), 1fr)
+      min(1208px, 100% - 2 * var(--space-10))
+      minmax(var(--space-10), 1fr);
+    align-content: start;
+    max-width: none;
+    padding: 0 0 var(--space-10);
+  }
+  .page > * {
+    grid-column: 2;
   }
   .page > .bar {
-    display: flex;
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      'brand site'
+      'title title';
     align-items: center;
-    gap: var(--space-6);
+    column-gap: var(--space-6);
     margin-bottom: var(--space-10);
-    padding-bottom: var(--space-4);
-    border-bottom: 1px solid var(--line);
+    padding: var(--space-4) max(var(--space-10), (100% - 1208px) / 2) var(--space-10);
+    background-color: var(--curtain);
+    background-image: var(--curtain-folds);
+    color: var(--curtain-ink);
+    /* The title is sized on the band, not on the window. */
+    container-type: inline-size;
   }
   .page .back {
     display: none;
   }
   .page .brand {
+    grid-area: brand;
     display: inline-flex;
     align-items: center;
     min-height: var(--tap);
-    color: var(--ink);
+    color: inherit;
     font-size: 26px;
     font-stretch: 140%;
     text-decoration: none;
   }
   .page .site {
+    grid-area: site;
     display: flex;
+    justify-content: flex-end;
     gap: var(--space-6);
-    margin-left: auto;
   }
   .page .site a {
     display: inline-flex;
     align-items: center;
     min-height: var(--tap);
-    color: var(--muted);
+    color: inherit;
+    opacity: 0.75;
   }
   .page .site a[aria-current='page'] {
-    color: var(--ink);
     font-weight: 700;
     text-decoration: none;
+    opacity: 1;
   }
-  /* A twelve-letter word ("Confirmation") is about 10.5 em wide in the display face: 48 px is
-     the most the 560 px column holds without splitting it. Wide pages have the room for more. */
-  .page > h1 {
-    margin-top: 0;
-    font-size: 48px;
-  }
-  .page.wide > h1 {
-    font-size: 56px;
+  /* A twelve-letter word ("Confirmation") is about 10.5 em wide in the display face: 9.5cqi
+     keeps it whole on the band's width, 96 px keeps a two-word title to two lines. */
+  .page .title {
+    grid-area: title;
+    margin: var(--space-10) 0 0;
+    font-size: min(96px, 9.5cqi);
+    overflow-wrap: anywhere;
   }
   .page:not(.wide) > :not(.bar) {
     width: min(560px, 100%);
-    margin-inline: auto;
+    justify-self: center;
   }
 }
 </style>
