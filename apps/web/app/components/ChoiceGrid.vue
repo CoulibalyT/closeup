@@ -93,4 +93,33 @@ button.wrong {
   text-decoration: line-through;
   opacity: 1;
 }
+
+/* Computer: one answer per line, lettered A to D, in the column beside the lens. */
+@media (min-width: 1080px) {
+  .choices {
+    padding: 0;
+    background: none;
+  }
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    counter-reset: choice;
+  }
+  button {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    min-height: 64px;
+    padding: var(--space-2) var(--space-4);
+    background: var(--surface);
+    font-size: 19px;
+    text-align: left;
+    counter-increment: choice;
+  }
+  button::before {
+    content: counter(choice, upper-alpha);
+    color: var(--accent);
+    font: 800 17px/1 var(--font-display);
+    font-stretch: 140%;
+  }
+}
 </style>

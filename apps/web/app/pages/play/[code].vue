@@ -22,6 +22,14 @@ const inRound = computed(
 const wide = useWideScreen();
 // Big-screen mode: the image is on the shared screen, this phone only answers and plays bonuses.
 const controller = computed(() => game.display === 'bigscreen');
+// On a computer the round, the reveal, the lobby and the result sit in the cabin; a controller's
+// round keeps to its phone-sized layout, and a solo room's brief lobby is only a notice.
+const cabin = computed(
+  () =>
+    ['lobby', 'countdown', 'playing', 'reveal', 'ended'].includes(game.stage) &&
+    !(controller.value && inRound.value) &&
+    !(solo.value && game.stage === 'lobby'),
+);
 // A malus lasts a few seconds: a ticking clock makes it end on screen without a server event.
 const clock = ref(0);
 const malus = computed(() =>
@@ -89,7 +97,11 @@ async function quit(): Promise<void> {
 </script>
 
 <template>
-  <main class="screen" :class="{ 'in-round': inRound, [`at-${game.stage}`]: true }">
+  <main
+    class="screen"
+    :class="{ 'in-round': inRound, cabin, controller, [`at-${game.stage}`]: true }"
+    :data-brand="appName"
+  >
     <header v-if="game.round && !['ended', 'lobby'].includes(game.stage)" class="top">
       <span>{{ t('play.round', { n: game.round.index + 1, total: game.totalRounds }) }}</span>
       <b>{{ game.score }}</b>
@@ -455,16 +467,20 @@ async function quit(): Promise<void> {
   font-size: 15px;
 }
 
-/* Computer: the round spreads out the way the shared screen does. The lens takes the height it
-   can, and a column on the right holds what a phone stacks under it: the news of the round,
-   the bonuses, the whole ranking, and the answer at the bottom. Same breakpoint as
-   useWideScreen. */
+/* Computer. Same breakpoint as useWideScreen. */
 @media (min-width: 1080px) {
   .screen {
     max-width: 1240px;
     padding-inline: var(--space-6);
   }
-  .screen.in-round {
+  /* A link-like button: as wide as its words. */
+  .quit {
+    align-self: flex-start;
+  }
+
+  /* A controller's round (big-screen mode on a computer) keeps the two columns it had: the
+     lens only keeps time, the column holds the news, the bonuses, the ranking and the answer. */
+  .screen.in-round.controller {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 380px;
     grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
@@ -478,57 +494,150 @@ async function quit(): Promise<void> {
     column-gap: 48px;
     padding-bottom: var(--space-6);
   }
-  .in-round .top {
+  .in-round.controller .top {
     grid-area: top;
     padding-inline: 0;
     font-size: 17px;
   }
-  .in-round .no-screen {
+  .in-round.controller .no-screen {
     grid-area: alert;
     margin-inline: 0;
   }
-  .in-round .stage {
+  .in-round.controller .stage {
     grid-area: stage;
-    grid-template-columns: 88px minmax(0, 1fr);
-    gap: var(--space-6);
     padding: var(--space-6) 0 0;
   }
-  .in-round .stage.controller {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  /* Whatever is left of the window's height once the value and its note are under it. */
-  .in-round .stage:not(.controller) .lens-box {
-    flex: none;
-    width: min(100%, var(--viewport-height) - 250px, 720px);
-    max-height: none;
-  }
-  .in-round .waiting {
-    font-size: 120px;
-  }
-  .in-round .worth {
-    font-size: 64px;
-  }
-  .in-round .feed {
+  .in-round.controller .feed {
     grid-area: feed;
     padding-top: var(--space-6);
   }
-  .in-round .bonuses {
+  .in-round.controller .bonuses {
     grid-area: bonus;
   }
-  .in-round .live {
+  .in-round.controller .live {
     grid-area: ranking;
     padding: var(--space-4) 0;
     overflow-y: auto;
   }
-  .in-round .controls {
+  .in-round.controller .controls {
     grid-area: controls;
     overflow: hidden;
     border-radius: var(--radius);
   }
-  /* A link-like button: as wide as its words, under the left column of the lobby. */
-  .quit {
-    align-self: flex-start;
+
+  /* The cabin: the curtain down the left, the strip on it. */
+  .screen.cabin {
+    --panel: 21vw;
+    --side: clamp(320px, 24vw, 440px);
+    --gutter: clamp(24px, 3vw, 56px);
+    position: relative;
+    max-width: none;
+    padding: 0;
   }
+  .screen.cabin.at-lobby,
+  .screen.cabin.at-ended {
+    --panel: 30vw;
+  }
+  /* The name at the top of the curtain, as on every other page. Out of the flow, so that no
+     layout below has to make room for it. */
+  .screen.cabin::before {
+    content: attr(data-brand);
+    position: absolute;
+    top: var(--space-6);
+    left: var(--space-6);
+    color: var(--curtain-ink);
+    font: 800 22px/1 var(--font-display);
+    font-stretch: 140%;
+  }
+
+  /* The round: strip | lens | everything the player reads and does, top to bottom. The stage
+     and its view step aside so that their children are placed on this grid. */
+  .screen.cabin.in-round {
+    display: grid;
+    grid-template-columns: var(--panel) minmax(0, 1fr) var(--side);
+    grid-template-rows: repeat(7, auto) minmax(0, 1fr);
+    column-gap: var(--gutter);
+    padding-right: var(--gutter);
+  }
+  .cabin.in-round .stage,
+  .cabin.in-round .view {
+    display: contents;
+  }
+  .cabin.in-round .strip {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    align-self: center;
+    justify-self: center;
+    /* Four square frames and the feed under them must fit the height. */
+    width: min(var(--panel) * 0.5, (var(--viewport-height) - 220px) / 4);
+  }
+  .cabin.in-round .feed {
+    position: absolute;
+    left: 0;
+    bottom: var(--space-6);
+    width: var(--panel);
+    padding: 0 var(--space-6);
+  }
+  .cabin.in-round .lens-box {
+    grid-column: 2;
+    grid-row: 1 / -1;
+    align-self: center;
+    justify-self: center;
+    flex: none;
+    width: min(100%, var(--viewport-height) - 96px);
+    min-height: 0;
+    max-height: none;
+  }
+  .cabin.in-round .waiting {
+    font-size: 160px;
+  }
+  .cabin.in-round .top {
+    grid-column: 3;
+    grid-row: 1;
+    padding: var(--space-10) 0 0;
+    font-size: 17px;
+  }
+  .cabin.in-round .below {
+    grid-column: 3;
+    grid-row: 2;
+  }
+  /* Four digits are about 3.6 em wide in the display face: this fills the column. */
+  .cabin.in-round .worth {
+    margin-top: var(--space-6);
+    font-size: min(104px, var(--side) / 3.9);
+  }
+  .cabin.in-round .note.muted {
+    grid-column: 3;
+    grid-row: 3;
+    font-size: 17px;
+  }
+  .cabin.in-round .initials {
+    grid-column: 3;
+    grid-row: 4;
+    font-size: 32px;
+  }
+  .cabin.in-round .note:not(.muted) {
+    grid-column: 3;
+    grid-row: 5;
+  }
+  .cabin.in-round .controls {
+    grid-column: 3;
+    grid-row: 6;
+    margin-top: var(--space-6);
+  }
+  .cabin.in-round .bonuses {
+    grid-column: 3;
+    grid-row: 7;
+    padding: var(--space-4) 0 0;
+  }
+  .cabin.in-round .live {
+    grid-column: 3;
+    grid-row: 8;
+    padding: var(--space-6) 0 var(--space-10);
+    overflow-y: auto;
+    font-size: 17px;
+  }
+
   /* The end of a game is a result, not a layout: a centred column reads better than 1240 px. */
   .end {
     width: min(640px, 100%);

@@ -95,4 +95,20 @@ input::placeholder {
     transform: translateX(6px);
   }
 }
+
+/* Computer: the field stands on its own in the column beside the lens. */
+@media (min-width: 1080px) {
+  .answer {
+    padding: 0;
+    background: none;
+  }
+  .row {
+    flex-direction: column;
+  }
+  input,
+  .row .button {
+    min-height: 64px;
+    font-size: 21px;
+  }
+}
 </style>

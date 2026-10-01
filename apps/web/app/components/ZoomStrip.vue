@@ -78,4 +78,32 @@ img {
     filter: saturate(0) contrast(0.6);
   }
 }
+
+/* Computer: the frames are numbered like a booth strip, 01 to 04. Same breakpoint as
+   useWideScreen. */
+@media (min-width: 1080px) {
+  .strip {
+    gap: 8px;
+    padding: 8px;
+    counter-reset: frame;
+  }
+  li {
+    counter-increment: frame;
+  }
+  li::after {
+    content: counter(frame, decimal-leading-zero);
+    position: absolute;
+    left: 6px;
+    bottom: 6px;
+    padding: 2px 6px;
+    border-radius: 2px;
+    background: var(--surface);
+    color: var(--ink);
+    font: 800 12px/1 var(--font-display);
+    font-stretch: 140%;
+  }
+  li span {
+    font-size: 13px;
+  }
+}
 </style>
