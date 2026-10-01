@@ -9,6 +9,12 @@ player-facing name is written in one place (`packages/shared/src/brand.ts`, over
 - The brief: [docs/brief.md](docs/brief.md)
 - The validated solo prototype: [docs/prototype/gros-plan.html](docs/prototype/gros-plan.html)
 
+**Computer layout: "Cabine".** From 1080 px wide, the game screens and the home page sit in a
+booth: the striped curtain down the left carries the photo strip (or the code and the QR while
+waiting), the lens fills the middle, and what the player reads and does is in the column on the
+right. Every other page opens on a curtain band with its title. The phone layout is unchanged.
+Design: [docs/superpowers/specs/2026-10-01-desktop-cabine-design.md](docs/superpowers/specs/2026-10-01-desktop-cabine-design.md).
+
 **Status: phase 9 (deployment) done.** The game can go online: `docker-compose.prod.yml` builds
 three lean images, Caddy gets the certificate and serves everything from one origin, and
 [docs/deploy.md](docs/deploy.md) walks through a first deployment, backups included. The PWA has
