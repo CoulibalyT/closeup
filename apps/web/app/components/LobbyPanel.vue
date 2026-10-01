@@ -512,9 +512,12 @@ label input:focus-visible + span {
     height: var(--viewport-height);
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    /* `safe`, and room at the top and the foot for the name and the way out: with the screen
+       box under the invite, the booth is taller than a 720 px window. */
+    justify-content: safe center;
     gap: var(--space-4);
-    padding: var(--space-10);
+    padding: 72px var(--space-10);
+    overflow-y: auto;
     color: var(--curtain-ink);
     container-type: inline-size;
   }
@@ -532,7 +535,7 @@ label input:focus-visible + span {
     margin-top: 0;
   }
   .qr {
-    width: min(100%, 280px);
+    width: min(100%, 280px, 24vh);
     height: auto;
     aspect-ratio: 1;
     padding: 10px;

@@ -116,7 +116,8 @@ button.wrong {
     counter-increment: choice;
   }
   button::before {
-    content: counter(choice, upper-alpha);
+    /* Seen, not read: the letter only helps the eye find an answer. */
+    content: counter(choice, upper-alpha) / '';
     color: var(--accent);
     font: 800 17px/1 var(--font-display);
     font-stretch: 140%;

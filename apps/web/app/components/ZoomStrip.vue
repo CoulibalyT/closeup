@@ -91,7 +91,7 @@ img {
     counter-increment: frame;
   }
   li::after {
-    content: counter(frame, decimal-leading-zero);
+    content: counter(frame, decimal-leading-zero) / '';
     position: absolute;
     left: 6px;
     bottom: 6px;

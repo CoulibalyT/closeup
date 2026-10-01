@@ -553,7 +553,7 @@ async function quit(): Promise<void> {
   .screen.at-lost::before,
   .screen.at-full::before,
   .screen.at-kicked::before {
-    content: attr(data-brand);
+    content: attr(data-brand) / '';
     position: absolute;
     top: var(--space-6);
     left: var(--space-6);
@@ -567,7 +567,9 @@ async function quit(): Promise<void> {
   .screen.cabin.in-round {
     display: grid;
     grid-template-columns: var(--panel) minmax(0, 1fr) var(--side);
-    grid-template-rows: repeat(7, auto) minmax(0, 1fr);
+    /* The bonuses row may shrink and scroll: a long list of targets must not push itself off
+       the bottom of the window. */
+    grid-template-rows: repeat(6, auto) minmax(0, auto) minmax(0, 1fr);
     column-gap: var(--gutter);
     padding-right: var(--gutter);
   }
@@ -640,7 +642,9 @@ async function quit(): Promise<void> {
   .cabin.in-round .bonuses {
     grid-column: 3;
     grid-row: 7;
+    min-height: 0;
     padding: var(--space-4) 0 0;
+    overflow-y: auto;
   }
   .cabin.in-round .live {
     grid-column: 3;
@@ -693,7 +697,8 @@ async function quit(): Promise<void> {
   .cabin .outcome {
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    /* `safe`: a long result overflows downwards, where it can be scrolled, not past the top. */
+    justify-content: safe center;
     justify-self: center;
     width: min(720px, 100%);
     min-height: 0;
