@@ -116,17 +116,21 @@ export class WikimediaHttpClient implements WikimediaApi {
     for (const ids of batches(qids)) {
       const body = (await this.request(
         'https://www.wikidata.org/w/api.php?action=wbgetentities&format=json' +
-          '&props=labels|aliases&languages=fr|en&ids=' +
+          '&props=labels|aliases&languages=fr|en|mul&ids=' +
           ids.join('|'),
       )) as { entities?: Record<string, RawEntity> };
       for (const [id, entity] of Object.entries(body.entities ?? {})) {
         if (entity.missing !== undefined) continue;
+        // `mul`: the one label Wikidata now gives most people, valid in every language.
+        const label = (locale: 'fr' | 'en') =>
+          entity.labels?.[locale]?.value ?? entity.labels?.mul?.value;
+        const aliases = (locale: 'fr' | 'en') =>
+          [...(entity.aliases?.[locale] ?? []), ...(entity.aliases?.mul ?? [])].map(
+            (alias) => alias.value,
+          );
         found.set(id, {
-          labels: { fr: entity.labels?.fr?.value, en: entity.labels?.en?.value },
-          aliases: {
-            fr: (entity.aliases?.fr ?? []).map((alias) => alias.value),
-            en: (entity.aliases?.en ?? []).map((alias) => alias.value),
-          },
+          labels: { fr: label('fr'), en: label('en') },
+          aliases: { fr: aliases('fr'), en: aliases('en') },
         });
       }
     }

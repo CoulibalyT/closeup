@@ -187,3 +187,24 @@ describe('person facts', () => {
     expect(url).toContain('search=Omar%20Sy');
   });
 });
+
+describe('labels', () => {
+  it('falls back on the multilingual label Wikidata now gives most people', async () => {
+    const fetch = replies(
+      json({
+        entities: {
+          Q692: {
+            labels: { mul: { value: 'William Shakespeare' }, en: { value: 'William Shakespeare' } },
+            aliases: { mul: [{ value: 'Shakespeare' }] },
+          },
+        },
+      }),
+    );
+    const client = new WikimediaHttpClient({ fetch, sleep: async () => undefined });
+    expect((await client.entities(['Q692'])).get('Q692')).toEqual({
+      labels: { fr: 'William Shakespeare', en: 'William Shakespeare' },
+      aliases: { fr: ['Shakespeare'], en: ['Shakespeare'] },
+    });
+    expect(String(fetch.mock.calls[0]![0])).toContain('languages=fr|en|mul');
+  });
+});
