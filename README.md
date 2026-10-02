@@ -462,8 +462,19 @@ Added in phase 10:
 - **The admin picks; nothing is ticked beforehand.** The lists hold oddities no query avoids
   cheaply: a tree and wheat among the animals, "Bos taurus" for a cow, Auschwitz among World
   Heritage sites. Each subject shows why it cannot be imported when it cannot.
-- **No people.** The query excludes humans outright, and Commons' personality-rights flag
-  refuses a picture of an identifiable person; trademarks and insignia are refused too.
+- **People.** Four themes (actors, singers and musicians, sportspeople, historical figures
+  who died before 1900) and a search by a pasted list of names bring real people, from Wikidata
+  with their Commons picture. The themes run as several small queries in a row, one occupation
+  group at a time (a single query timed out at 60 s), politicians left out; a name search keeps
+  up to three namesakes per line and says which lines matched nobody. People only go into
+  celebrity packs, which are restricted: never drawn by a game that did not tick them, never in
+  the public queue, out of the catalogue, never marked safe for strangers. Their family name is
+  an accepted answer. A card whose picture shows one clear face gets five zoom points from the
+  face detector and its crops at once, ready to publish; the others wait for their points in the
+  editor. Commons files flagged "personality" (an identifiable person: the licence covers the
+  photo, not the use of the face) are accepted for people: **the owner took that image-rights
+  risk on 2026-10-01**; a request through `/contact` is how a card comes down. For every other
+  theme that flag is a refusal, and trademarks and insignia are refused everywhere.
 - **What a picture needs**: public domain, CC0, CC BY or CC BY-SA (any version, any national
   port); a named author, even in the public domain, since a card is only published with a full
   credit; JPEG or PNG; a shorter side of at least 1000 px, because every card is looked at from
@@ -492,9 +503,9 @@ Added in phase 10:
 
 ## Not done yet (after phase 10)
 
-- **No real people.** The brief's search "by occupation" (actors, singers, footballers) is not
-  built. A real face raises personality rights even under a free licence; the face-landmark
-  pipeline is ready for it, the decision is yours.
+- **People's pictures are often too small.** Only the one picture Wikidata names (P18) is
+  tried, and for many well-known people it is under 1000 px (Omar Sy, Zinédine Zidane): looking
+  for another picture of the same person on Commons is not built.
 - Answers come from Wikidata labels: some are Latin or too specific, and the admin fixes them in
   the editor, which every imported card goes through anyway. The picture is the one Wikidata
   names for the subject: there is no choice among the others on Commons.
