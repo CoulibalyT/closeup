@@ -32,6 +32,13 @@ const form = reactive({
   publicMatchSafe: false,
 });
 const newCard = reactive({ category: 'OBJECT' as Category, isPerson: false });
+// Real people and fictional characters never play with strangers: the server refuses the box.
+watch(
+  () => form.category,
+  (category) => {
+    if (RESTRICTED_CATEGORIES.includes(category)) form.publicMatchSafe = false;
+  },
+);
 
 useHead({ title: () => `${pack.value?.titleFr ?? t('admin.pack')}, ${appName}` });
 
@@ -207,7 +214,11 @@ async function addCard(): Promise<void> {
           </div>
         </div>
         <label class="check">
-          <input v-model="form.publicMatchSafe" type="checkbox" />
+          <input
+            v-model="form.publicMatchSafe"
+            type="checkbox"
+            :disabled="RESTRICTED_CATEGORIES.includes(form.category)"
+          />
           <span>{{ t('admin.publicMatchSafe') }}</span>
         </label>
         <div class="actions">

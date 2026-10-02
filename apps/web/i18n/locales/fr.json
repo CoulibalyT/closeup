@@ -606,7 +606,7 @@
   "importer": {
     "title": "Importer, {appName}",
     "heading": "Importer depuis Wikimedia",
-    "pitch": "Des sujets connus trouvés sur Wikidata, avec leur photo sous licence libre sur Wikimedia Commons. Rien n’est coché d’avance : c’est toi qui choisis. Chaque carte importée attend ensuite ses points de zoom dans l’éditeur avant de pouvoir être publiée.",
+    "pitch": "Des sujets connus trouvés sur Wikidata, avec leur photo sous licence libre sur Wikimedia Commons. Rien n’est coché d’avance : c’est toi qui choisis. Les personnes arrivent avec leurs points de zoom quand leur visage est net ; les autres cartes attendent les leurs dans l’éditeur avant de pouvoir être publiées.",
     "preset": "Thème",
     "presets": {
       "animals": "Animaux",
@@ -615,7 +615,12 @@
       "instruments": "Instruments de musique",
       "tools": "Outils et objets",
       "vehicles": "Véhicules",
-      "heritage": "Patrimoine mondial"
+      "heritage": "Patrimoine mondial",
+      "actors": "Acteurs et actrices",
+      "musicians": "Chanteurs et musiciens",
+      "sports": "Sportifs",
+      "historical": "Personnages historiques",
+      "names": "Une liste de noms"
     },
     "search": "Chercher",
     "searchAgain": "Relancer la recherche",
@@ -648,6 +653,19 @@
       "ALREADY_IN_PACK": "déjà dans ce pack",
       "NOT_ELIGIBLE": "non importable",
       "UNKNOWN": "absent de la recherche"
-    }
+    },
+    "people": "Personnalités",
+    "themes": "Thèmes",
+    "namesLabel": "Un nom par ligne",
+    "namesHint": "Jusqu’à {max} personnes. Pour chaque nom : les personnes qui le portent, la plus connue d’abord.",
+    "namesTooMany": "Pas plus de {max} noms à la fois.",
+    "forName": "Pour « {name} »",
+    "unmatched": "Aucune personne trouvée pour : {list}.",
+    "noCelebrityPack": "Il faut d’abord un pack de catégorie Célébrités.",
+    "createPack": "Créer un pack",
+    "notForPeople": "Ce pack n’est pas un pack de célébrités : les personnes n’y vont pas.",
+    "readiness": "{ready} prête(s) à publier, {todo} à compléter dans l’éditeur.",
+    "processing": "{n} photo(s) en cours de traitement…",
+    "importedPeople": "{n} personne(s) importée(s). Leurs photos arrivent ; celles dont le visage est net seront prêtes toutes seules."
   }
 }

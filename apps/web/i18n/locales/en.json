@@ -606,7 +606,7 @@
   "importer": {
     "title": "Import, {appName}",
     "heading": "Import from Wikimedia",
-    "pitch": "Well-known subjects found on Wikidata, with their freely licensed photo on Wikimedia Commons. Nothing is ticked beforehand: you choose. Every imported card then waits for its zoom points in the editor before it can be published.",
+    "pitch": "Well-known subjects found on Wikidata, with their freely licensed photo on Wikimedia Commons. Nothing is ticked beforehand: you choose. People come with their zoom points when their face is clear; every other card waits for its points in the editor before it can be published.",
     "preset": "Theme",
     "presets": {
       "animals": "Animals",
@@ -615,7 +615,12 @@
       "instruments": "Musical instruments",
       "tools": "Tools and objects",
       "vehicles": "Vehicles",
-      "heritage": "World Heritage"
+      "heritage": "World Heritage",
+      "actors": "Actors",
+      "musicians": "Singers and musicians",
+      "sports": "Sportspeople",
+      "historical": "Historical figures",
+      "names": "A list of names"
     },
     "search": "Search",
     "searchAgain": "Search again",
@@ -648,6 +653,19 @@
       "ALREADY_IN_PACK": "already in this pack",
       "NOT_ELIGIBLE": "not importable",
       "UNKNOWN": "not in the search"
-    }
+    },
+    "people": "People",
+    "themes": "Themes",
+    "namesLabel": "One name per line",
+    "namesHint": "Up to {max} people. For each name: the people who bear it, the best known first.",
+    "namesTooMany": "No more than {max} names at once.",
+    "forName": "For “{name}”",
+    "unmatched": "Nobody found for: {list}.",
+    "noCelebrityPack": "A pack of the Celebrities category is needed first.",
+    "createPack": "Create a pack",
+    "notForPeople": "This is not a celebrity pack: people do not go there.",
+    "readiness": "{ready} ready to publish, {todo} to complete in the editor.",
+    "processing": "{n} picture(s) being processed…",
+    "importedPeople": "{n} person(s) imported. Their pictures are on their way; those with a clear face will be ready by themselves."
   }
 }
