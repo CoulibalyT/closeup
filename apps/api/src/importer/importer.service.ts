@@ -30,10 +30,17 @@ type StoredSearch = Omit<ImportSearch, 'candidates'> & { candidates: StoredCandi
 
 /** A finished search is kept this long: the popular subjects of a class do not change by the hour. */
 const DONE_TTL_S = 6 * 3600;
-/** A search under way, or one that failed, is forgotten sooner, so that it can be run again. */
-const PENDING_TTL_S = 10 * 60;
-/** Four attempts of 70 s at most, and the pauses between them: past this, it was lost. */
-const STALE_MS = 8 * 60_000;
+/**
+ * How long a search may run before it counts as lost, and how long its "running" or "failed"
+ * state is kept: five minutes per query (a people theme runs several in a row; a query stopped
+ * at the service's 60 s limit is not tried again), the state five minutes longer, so that the
+ * page always ends on a result or a failure rather than on nothing.
+ */
+export function searchLimits(source: ImportSource): { staleMs: number; pendingTtlS: number } {
+  const queries = source === 'names' ? 1 : searchQueries(source).length;
+  const staleMs = queries * 5 * 60_000;
+  return { staleMs, pendingTtlS: staleMs / 1000 + 5 * 60 };
+}
 /** Namesakes kept for one line of a name search, the best known first. */
 const NAMESAKES = 3;
 /** A download that failed is tried again later: Commons, too, has its moments. */
@@ -86,7 +93,8 @@ export class ImporterService {
     const source = input.preset;
     const current = await this.read(source);
     const lost =
-      current?.state === 'running' && Date.now() - Date.parse(current.startedAt) > STALE_MS;
+      current?.state === 'running' &&
+      Date.now() - Date.parse(current.startedAt) > searchLimits(source).staleMs;
     // A new list of names always starts a new search: the last one answered other names.
     if (!current || current.state === 'failed' || lost || source === 'names') {
       const startedAt = new Date().toISOString();
@@ -99,7 +107,7 @@ export class ImporterService {
           candidates: [],
           unmatched: [],
         },
-        PENDING_TTL_S,
+        searchLimits(source).pendingTtlS,
       );
       void this.run(input, startedAt);
     }
@@ -319,8 +327,12 @@ export class ImporterService {
         unmatched: [],
       };
     }
-    await this.write(finished, finished.state === 'done' ? DONE_TTL_S : PENDING_TTL_S).catch(
-      (error: unknown) => this.logger.error(`Search ${preset} could not be kept: ${String(error)}`),
+    // A run that was given up for lost, and another started since: the newer one has the say.
+    const current = await this.read(preset).catch(() => null);
+    if (current && current.startedAt !== startedAt) return;
+    const ttl = finished.state === 'done' ? DONE_TTL_S : searchLimits(preset).pendingTtlS;
+    await this.write(finished, ttl).catch((error: unknown) =>
+      this.logger.error(`Search ${preset} could not be kept: ${String(error)}`),
     );
   }
 

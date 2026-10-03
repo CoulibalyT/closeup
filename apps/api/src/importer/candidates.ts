@@ -39,7 +39,8 @@ export function toCandidate(
   const answer = (locale: 'fr' | 'en') => {
     const label = entity?.labels[locale];
     const extra = person && label ? familyAlias(label, person.familyName[locale]) : null;
-    return answerFrom(label, [...(entity?.aliases[locale] ?? []), ...(extra ? [extra] : [])]);
+    // First: past twelve aliases the rest are cut, and the family name is the one the brief asks for.
+    return answerFrom(label, [...(extra ? [extra] : []), ...(entity?.aliases[locale] ?? [])]);
   };
   const answers = { fr: answer('fr'), en: answer('en') };
   const judged = file
@@ -124,14 +125,18 @@ const NOT_A_FAMILY_NAME = /^(?:[IVXLC]+|\d+|\d*(?:er|re|e|ème)|Ier|Ire|Jr\.?|Sr
 
 /**
  * The family name alone, accepted as an answer for a person (the brief). Wikidata's family name
- * when it has one; otherwise the last word, unless the name is one word or ends with a numeral
- * ("Louis XIV" is not "XIV").
+ * only when it is part of the name players know: for a stage name it is the birth name
+ * ("Bulsara" for Freddie Mercury), which nobody types. Otherwise the last word, unless the name
+ * is one word or ends with a numeral ("Louis XIV" is not "XIV").
  */
 export function familyAlias(name: string, familyName: string | undefined): string | null {
   const whole = tidy(name);
-  const given = familyName ? tidy(familyName) : '';
-  if (given) return sameness(given) === sameness(whole) ? null : given;
   const words = whole.split(' ');
+  const given = familyName ? tidy(familyName) : '';
+  const within = ` ${sameness(whole)} `.includes(` ${sameness(given)} `);
+  if (given && words.length > 1 && within && sameness(given) !== sameness(whole)) {
+    return given;
+  }
   const last = words.at(-1) ?? '';
   if (words.length < 2 || last.length < 2 || NOT_A_FAMILY_NAME.test(last)) return null;
   return last;

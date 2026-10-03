@@ -76,7 +76,11 @@ export interface HttpOptions {
   fetch?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
   attempts?: number;
+  now?: () => number;
 }
+
+/** A failure after this long is the query service's own 60 s limit: asking again will not help. */
+const TIMED_OUT_MS = 55_000;
 
 /**
  * The public services, with the patience they need. The query service was seen answering the
@@ -88,11 +92,13 @@ export class WikimediaHttpClient implements WikimediaApi {
   private readonly fetch: typeof fetch;
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly attempts: number;
+  private readonly now: () => number;
 
   constructor(options: HttpOptions = {}) {
     this.fetch = options.fetch ?? globalThis.fetch;
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.attempts = options.attempts ?? 4;
+    this.now = options.now ?? Date.now;
   }
 
   async sparql(query: string): Promise<SparqlRow[]> {
@@ -233,6 +239,7 @@ export class WikimediaHttpClient implements WikimediaApi {
     let failure = '';
     for (let attempt = 1; attempt <= this.attempts; attempt++) {
       let retryAfter: string | null = null;
+      const started = this.now();
       try {
         const response = await this.fetch(url, {
           method: form ? 'POST' : 'GET',
@@ -244,6 +251,9 @@ export class WikimediaHttpClient implements WikimediaApi {
         if (response.ok) return (await response.json()) as unknown;
         failure = `HTTP ${response.status}`;
         if (response.status !== 429 && response.status < 500) break;
+        // A query stopped at the service's limit would be stopped again: one people search runs
+        // several, and four tries of a minute each would outlast the search itself.
+        if (response.status >= 500 && this.now() - started > TIMED_OUT_MS) break;
         retryAfter = response.headers.get('retry-after');
       } catch (error) {
         const cause = (error as { cause?: { code?: string } }).cause?.code;

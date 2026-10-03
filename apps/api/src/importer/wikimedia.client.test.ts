@@ -208,3 +208,27 @@ describe('labels', () => {
     expect(String(fetch.mock.calls[0]![0])).toContain('languages=fr|en|mul');
   });
 });
+
+describe('a query that ran out of time', () => {
+  it('is not tried again: the query service would stop it at 60 s once more', async () => {
+    const fetch = replies(json({}, 504), json(sparqlBody));
+    let clock = 0;
+    const client = new WikimediaHttpClient({
+      fetch: vi.fn<typeof globalThis.fetch>(async (...args) => {
+        clock += 61_000;
+        return fetch(...args);
+      }),
+      sleep: async () => undefined,
+      now: () => clock,
+    });
+    await expect(client.sparql('SELECT')).rejects.toThrow('HTTP 504');
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('is tried again when the failure came quickly', async () => {
+    const fetch = replies(json({}, 504), json(sparqlBody));
+    const client = new WikimediaHttpClient({ fetch, sleep: async () => undefined, now: () => 0 });
+    expect(await client.sparql('SELECT')).toHaveLength(1);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+});

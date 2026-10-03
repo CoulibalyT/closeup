@@ -229,3 +229,25 @@ describe('people', () => {
     expect(candidate).toMatchObject({ query: null, description: null });
   });
 });
+
+describe('people, after review', () => {
+  it('keeps the name players know over a birth name Wikidata gives as family name', () => {
+    expect(familyAlias('Freddie Mercury', 'Bulsara')).toBe('Mercury');
+    expect(familyAlias('Marie Curie', 'Skłodowska')).toBe('Curie');
+    expect(familyAlias('Madonna', 'Ciccone')).toBeNull();
+    expect(familyAlias('Pelé', 'Nascimento')).toBeNull();
+    expect(familyAlias('Omar Sy', 'Sy')).toBe('Sy');
+    expect(familyAlias('Charles de Gaulle', 'de Gaulle')).toBe('de Gaulle');
+  });
+
+  it('keeps the family name even when Wikidata already gives twelve aliases', () => {
+    const many = Array.from({ length: 14 }, (_, i) => `Alias numéro ${i + 1}`);
+    const candidate = toCandidate(
+      { qid: 'Q1', popularity: 120, file: 'Omar.jpg' },
+      { labels: { fr: 'Omar Sy' }, aliases: { fr: many, en: [] } },
+      picture(),
+      { description: null, familyName: { fr: 'Sy' }, query: null },
+    );
+    expect(candidate.answers.fr?.aliases).toContain('Sy');
+  });
+});
