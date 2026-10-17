@@ -212,6 +212,9 @@ export const UPLOAD_ERRORS = [
   'ANIMATED',
   'TOO_SMALL',
   'RIGHTS_NOT_CONFIRMED',
+  /** Not refusals: the picture is stored, the automatic points were not found. */
+  'NO_FACE',
+  'NO_DETAIL',
   /** The worker gave up (crash, lost file). Nothing about the picture itself. */
   'FAILED',
 ] as const;

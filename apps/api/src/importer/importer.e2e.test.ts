@@ -122,6 +122,14 @@ function fakeWikimedia(picture: Buffer): WikimediaApi & { downloads: string[] } 
     async people(qids) {
       return new Map(qids.flatMap((qid) => (people.has(qid) ? [[qid, people.get(qid)!]] : [])));
     },
+    async subjects(qids) {
+      return new Map(
+        qids.map((qid) => [
+          qid,
+          { instanceOf: [], subclassOf: [], taxonName: null, description: { fr: null, en: null } },
+        ]),
+      );
+    },
     async searchHumans(name) {
       if (name === 'Omar Sy') return ['Q501', 'Q502'];
       return name === 'Paris' ? ['Q503'] : [];

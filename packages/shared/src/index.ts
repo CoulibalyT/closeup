@@ -16,6 +16,8 @@ export * from './schemas/account.js';
 export * from './schemas/moderation.js';
 export * from './schemas/packs.js';
 export * from './schemas/importer.js';
+export * from './schemas/bulk.js';
+export * from './rules/fileName.js';
 export * from './rules/publication.js';
 export * from './rules/upload.js';
 export * from './rules/licence.js';

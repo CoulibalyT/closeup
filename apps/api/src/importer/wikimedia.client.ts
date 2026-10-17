@@ -33,6 +33,15 @@ export interface PersonFacts {
   familyNameQid: string | null;
 }
 
+/** What a subject of the mass import is, for the guards and the Latin rule. */
+export interface SubjectFacts {
+  instanceOf: string[];
+  subclassOf: string[];
+  /** P225, for organisms: the scientific name. */
+  taxonName: string | null;
+  description: { fr: string | null; en: string | null };
+}
+
 export interface CommonsFile {
   pageId: number;
   /** The original. */
@@ -55,6 +64,7 @@ export interface WikimediaApi {
   people(qids: string[]): Promise<Map<string, PersonFacts>>;
   /** Items whose name matches, best first: humans or not, the caller checks. */
   searchHumans(name: string): Promise<string[]>;
+  subjects(qids: string[]): Promise<Map<string, SubjectFacts>>;
   /** Keyed by the name given, whatever Commons normalised it to. */
   files(names: string[], thumbWidth: number): Promise<Map<string, CommonsFile>>;
   /** The bytes of a picture at a Commons media address (see `downloadCommonsMedia`). */
@@ -167,6 +177,40 @@ export class WikimediaHttpClient implements WikimediaApi {
           frenchArticle: 'frwiki' in sitelinks,
           description: entity.descriptions?.fr?.value ?? entity.descriptions?.en?.value ?? null,
           familyNameQid: itemId(family),
+        });
+      }
+    }
+    return found;
+  }
+
+  async subjects(qids: string[]): Promise<Map<string, SubjectFacts>> {
+    const found = new Map<string, SubjectFacts>();
+    for (const ids of batches(qids)) {
+      const body = (await this.request(
+        'https://www.wikidata.org/w/api.php?action=wbgetentities&format=json' +
+          '&props=' +
+          encodeURIComponent('claims|descriptions') +
+          '&languages=fr|en&ids=' +
+          ids.join('|'),
+      )) as { entities?: Record<string, RawPerson> };
+      for (const [id, entity] of Object.entries(body.entities ?? {})) {
+        if (entity.missing !== undefined) continue;
+        const values = (property: string) =>
+          (entity.claims?.[property] ?? []).map((claim) => claim.mainsnak?.datavalue?.value);
+        const items = (property: string) =>
+          values(property).flatMap((value) => {
+            const qid = itemId(value);
+            return qid ? [qid] : [];
+          });
+        const taxon = values('P225')[0];
+        found.set(id, {
+          instanceOf: items('P31'),
+          subclassOf: items('P279'),
+          taxonName: typeof taxon === 'string' ? taxon : null,
+          description: {
+            fr: entity.descriptions?.fr?.value ?? null,
+            en: entity.descriptions?.en?.value ?? null,
+          },
         });
       }
     }

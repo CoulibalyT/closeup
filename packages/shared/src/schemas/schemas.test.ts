@@ -8,6 +8,7 @@ import {
   importSearchInputSchema,
   isPeopleSource,
 } from './importer.js';
+import { BULK, bulkStartSchema } from './bulk.js';
 import { readinessSchema } from './rest.js';
 
 describe('roomCodeSchema', () => {
@@ -122,5 +123,18 @@ describe('importer contract', () => {
         qids: ['Q123'],
       }).success,
     ).toBe(true);
+  });
+});
+
+describe('bulk contract', () => {
+  it('takes a family and a target within bounds', () => {
+    expect(bulkStartSchema.parse({ family: 'kids', target: 300 })).toEqual({
+      family: 'kids',
+      target: 300,
+    });
+    expect(bulkStartSchema.safeParse({ family: 'disney', target: 300 }).success).toBe(false);
+    expect(bulkStartSchema.safeParse({ family: 'kids', target: BULK.maxTarget + 1 }).success).toBe(
+      false,
+    );
   });
 });

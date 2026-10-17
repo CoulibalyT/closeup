@@ -232,3 +232,29 @@ describe('a query that ran out of time', () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('subject facts', () => {
+  it('reads what an item is, its taxon name and its description', async () => {
+    const fetch = replies(
+      json({
+        entities: {
+          Q140: {
+            descriptions: { fr: { value: 'grand félin' }, en: { value: 'big cat' } },
+            claims: {
+              P31: [{ mainsnak: { datavalue: { value: { id: 'Q55983715' } } } }],
+              P279: [{ mainsnak: { datavalue: { value: { id: 'Q25265' } } } }],
+              P225: [{ mainsnak: { datavalue: { value: 'Panthera leo' } } }],
+            },
+          },
+        },
+      }),
+    );
+    const client = new WikimediaHttpClient({ fetch, sleep: async () => undefined });
+    expect((await client.subjects(['Q140'])).get('Q140')).toEqual({
+      instanceOf: ['Q55983715'],
+      subclassOf: ['Q25265'],
+      taxonName: 'Panthera leo',
+      description: { fr: 'grand félin', en: 'big cat' },
+    });
+  });
+});
