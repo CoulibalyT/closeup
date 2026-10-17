@@ -668,6 +668,47 @@
     "notForPeople": "This is not a celebrity pack: people do not go there.",
     "readiness": "{ready} ready to publish, {todo} to complete in the editor.",
     "processing": "{n} picture(s) being processed…",
-    "importedPeople": "{n} person(s) imported. Their pictures are on their way; those with a clear face will be ready by themselves."
+    "importedPeople": "{n} person(s) imported. Their pictures are on their way; those with a clear face will be ready by themselves.",
+    "bulk": {
+      "modeSearch": "Search and pick",
+      "modeBulk": "Bulk import",
+      "familyLabel": "Family",
+      "family": {
+        "nature": "Animals and plants",
+        "objects": "Objects and food",
+        "places": "Places and monuments",
+        "people": "People",
+        "kids": "Kids"
+      },
+      "target": "Number of cards",
+      "start": "Start the import",
+      "hint": "Cards are published automatically into “Extended catalogue” packs, which you can switch off with one click in the pack list. Start with 100 and look at the contact sheet.",
+      "status": {
+        "running": "running",
+        "paused": "paused",
+        "stopped": "stopped",
+        "done": "done",
+        "failed": "failed"
+      },
+      "created": "created",
+      "published": "published",
+      "waiting": "waiting",
+      "skipped": "skipped",
+      "skip": {
+        "DUPLICATE": "already in a pack",
+        "DUPLICATE_ANSWER": "answer already taken",
+        "GUARD_CLASS": "excluded subject",
+        "GUARD_WORD": "excluded word",
+        "LATIN_NAME": "Latin name",
+        "NOT_ELIGIBLE": "picture not importable"
+      },
+      "cursor": "Class {name}, band {band}, page {page}",
+      "pace": "{n} cards an hour, about {m} min left",
+      "paceOnly": "{n} cards an hour",
+      "pause": "Pause",
+      "resume": "Resume",
+      "stop": "Stop",
+      "running409": "An import is already running: stop it first."
+    }
   }
 }

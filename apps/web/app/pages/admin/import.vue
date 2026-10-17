@@ -2,6 +2,10 @@
 import {
   type AdminCardSummary,
   type AdminPack,
+  BULK,
+  BULK_FAMILIES,
+  type BulkFamily,
+  type BulkImportView,
   IMPORT,
   IMPORT_PRESETS,
   type ImportResult,
@@ -10,6 +14,7 @@ import {
   isPeopleSource,
   PEOPLE_PRESETS,
 } from '@closeup/shared';
+import { ApiError } from '~/stores/session';
 
 definePageMeta({ middleware: 'admin' });
 
@@ -17,6 +22,8 @@ definePageMeta({ middleware: 'admin' });
  * The Wikidata + Commons importer. It proposes, the admin picks: nothing is ticked beforehand.
  * Objects then wait for their zoom points in the editor; people come with theirs when their
  * face is clear. People only go into celebrity packs, which games never draw unless chosen.
+ * The other mode starts a mass import: the worker walks a family on its own, into catalogue
+ * packs, and this page watches the run.
  */
 const { t, locale } = useI18n();
 const localePath = useLocalePath();
@@ -47,14 +54,31 @@ const result = ref<ImportResult | null>(null);
 const resultForPeople = ref(false);
 const statuses = ref<Record<string, AdminCardSummary['status']>>({});
 
+const mode = ref<'search' | 'bulk'>('search');
+const family = ref<BulkFamily>('nature');
+const target = ref(500);
+const bulk = ref<BulkImportView | null>(null);
+const bulkFailure = ref<'running409' | 'failed' | null>(null);
+const bulkBusy = ref(false);
+/** The chip of a run's status, in the colours of the card chips. */
+const BULK_CHIP: Record<BulkImportView['status'], string> = {
+  running: 'live',
+  paused: 'ready',
+  stopped: 'disabled',
+  done: 'ready',
+  failed: 'draft',
+};
+
 // A search can take minutes on a bad day: it runs on the server, and this page asks after it.
 let poll: ReturnType<typeof setTimeout> | undefined;
 let follow: ReturnType<typeof setTimeout> | undefined;
+let bulkPoll: ReturnType<typeof setTimeout> | undefined;
 const now = ref(Date.now());
 const clock = setInterval(() => (now.value = Date.now()), 1000);
 onBeforeUnmount(() => {
   clearTimeout(poll);
   clearTimeout(follow);
+  clearTimeout(bulkPoll);
   clearInterval(clock);
 });
 
@@ -190,6 +214,66 @@ async function followCards(id: string, until: number): Promise<void> {
   }
 }
 
+/** While a run moves and this mode is on screen, the row is asked again every five seconds. */
+function followBulk(): void {
+  clearTimeout(bulkPoll);
+  const status = bulk.value?.status;
+  if (mode.value === 'bulk' && (status === 'running' || status === 'paused')) {
+    bulkPoll = setTimeout(() => void loadBulk(), 5000);
+  }
+}
+
+async function loadBulk(): Promise<void> {
+  try {
+    const answer = await admin.request<{ run: BulkImportView | null }>('GET', '/admin/import/bulk');
+    bulk.value = answer.run;
+  } catch {
+    bulkFailure.value = 'failed';
+  }
+  followBulk();
+}
+
+async function startBulk(): Promise<void> {
+  bulkBusy.value = true;
+  bulkFailure.value = null;
+  try {
+    const answer = await admin.request<{ run: BulkImportView }>('POST', '/admin/import/bulk', {
+      family: family.value,
+      target: target.value,
+    });
+    bulk.value = answer.run;
+  } catch (failure) {
+    bulkFailure.value =
+      failure instanceof ApiError && failure.code === 'BULK_RUNNING' ? 'running409' : 'failed';
+  } finally {
+    bulkBusy.value = false;
+  }
+  followBulk();
+}
+
+async function actOnBulk(action: 'pause' | 'resume' | 'stop'): Promise<void> {
+  if (!bulk.value) return;
+  bulkBusy.value = true;
+  bulkFailure.value = null;
+  try {
+    const answer = await admin.request<{ run: BulkImportView }>(
+      'POST',
+      `/admin/import/bulk/${bulk.value.id}/${action}`,
+    );
+    bulk.value = answer.run;
+  } catch {
+    bulkFailure.value = 'failed';
+  } finally {
+    bulkBusy.value = false;
+  }
+  followBulk();
+}
+
+watch(mode, (which) => {
+  clearTimeout(bulkPoll);
+  if (which === 'bulk') void loadBulk();
+});
+
 async function run(): Promise<void> {
   importing.value = true;
   failed.value = false;
@@ -218,188 +302,321 @@ async function run(): Promise<void> {
     <p class="muted intro">{{ t('importer.pitch') }}</p>
     <p v-if="failed" class="error" role="alert">{{ t('admin.failed') }}</p>
 
-    <section class="panel">
-      <div class="pair">
-        <div class="field">
-          <label for="preset">{{ t('importer.preset') }}</label>
-          <select id="preset" v-model="preset">
-            <optgroup :label="t('importer.themes')">
-              <option v-for="value in objectPresets" :key="value" :value="value">
-                {{ t(`importer.presets.${value}`) }}
-              </option>
-            </optgroup>
-            <optgroup :label="t('importer.people')">
-              <option v-for="value in PEOPLE_PRESETS" :key="value" :value="value">
-                {{ t(`importer.presets.${value}`) }}
-              </option>
-              <option value="names">{{ t('importer.presets.names') }}</option>
-            </optgroup>
-          </select>
-        </div>
-        <div class="field end">
-          <button
-            v-if="preset === 'names' || !search || search.state === 'failed'"
-            type="button"
-            class="button"
-            :disabled="
-              preset === 'names' && (!names.length || tooManyNames || search?.state === 'running')
-            "
-            @click="start"
-          >
-            {{ t(search && preset !== 'names' ? 'importer.searchAgain' : 'importer.search') }}
-          </button>
-        </div>
-      </div>
-      <div v-if="preset === 'names'" class="field">
-        <label for="names">{{ t('importer.namesLabel') }}</label>
-        <textarea id="names" v-model="namesText" rows="8" spellcheck="false" />
-        <small v-if="tooManyNames" class="error">
-          {{ t('importer.namesTooMany', { max: IMPORT.maxPerImport }) }}
-        </small>
-        <small v-else class="muted">{{
-          t('importer.namesHint', { max: IMPORT.maxPerImport })
-        }}</small>
-      </div>
-      <p v-if="search?.state === 'running'" class="muted" role="status">
-        {{ t('importer.running', { seconds: waited }) }}
-      </p>
-      <p v-else-if="search?.state === 'failed'" class="error" role="alert">
-        {{ t('importer.searchFailed') }}
-      </p>
-      <p v-else-if="search?.state === 'done'" class="muted">
-        {{ t('importer.found', { n: candidates.length, importable: importable.length }) }}
-      </p>
-      <p v-if="search?.state === 'done' && search.unmatched.length" class="muted">
-        {{ t('importer.unmatched', { list: search.unmatched.join(', ') }) }}
-      </p>
-    </section>
+    <div class="tabs modes" role="group" :aria-label="t('importer.heading')">
+      <button type="button" :aria-pressed="mode === 'search'" @click="mode = 'search'">
+        {{ t('importer.bulk.modeSearch') }}
+      </button>
+      <button type="button" :aria-pressed="mode === 'bulk'" @click="mode = 'bulk'">
+        {{ t('importer.bulk.modeBulk') }}
+      </button>
+    </div>
 
-    <section v-if="result" class="panel" role="status">
-      <p class="good">
-        {{
-          t(resultForPeople ? 'importer.importedPeople' : 'importer.imported', {
-            n: result.created,
-          })
-        }}
-      </p>
-      <template v-if="resultForPeople && result.cardIds.length">
-        <p v-if="readiness.processing" class="muted">
-          {{ t('importer.processing', { n: readiness.processing }) }}
+    <template v-if="mode === 'bulk'">
+      <section class="panel">
+        <div class="pair">
+          <div class="field">
+            <label for="family">{{ t('importer.bulk.familyLabel') }}</label>
+            <select id="family" v-model="family">
+              <option v-for="key in BULK_FAMILIES" :key="key" :value="key">
+                {{ t(`importer.bulk.family.${key}`) }}
+              </option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="target">{{ t('importer.bulk.target') }}</label>
+            <input
+              id="target"
+              v-model.number="target"
+              type="number"
+              min="1"
+              :max="BULK.maxTarget"
+              step="50"
+            />
+          </div>
+          <div class="field end">
+            <button
+              type="button"
+              class="button"
+              :disabled="
+                bulkBusy ||
+                !(target >= 1 && target <= BULK.maxTarget) ||
+                bulk?.status === 'running' ||
+                bulk?.status === 'paused'
+              "
+              @click="startBulk"
+            >
+              {{ t('importer.bulk.start') }}
+            </button>
+          </div>
+        </div>
+        <p class="muted hint">{{ t('importer.bulk.hint') }}</p>
+        <p v-if="bulkFailure" class="error" role="alert">
+          {{ t(bulkFailure === 'failed' ? 'admin.failed' : 'importer.bulk.running409') }}
         </p>
-        <p v-else>{{ t('importer.readiness', readiness) }}</p>
-      </template>
-      <p v-if="result.skipped.length" class="muted">
-        {{
-          t('importer.skipped', {
-            list: result.skipped
-              .map((skip) => `${skip.qid} (${t(`importer.skipReasons.${skip.reason}`)})`)
-              .join(', '),
-          })
-        }}
-      </p>
-      <NuxtLink v-if="packId" class="link" :to="localePath(`/admin/packs/${packId}`)">
-        {{ t('importer.openPack', { pack: targetTitle }) }}
-      </NuxtLink>
-    </section>
+      </section>
 
-    <template v-if="search?.state === 'done' && candidates.length">
-      <section class="panel target">
-        <div class="field">
-          <label for="pack">{{ t('importer.target') }}</label>
-          <select id="pack" v-model="packId">
-            <option v-for="pack in targetPacks" :key="pack.id" :value="pack.id">
-              {{ locale === 'en' ? pack.titleEn : pack.titleFr }}
-            </option>
-          </select>
-          <p v-if="!targetPacks.length && people" class="muted">
-            {{ t('importer.noCelebrityPack') }}
-            <NuxtLink class="link" :to="localePath('/admin')">{{
-              t('importer.createPack')
-            }}</NuxtLink>
-          </p>
-          <p v-else-if="!targetPacks.length" class="muted">{{ t('importer.noPack') }}</p>
-        </div>
-        <div class="actions">
-          <button type="button" class="button quiet small" @click="pickTop">
-            {{ t('importer.pickTop', { n: IMPORT.maxPerImport }) }}
-          </button>
+      <section v-if="bulk" class="panel run" role="status">
+        <h2>
+          {{ t(`importer.bulk.family.${bulk.family}`) }} × {{ bulk.target }}
+          <span class="chip" :class="BULK_CHIP[bulk.status]">
+            {{ t(`importer.bulk.status.${bulk.status}`) }}
+          </span>
+        </h2>
+        <dl class="figures">
+          <div>
+            <dt>{{ t('importer.bulk.created') }}</dt>
+            <dd>{{ bulk.created }}</dd>
+          </div>
+          <div>
+            <dt>{{ t('importer.bulk.published') }}</dt>
+            <dd>{{ bulk.published }}</dd>
+          </div>
+          <div>
+            <dt>{{ t('importer.bulk.waiting') }}</dt>
+            <dd>{{ bulk.waiting }}</dd>
+          </div>
+          <div>
+            <dt>{{ t('importer.bulk.skipped') }}</dt>
+            <dd>{{ bulk.skipped }}</dd>
+          </div>
+        </dl>
+        <p v-if="bulk.skipped" class="reasons">
+          <span v-for="(n, reason) in bulk.skipReasons" :key="reason" class="chip processing">
+            {{ t(`importer.bulk.skip.${reason}`) }} · {{ n }}
+          </span>
+        </p>
+        <p v-if="bulk.cursor" class="muted">
+          {{
+            t('importer.bulk.cursor', {
+              name: bulk.cursor.className,
+              band: bulk.cursor.band + 1,
+              page: bulk.cursor.page + 1,
+            })
+          }}
+        </p>
+        <p v-if="bulk.perHour" class="muted">
+          {{
+            bulk.minutesLeft === null
+              ? t('importer.bulk.paceOnly', { n: bulk.perHour })
+              : t('importer.bulk.pace', { n: bulk.perHour, m: bulk.minutesLeft })
+          }}
+        </p>
+        <p v-if="bulk.note" class="muted note">{{ bulk.note }}</p>
+        <div v-if="bulk.status === 'running' || bulk.status === 'paused'" class="actions">
           <button
+            v-if="bulk.status === 'running'"
             type="button"
             class="button quiet small"
-            :disabled="!picked.size"
-            @click="picked = new Set()"
+            :disabled="bulkBusy"
+            @click="actOnBulk('pause')"
           >
-            {{ t('importer.clear') }}
+            {{ t('importer.bulk.pause') }}
           </button>
-          <span class="muted">
-            {{ t('importer.picked', { n: picked.size, max: IMPORT.maxPerImport }) }}
-          </span>
+          <button
+            v-else
+            type="button"
+            class="button quiet small"
+            :disabled="bulkBusy"
+            @click="actOnBulk('resume')"
+          >
+            {{ t('importer.bulk.resume') }}
+          </button>
           <button
             type="button"
-            class="button"
-            :disabled="!picked.size || !packId || importing"
-            @click="run"
+            class="button danger small"
+            :disabled="bulkBusy"
+            @click="actOnBulk('stop')"
           >
-            {{ t('importer.import', { n: picked.size }) }}
+            {{ t('importer.bulk.stop') }}
           </button>
         </div>
       </section>
+    </template>
 
-      <ul class="plain candidates">
-        <template v-for="candidate in candidates" :key="candidate.qid">
-          <li v-if="firstOfQuery.has(candidate.qid)" class="group">
-            {{ t('importer.forName', { name: candidate.query }) }}
-          </li>
-          <li
-            class="panel"
-            :class="{ off: candidate.rejection, chosen: picked.has(candidate.qid) }"
-          >
-            <label class="pick">
-              <input
-                type="checkbox"
-                :checked="picked.has(candidate.qid)"
-                :disabled="
-                  Boolean(candidate.rejection) ||
-                  inTarget(candidate.importedIn) ||
-                  (full && !picked.has(candidate.qid))
-                "
-                @change="toggle(candidate.qid)"
-              />
-              <!-- From Wikimedia's servers, straight to the admin's browser; never to a player. -->
-              <img
-                v-if="candidate.thumbUrl"
-                :src="candidate.thumbUrl"
-                alt=""
-                loading="lazy"
-                referrerpolicy="no-referrer"
-              />
-              <span class="facts">
-                <b>{{ candidate.answers.fr?.text ?? '—' }}</b>
-                <small v-if="candidate.answers.en">{{ candidate.answers.en.text }}</small>
-                <small v-if="candidate.description" class="muted">{{
-                  candidate.description
-                }}</small>
-                <small class="muted">
-                  {{ t('importer.popularity', { n: candidate.popularity }) }} ·
-                  {{ t('importer.difficulty', { n: candidate.difficulty }) }}
-                </small>
-                <small v-if="candidate.credit" class="muted">
-                  {{ candidate.credit.author }} ·
-                  <a :href="candidate.credit.sourceUrl" target="_blank" rel="noopener noreferrer">
-                    {{ candidate.credit.licence }}
-                  </a>
-                </small>
-                <span v-if="candidate.rejection" class="chip">
-                  {{ t(`importer.rejections.${candidate.rejection}`) }}
-                </span>
-                <span v-else-if="candidate.importedIn.length" class="chip public">
-                  {{ t('importer.alreadyIn', { packs: candidate.importedIn.join(', ') }) }}
-                </span>
-              </span>
-            </label>
-          </li>
+    <template v-else>
+      <section class="panel">
+        <div class="pair">
+          <div class="field">
+            <label for="preset">{{ t('importer.preset') }}</label>
+            <select id="preset" v-model="preset">
+              <optgroup :label="t('importer.themes')">
+                <option v-for="value in objectPresets" :key="value" :value="value">
+                  {{ t(`importer.presets.${value}`) }}
+                </option>
+              </optgroup>
+              <optgroup :label="t('importer.people')">
+                <option v-for="value in PEOPLE_PRESETS" :key="value" :value="value">
+                  {{ t(`importer.presets.${value}`) }}
+                </option>
+                <option value="names">{{ t('importer.presets.names') }}</option>
+              </optgroup>
+            </select>
+          </div>
+          <div class="field end">
+            <button
+              v-if="preset === 'names' || !search || search.state === 'failed'"
+              type="button"
+              class="button"
+              :disabled="
+                preset === 'names' && (!names.length || tooManyNames || search?.state === 'running')
+              "
+              @click="start"
+            >
+              {{ t(search && preset !== 'names' ? 'importer.searchAgain' : 'importer.search') }}
+            </button>
+          </div>
+        </div>
+        <div v-if="preset === 'names'" class="field">
+          <label for="names">{{ t('importer.namesLabel') }}</label>
+          <textarea id="names" v-model="namesText" rows="8" spellcheck="false" />
+          <small v-if="tooManyNames" class="error">
+            {{ t('importer.namesTooMany', { max: IMPORT.maxPerImport }) }}
+          </small>
+          <small v-else class="muted">{{
+            t('importer.namesHint', { max: IMPORT.maxPerImport })
+          }}</small>
+        </div>
+        <p v-if="search?.state === 'running'" class="muted" role="status">
+          {{ t('importer.running', { seconds: waited }) }}
+        </p>
+        <p v-else-if="search?.state === 'failed'" class="error" role="alert">
+          {{ t('importer.searchFailed') }}
+        </p>
+        <p v-else-if="search?.state === 'done'" class="muted">
+          {{ t('importer.found', { n: candidates.length, importable: importable.length }) }}
+        </p>
+        <p v-if="search?.state === 'done' && search.unmatched.length" class="muted">
+          {{ t('importer.unmatched', { list: search.unmatched.join(', ') }) }}
+        </p>
+      </section>
+
+      <section v-if="result" class="panel" role="status">
+        <p class="good">
+          {{
+            t(resultForPeople ? 'importer.importedPeople' : 'importer.imported', {
+              n: result.created,
+            })
+          }}
+        </p>
+        <template v-if="resultForPeople && result.cardIds.length">
+          <p v-if="readiness.processing" class="muted">
+            {{ t('importer.processing', { n: readiness.processing }) }}
+          </p>
+          <p v-else>{{ t('importer.readiness', readiness) }}</p>
         </template>
-      </ul>
+        <p v-if="result.skipped.length" class="muted">
+          {{
+            t('importer.skipped', {
+              list: result.skipped
+                .map((skip) => `${skip.qid} (${t(`importer.skipReasons.${skip.reason}`)})`)
+                .join(', '),
+            })
+          }}
+        </p>
+        <NuxtLink v-if="packId" class="link" :to="localePath(`/admin/packs/${packId}`)">
+          {{ t('importer.openPack', { pack: targetTitle }) }}
+        </NuxtLink>
+      </section>
+
+      <template v-if="search?.state === 'done' && candidates.length">
+        <section class="panel target">
+          <div class="field">
+            <label for="pack">{{ t('importer.target') }}</label>
+            <select id="pack" v-model="packId">
+              <option v-for="pack in targetPacks" :key="pack.id" :value="pack.id">
+                {{ locale === 'en' ? pack.titleEn : pack.titleFr }}
+              </option>
+            </select>
+            <p v-if="!targetPacks.length && people" class="muted">
+              {{ t('importer.noCelebrityPack') }}
+              <NuxtLink class="link" :to="localePath('/admin')">{{
+                t('importer.createPack')
+              }}</NuxtLink>
+            </p>
+            <p v-else-if="!targetPacks.length" class="muted">{{ t('importer.noPack') }}</p>
+          </div>
+          <div class="actions">
+            <button type="button" class="button quiet small" @click="pickTop">
+              {{ t('importer.pickTop', { n: IMPORT.maxPerImport }) }}
+            </button>
+            <button
+              type="button"
+              class="button quiet small"
+              :disabled="!picked.size"
+              @click="picked = new Set()"
+            >
+              {{ t('importer.clear') }}
+            </button>
+            <span class="muted">
+              {{ t('importer.picked', { n: picked.size, max: IMPORT.maxPerImport }) }}
+            </span>
+            <button
+              type="button"
+              class="button"
+              :disabled="!picked.size || !packId || importing"
+              @click="run"
+            >
+              {{ t('importer.import', { n: picked.size }) }}
+            </button>
+          </div>
+        </section>
+
+        <ul class="plain candidates">
+          <template v-for="candidate in candidates" :key="candidate.qid">
+            <li v-if="firstOfQuery.has(candidate.qid)" class="group">
+              {{ t('importer.forName', { name: candidate.query }) }}
+            </li>
+            <li
+              class="panel"
+              :class="{ off: candidate.rejection, chosen: picked.has(candidate.qid) }"
+            >
+              <label class="pick">
+                <input
+                  type="checkbox"
+                  :checked="picked.has(candidate.qid)"
+                  :disabled="
+                    Boolean(candidate.rejection) ||
+                    inTarget(candidate.importedIn) ||
+                    (full && !picked.has(candidate.qid))
+                  "
+                  @change="toggle(candidate.qid)"
+                />
+                <!-- From Wikimedia's servers, straight to the admin's browser; never to a player. -->
+                <img
+                  v-if="candidate.thumbUrl"
+                  :src="candidate.thumbUrl"
+                  alt=""
+                  loading="lazy"
+                  referrerpolicy="no-referrer"
+                />
+                <span class="facts">
+                  <b>{{ candidate.answers.fr?.text ?? '—' }}</b>
+                  <small v-if="candidate.answers.en">{{ candidate.answers.en.text }}</small>
+                  <small v-if="candidate.description" class="muted">{{
+                    candidate.description
+                  }}</small>
+                  <small class="muted">
+                    {{ t('importer.popularity', { n: candidate.popularity }) }} ·
+                    {{ t('importer.difficulty', { n: candidate.difficulty }) }}
+                  </small>
+                  <small v-if="candidate.credit" class="muted">
+                    {{ candidate.credit.author }} ·
+                    <a :href="candidate.credit.sourceUrl" target="_blank" rel="noopener noreferrer">
+                      {{ candidate.credit.licence }}
+                    </a>
+                  </small>
+                  <span v-if="candidate.rejection" class="chip">
+                    {{ t(`importer.rejections.${candidate.rejection}`) }}
+                  </span>
+                  <span v-else-if="candidate.importedIn.length" class="chip public">
+                    {{ t('importer.alreadyIn', { packs: candidate.importedIn.join(', ') }) }}
+                  </span>
+                </span>
+              </label>
+            </li>
+          </template>
+        </ul>
+      </template>
     </template>
   </AdminShell>
 </template>
@@ -421,6 +638,76 @@ select {
 }
 .field.end {
   align-self: end;
+}
+/* The two modes, in the look of PageShell's tabs (its style stops at .page). */
+.modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+.modes button {
+  min-height: var(--tap);
+  padding: 0 var(--space-4);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+}
+.modes button[aria-pressed='true'] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--bg);
+}
+input[type='number'] {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0 var(--space-3);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  font: inherit;
+  color: inherit;
+}
+.hint {
+  max-width: 70ch;
+  margin: 0;
+}
+.hint + .error {
+  margin-top: var(--space-3);
+}
+.run h2 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+}
+.figures dt {
+  font-size: 13px;
+  color: var(--muted);
+}
+.figures dd {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.note {
+  overflow-wrap: anywhere;
 }
 .target .actions {
   flex-wrap: wrap;
