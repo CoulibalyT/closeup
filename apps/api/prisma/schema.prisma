@@ -178,6 +178,9 @@ model Pack {
   category        Category
   /// Celebrity and fictional-character packs: kept off the landing page, previews and SEO.
   restricted      Boolean        @default(false)
+  /// False: the server refuses every way to publish this pack (images the owner may not have the
+  /// rights to publish). Lifted only by the admin confirming the rights (`pack.unlock`).
+  publishable     Boolean        @default(true)
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   cards           Card[]

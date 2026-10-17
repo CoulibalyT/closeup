@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { AdminReport, ContentReport, ReportInput, SessionUser } from '@closeup/shared';
 import { PrismaService } from '../prisma/prisma.module.js';
 
@@ -119,6 +124,10 @@ export class ModerationService {
   ): Promise<void> {
     const report = await this.prisma.report.findUnique({ where: { id: reportId } });
     if (!report?.targetId || report.targetType !== 'PACK') throw new NotFoundException();
+    if (verdict === 'PUBLISH') {
+      const pack = await this.prisma.pack.findUnique({ where: { id: report.targetId } });
+      if (pack && !pack.publishable) throw new ConflictException({ code: 'NOT_PUBLISHABLE' });
+    }
 
     await this.prisma.pack.update({
       where: { id: report.targetId },

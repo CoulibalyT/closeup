@@ -103,8 +103,8 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('player packs', () => {
   }
 
   /** A finished card of this pack: image, points, answers, credit, published. */
-  async function makeCard(colour: string, answer: string): Promise<AdminCard> {
-    const created = await author.json<AdminCard>('POST', `/me/packs/${pack.id}/cards`, {
+  async function makeCard(colour: string, answer: string, packId = pack.id): Promise<AdminCard> {
+    const created = await author.json<AdminCard>('POST', `/me/packs/${packId}/cards`, {
       category: 'OBJECT',
     });
     const form = new FormData();
@@ -447,5 +447,74 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('player packs', () => {
     expect(mine?.reveal.answer).toBe(`râpe ${run}`);
     expect(await decks.load(created.id, 'fr', 'text', { kind: 'public' })).toBeNull();
     await prisma.pack.deleteMany({ where: { id: drop.id } });
+  });
+  it('never lets a locked pack out, whatever the door, until its owner vouches for the rights', async () => {
+    const locked = await author.json<MyPack>('POST', '/me/packs', {
+      titleFr: `Verrou ${run}`,
+      titleEn: `Lock ${run}`,
+      category: 'OBJECT',
+    });
+    await prisma.pack.update({ where: { id: locked.id }, data: { publishable: false } });
+    const live = await makeCard('#9c6', `héros ${run}`, locked.id);
+    expect(live.status).toBe('LIVE');
+
+    const submit = await author.call('POST', `/me/packs/${locked.id}/submit`, {
+      rightsConfirmed: true,
+    });
+    expect(submit.status).toBe(409);
+    expect(await submit.json()).toMatchObject({ code: 'NOT_PUBLISHABLE' });
+
+    const visible = await admin.call('PUT', `/admin/packs/${locked.id}/visibility`, {
+      visibility: 'PUBLIC',
+    });
+    expect(visible.status).toBe(409);
+
+    const flags = await admin.call('PUT', `/admin/packs/${locked.id}`, {
+      titleFr: `Verrou ${run}`,
+      titleEn: `Lock ${run}`,
+      category: 'OBJECT',
+      publicMatchSafe: true,
+    });
+    expect(flags.status).toBe(409);
+
+    // A submission that slipped in before the lock is refused at review too.
+    await prisma.pack.update({ where: { id: locked.id }, data: { visibility: 'PENDING_REVIEW' } });
+    const report = await prisma.report.create({
+      data: {
+        targetType: 'PACK',
+        targetId: locked.id,
+        targetLabel: `x ${run}`,
+        reason: 'submission',
+      },
+    });
+    const review = await admin.call('PUT', `/admin/reports/${report.id}/pack`, {
+      verdict: 'PUBLISH',
+      note: '',
+    });
+    expect(review.status).toBe(409);
+    expect((await prisma.pack.findUniqueOrThrow({ where: { id: locked.id } })).visibility).not.toBe(
+      'PUBLIC',
+    );
+    const mine = await author.json<{ pack: MyPack }>('GET', `/me/packs/${locked.id}`);
+    expect(mine.pack.publishable).toBe(false);
+
+    // The owner lifts the lock only by vouching for the rights, and it is written down.
+    const noBox = await admin.call('POST', `/admin/packs/${locked.id}/unlock`, {});
+    expect(noBox.status).toBe(400);
+    const unlock = await admin.call('POST', `/admin/packs/${locked.id}/unlock`, {
+      rightsConfirmed: true,
+    });
+    expect(unlock.status).toBe(201);
+    expect(await unlock.json()).toMatchObject({ publishable: true });
+    expect(
+      await prisma.auditLog.count({ where: { action: 'pack.unlock', targetId: locked.id } }),
+    ).toBe(1);
+    const now = await admin.call('PUT', `/admin/packs/${locked.id}/visibility`, {
+      visibility: 'PUBLIC',
+    });
+    expect(now.status).toBe(200);
+
+    await prisma.report.delete({ where: { id: report.id } });
+    await prisma.pack.delete({ where: { id: locked.id } });
   });
 });

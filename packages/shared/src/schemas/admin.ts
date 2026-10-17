@@ -91,11 +91,16 @@ export const packVisibilityInputSchema = z.strictObject({
   visibility: z.enum(['PRIVATE', 'PUBLIC', 'DISABLED']),
 });
 
+/** Lifting the lock of a pack: only by vouching for the rights to every image in it. */
+export const packUnlockSchema = z.strictObject({ rightsConfirmed: z.literal(true) });
+
 export interface AdminPack extends PackInput {
   id: string;
   slug: string | null;
   visibility: PackVisibility;
   restricted: boolean;
+  /** False: the server refuses to publish it until the admin confirms the rights. */
+  publishable: boolean;
   /** A player's pack. Only house packs receive imported cards. */
   byPlayer: boolean;
   /** How many cards per status, e.g. `{ LIVE: 8, NEEDS_POINTS: 1 }`. */

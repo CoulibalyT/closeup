@@ -37,6 +37,8 @@ export interface MyPack extends PackDraft {
   /** Only the owner sees why their pack came back. */
   reviewNote: string | null;
   submittedAt: string | null;
+  /** False: private for good, unless the admin confirms the rights. */
+  publishable: boolean;
   cards: Partial<Record<CardStatus, number>>;
   playableCards: number;
   updatedAt: string;

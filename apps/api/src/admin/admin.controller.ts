@@ -21,6 +21,7 @@ import {
   cardInputSchema,
   newCardSchema,
   packInputSchema,
+  packUnlockSchema,
   packVisibilityInputSchema,
   packReviewSchema,
   publishInputSchema,
@@ -130,6 +131,16 @@ export class AdminController {
   ) {
     const { visibility } = parse(packVisibilityInputSchema, body);
     return this.content.setVisibility(id, visibility, actorOf(request));
+  }
+
+  @Post('packs/:id/unlock')
+  unlockPack(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+    @Req() request: AdminRequest,
+  ) {
+    parse(packUnlockSchema, body);
+    return this.content.unlockPack(id, actorOf(request));
   }
 
   @Post('packs/:id/cards')

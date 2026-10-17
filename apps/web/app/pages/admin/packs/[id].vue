@@ -22,6 +22,7 @@ const cards = ref<AdminCardSummary[]>([]);
 const failed = ref(false);
 const saved = ref(false);
 const busy = ref(false);
+const unlockRights = ref(false);
 
 const form = reactive({
   titleFr: '',
@@ -87,6 +88,14 @@ async function setVisibility(visibility: 'PRIVATE' | 'PUBLIC' | 'DISABLED'): Pro
   fill(await admin.request<AdminPack>('PUT', `/admin/packs/${id}/visibility`, { visibility }));
 }
 
+/** The lock comes off only with the rights vouched for; the server writes it down. */
+async function unlock(): Promise<void> {
+  fill(
+    await admin.request<AdminPack>('POST', `/admin/packs/${id}/unlock`, { rightsConfirmed: true }),
+  );
+  unlockRights.value = false;
+}
+
 async function removePack(): Promise<void> {
   if (!window.confirm(t('admin.deletePackConfirm'))) return;
   await admin.request('DELETE', `/admin/packs/${id}`);
@@ -114,12 +123,28 @@ async function addCard(): Promise<void> {
             {{ t(`admin.visibility.${pack.visibility}`) }}
           </span>
           <span v-if="pack.restricted" class="chip restricted">{{ t('admin.restricted') }}</span>
+          <span v-if="!pack.publishable" class="chip draft">{{ t('admin.locked') }}</span>
         </p>
+        <template v-if="!pack.publishable">
+          <p class="muted">{{ t('admin.lockedHint') }}</p>
+          <label class="check">
+            <input v-model="unlockRights" type="checkbox" />
+            <span>{{ t('admin.unlockRights') }}</span>
+          </label>
+          <button
+            type="button"
+            class="button small quiet"
+            :disabled="!unlockRights"
+            @click="unlock"
+          >
+            {{ t('admin.unlock') }}
+          </button>
+        </template>
         <p class="muted">{{ t(`admin.visibilityHint.${pack.visibility}`) }}</p>
         <p v-if="pack.restricted" class="muted">{{ t('admin.restrictedHint') }}</p>
         <div class="actions">
           <button
-            v-if="pack.visibility !== 'PUBLIC'"
+            v-if="pack.visibility !== 'PUBLIC' && pack.publishable"
             type="button"
             class="button small"
             @click="setVisibility('PUBLIC')"

@@ -391,7 +391,8 @@
       "NO_PLAYABLE_CARD": "At least one playable card is needed to submit this pack.",
       "IN_REVIEW": "Your pack is being read: take the request back to change it.",
       "PUBLIC_PACK": "Take it out of the catalogue before deleting it.",
-      "other": "That did not work. Try again."
+      "other": "That did not work. Try again.",
+      "NOT_PUBLISHABLE": "This pack is private for good: it cannot be published."
     },
     "drop": {
       "title": "Drop a folder of pictures",
@@ -408,7 +409,8 @@
         "uploading": "sending…",
         "done": "sent, processing"
       }
-    }
+    },
+    "locked": "Private pack: it plays in your games and cannot be published."
   },
   "contact": {
     "title": "Contact, {appName}",
@@ -596,7 +598,11 @@
     "packSubmission": "Submitted pack",
     "packPublish": "Publish the pack",
     "packReject": "Send back to its author",
-    "packNote": "A word for the author (they will see it)"
+    "packNote": "A word for the author (they will see it)",
+    "locked": "not publishable",
+    "lockedHint": "This pack cannot be made public: its images are not yours. It plays in its owner’s games.",
+    "unlockRights": "I confirm I hold the rights to every image in this pack, and I know their authors and licences.",
+    "unlock": "Make publishable"
   },
   "status": {
     "title": "{appName} status",

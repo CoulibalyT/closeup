@@ -122,6 +122,7 @@ export class PacksService {
    */
   async submit(playerId: string, id: string): Promise<MyPack> {
     const pack = await this.own(playerId, id);
+    if (!pack.publishable) throw new ConflictException({ code: 'NOT_PUBLISHABLE' });
     if (pack.visibility === 'PUBLIC') throw new ConflictException({ code: 'ALREADY_PUBLIC' });
     if (pack.visibility === 'PENDING_REVIEW') throw new ConflictException({ code: 'IN_REVIEW' });
 
@@ -288,6 +289,7 @@ export class PacksService {
       visibility: pack.visibility,
       reviewNote: pack.reviewNote,
       submittedAt: pack.submittedAt?.toISOString() ?? null,
+      publishable: pack.publishable,
       cards: Object.fromEntries(mine.map((row) => [row.status, row._count])),
       playableCards: mine.find((row) => row.status === 'LIVE')?._count ?? 0,
       updatedAt: pack.updatedAt.toISOString(),

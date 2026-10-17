@@ -391,7 +391,8 @@
       "NO_PLAYABLE_CARD": "Il faut au moins une carte jouable pour proposer ce pack.",
       "IN_REVIEW": "Ton pack est en cours de lecture : retire la demande pour le modifier.",
       "PUBLIC_PACK": "Retire-le du catalogue avant de le supprimer.",
-      "other": "Ça n’a pas marché. Réessaie."
+      "other": "Ça n’a pas marché. Réessaie.",
+      "NOT_PUBLISHABLE": "Ce pack est privé pour de bon : il ne peut pas être publié."
     },
     "drop": {
       "title": "Déposer un dossier d’images",
@@ -408,7 +409,8 @@
         "uploading": "envoi…",
         "done": "envoyée, en traitement"
       }
-    }
+    },
+    "locked": "Pack privé : il se joue dans tes parties et ne peut pas être publié."
   },
   "contact": {
     "title": "Contact, {appName}",
@@ -596,7 +598,11 @@
     "packSubmission": "Pack proposé",
     "packPublish": "Publier le pack",
     "packReject": "Renvoyer à son auteur",
-    "packNote": "Mot pour l’auteur (il le verra)"
+    "packNote": "Mot pour l’auteur (il le verra)",
+    "locked": "non publiable",
+    "lockedHint": "Ce pack ne peut pas être rendu public : ses images ne sont pas à toi. Il se joue dans les parties de son propriétaire.",
+    "unlockRights": "Je confirme détenir les droits sur toutes les images de ce pack, et je connais leurs auteurs et licences.",
+    "unlock": "Rendre publiable"
   },
   "status": {
     "title": "État de {appName}",

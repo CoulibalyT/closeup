@@ -358,6 +358,8 @@ async function remove(): Promise<void> {
           </button>
         </template>
 
+        <p v-else-if="!pack.publishable" class="muted">{{ t('myPacks.locked') }}</p>
+
         <template v-else>
           <p class="muted">{{ t('myPacks.publishHint') }}</p>
           <label class="check">

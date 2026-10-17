@@ -113,6 +113,10 @@ export class AdminContentService {
   async updatePack(id: string, input: PackInput, actor: SessionUser): Promise<AdminPack> {
     await this.requirePack(id);
     const flags = this.packFlags(input);
+    const stored = await this.prisma.pack.findUniqueOrThrow({ where: { id } });
+    if (!stored.publishable && (input.publicMatchSafe || !flags.restricted)) {
+      throw new ConflictException({ code: 'NOT_PUBLISHABLE' });
+    }
     const pack = await this.prisma.pack.update({ where: { id }, data: { ...input, ...flags } });
     await this.audit(actor, 'pack.update', 'pack', id);
     return (await this.getPack(pack.id)).pack;
@@ -128,8 +132,26 @@ export class AdminContentService {
     actor: SessionUser,
   ): Promise<AdminPack> {
     await this.requirePack(id);
+    const stored = await this.prisma.pack.findUniqueOrThrow({ where: { id } });
+    if (visibility === 'PUBLIC' && !stored.publishable) {
+      throw new ConflictException({ code: 'NOT_PUBLISHABLE' });
+    }
     await this.prisma.pack.update({ where: { id }, data: { visibility } });
     await this.audit(actor, 'pack.visibility', 'pack', id, visibility);
+    return (await this.getPack(id)).pack;
+  }
+
+  /** The lock comes off only with the admin vouching for the rights; the log keeps it. */
+  async unlockPack(id: string, actor: SessionUser): Promise<AdminPack> {
+    await this.requirePack(id);
+    await this.prisma.pack.update({ where: { id }, data: { publishable: true } });
+    await this.audit(
+      actor,
+      'pack.unlock',
+      'pack',
+      id,
+      'rights confirmed by the admin for every image of this pack',
+    );
     return (await this.getPack(id)).pack;
   }
 
@@ -384,6 +406,7 @@ export class AdminContentService {
       publicMatchSafe: pack.publicMatchSafe,
       visibility: pack.visibility,
       restricted: pack.restricted,
+      publishable: pack.publishable,
       byPlayer: pack.ownerId !== null,
       cards: Object.fromEntries(
         counts.filter((row) => row.packId === pack.id).map((row) => [row.status, row._count]),

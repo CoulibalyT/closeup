@@ -71,6 +71,7 @@ async function toggle(pack: AdminPack): Promise<void> {
             {{ t(`admin.visibility.${pack.visibility}`) }}
           </span>
           <span v-if="pack.restricted" class="chip">{{ t('admin.restricted') }}</span>
+          <span v-if="!pack.publishable" class="chip draft">{{ t('admin.locked') }}</span>
         </div>
         <p class="muted">
           {{ t(`category.${pack.category}`) }} ·
