@@ -39,6 +39,8 @@ const envSchema = z
      * Compose stack) must not take each other's image jobs.
      */
     QUEUE_PREFIX: z.string().min(1).default('bull'),
+    /** Whether the worker runs the mass import loop; tests drive it by hand. */
+    BULK_RUNNER: z.enum(['on', 'off']).default('on'),
     /** Key of the encrypted media URLs. */
     MEDIA_SECRET: z.string().min(32).default(DEV_MEDIA_SECRET),
   })

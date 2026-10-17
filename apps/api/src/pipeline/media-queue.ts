@@ -23,6 +23,12 @@ export const MediaJob = {
   importImage: 'image.import',
 } as const;
 
+/**
+ * The mass import's image jobs: behind every other one. BullMQ serves jobs without a priority
+ * first, then the prioritized ones, lowest number first.
+ */
+export const BULK_PRIORITY = 10;
+
 export const WORKER_HEARTBEAT_KEY = 'closeup:worker:heartbeat';
 export const WORKER_HEARTBEAT_EVERY_MS = 10_000;
 export const WORKER_HEARTBEAT_TTL_S = 30;

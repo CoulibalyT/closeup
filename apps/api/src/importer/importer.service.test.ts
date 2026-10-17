@@ -32,6 +32,7 @@ describe('ImporterService.start', () => {
       redis as never,
       wikimedia as unknown as WikimediaApi,
       {} as never,
+      {} as never,
     );
 
     await service.start({ preset: 'heritage' });

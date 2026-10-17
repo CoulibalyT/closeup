@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from './config/app-config.js';
+import { BulkImportRunner } from './importer/bulk/bulk-import.runner.js';
+import { CardFactory } from './importer/card-factory.js';
 import { CommonsImageService } from './importer/commons-image.service.js';
 import { WIKIMEDIA, WikimediaHttpClient } from './importer/wikimedia.client.js';
 import { CropService } from './media/crop.service.js';
@@ -23,6 +25,8 @@ import { RedisModule } from './redis/redis.module.js';
     { provide: FACE_DETECTOR, useClass: FaceApiDetector },
     { provide: WIKIMEDIA, useFactory: () => new WikimediaHttpClient() },
     CommonsImageService,
+    CardFactory,
+    BulkImportRunner,
     MediaProcessor,
     WorkerHeartbeat,
   ],

@@ -1,0 +1,404 @@
+import { randomUUID } from 'node:crypto';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { getQueueToken } from '@nestjs/bullmq';
+import type { INestApplication } from '@nestjs/common';
+import type { TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
+import type { BulkImportView } from '@closeup/shared';
+import type { Queue } from 'bullmq';
+import sharp from 'sharp';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { AppModule } from '../../app.module.js';
+import { AuthService } from '../../auth/auth.service.js';
+import { configureApp } from '../../bootstrap.js';
+import { playableWhere } from '../../content/playable.js';
+import { FACE_DETECTOR } from '../../pipeline/face/detector.js';
+import { BULK_PRIORITY, MEDIA_QUEUE } from '../../pipeline/media-queue.js';
+import { PrismaService } from '../../prisma/prisma.module.js';
+import { listen } from '../../testing/listen.js';
+import { WorkerModule } from '../../worker.module.js';
+import type { CommonsFile, SparqlRow, WikimediaApi } from '../wikimedia.client.js';
+import { WIKIMEDIA } from '../wikimedia.client.js';
+import { BulkImportRunner } from './bulk-import.runner.js';
+
+const PASSWORD = 'a long enough passphrase';
+
+/** What the fake Wikidata answers for the "tools" class, changed by the tests. */
+const state = {
+  toolsRows: [] as SparqlRow[],
+  queries: [] as string[],
+};
+
+const LABELS: Record<string, { fr?: string; en?: string }> = {
+  Q7401: { fr: 'marteau', en: 'hammer' },
+  Q1131: { fr: 'clé à molette', en: 'spanner' },
+  Q40847: { fr: 'scie', en: 'saw' },
+  Q9999: { fr: 'éléphant', en: 'elephant' },
+  Q7378: { fr: 'éléphant', en: 'elephant' },
+  Q601: { fr: 'Omar Sy', en: 'Omar Sy' },
+};
+
+function fakeWikimedia(picture: Buffer): WikimediaApi {
+  const file = (name: string): CommonsFile => ({
+    pageId: name.length,
+    url: `https://upload.wikimedia.org/wikipedia/commons/x/${name}`,
+    thumbUrl: `https://thumb.wikimedia.org/wikipedia/commons/thumb/x/${name}/330px-${name}`,
+    width: 3000,
+    height: 2000,
+    size: 3_000_000,
+    mime: 'image/jpeg',
+    metadata: {
+      Artist: '<a href="//commons.wikimedia.org/wiki/User:Ann">Ann</a>',
+      License: 'cc-by-sa-4.0',
+      LicenseShortName: 'CC BY-SA 4.0',
+    },
+  });
+  return {
+    async sparql(query) {
+      state.queries.push(query);
+      if (query.includes('wd:Q3773693')) {
+        throw new Error('query.wikidata.org did not answer (HTTP 504)');
+      }
+      if (query.includes('wd:Q39546')) {
+        if (query.includes('?links >= 150)')) return state.toolsRows;
+        if (query.includes('>= 80 && ?links <= 149')) {
+          return [{ qid: 'Q7378', popularity: 100, file: 'Elephant.jpg' }];
+        }
+      }
+      if (query.includes('wd:Q33999')) return [{ qid: 'Q601', popularity: 120, file: 'Omar.jpg' }];
+      return [];
+    },
+    async entities(qids) {
+      return new Map(
+        qids.map((qid) => [
+          qid,
+          {
+            labels: LABELS[qid] ?? { fr: `sujet ${qid}`, en: `subject ${qid}` },
+            aliases: { fr: [], en: [] },
+          },
+        ]),
+      );
+    },
+    async people(qids) {
+      return new Map(
+        qids.map((qid) => [
+          qid,
+          {
+            human: qid === 'Q601',
+            file: 'Omar.jpg',
+            popularity: 120,
+            frenchArticle: true,
+            description: 'acteur français',
+            familyNameQid: null,
+          },
+        ]),
+      );
+    },
+    async subjects(qids) {
+      return new Map(
+        qids.map((qid) => [
+          qid,
+          {
+            instanceOf: qid === 'Q40847' ? ['Q728'] : [],
+            subclassOf: [],
+            taxonName: null,
+            description: { fr: null, en: null },
+          },
+        ]),
+      );
+    },
+    async searchHumans() {
+      return [];
+    },
+    async files(names) {
+      return new Map(names.map((name) => [name, file(name)]));
+    },
+    async download() {
+      return picture;
+    },
+  };
+}
+
+describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('mass import', () => {
+  let app: INestApplication;
+  let worker: TestingModule;
+  let runner: BulkImportRunner;
+  let queue: Queue;
+  let prisma: PrismaService;
+  let url: string;
+  let mediaDir: string;
+  let cookie = '';
+  const run = randomUUID();
+  const email = `bulk-${run}@test.local`;
+  const runIds: string[] = [];
+  const extraPackIds: string[] = [];
+
+  const call = (path: string, init: RequestInit = {}) =>
+    fetch(`${url}/api${path}`, { ...init, headers: { cookie, ...init.headers } });
+  const send = (method: string, path: string, body?: unknown) =>
+    call(path, {
+      method,
+      headers: { 'content-type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  const current = async () =>
+    ((await (await call('/admin/import/bulk')).json()) as { run: BulkImportView | null }).run!;
+  const start = async (family: string, target: number) => {
+    const response = await send('POST', '/admin/import/bulk', { family, target });
+    const body = (await response.json()) as { run?: BulkImportView; code?: string };
+    if (body.run) runIds.push(body.run.id);
+    return { status: response.status, body };
+  };
+  /** Ticks until `until` holds, a few hundred times at most. */
+  const tickUntil = async (until: () => Promise<boolean>) => {
+    for (let i = 0; i < 300; i++) {
+      await runner.tick();
+      if (await until()) return;
+    }
+    throw new Error('the run never got there');
+  };
+  const created = async (runId: string) => prisma.card.count({ where: { bulkImportId: runId } });
+  const settled = async (runId: string) => {
+    for (let i = 0; i < 150; i++) {
+      const processing = await prisma.card.count({
+        where: { bulkImportId: runId, status: 'PROCESSING' },
+      });
+      if (!processing) return;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    throw new Error('the worker never finished');
+  };
+  const rows = (from: number, count: number): SparqlRow[] =>
+    Array.from({ length: count }, (_, i) => ({
+      qid: `Q${from + i}`,
+      popularity: 200 - i,
+      file: `Tool${from + i}.jpg`,
+    }));
+
+  beforeAll(async () => {
+    mediaDir = await mkdtemp(join(tmpdir(), 'closeup-bulk-'));
+    Object.assign(process.env, {
+      DATABASE_URL: process.env.TEST_DATABASE_URL ?? '',
+      REDIS_URL: process.env.TEST_REDIS_URL ?? '',
+      MEDIA_DIR: mediaDir,
+      QUEUE_PREFIX: `test-${run}`,
+      // The tests drive the runner by hand.
+      BULK_RUNNER: 'off',
+    });
+    // A checkerboard: detail everywhere, so that object cards get their points.
+    const squares = Array.from({ length: 16 * 12 }, (_, i) => {
+      const col = i % 16;
+      const row = Math.floor(i / 16);
+      return (col + row) % 2
+        ? ''
+        : `<rect x="${col * 100}" y="${row * 100}" width="100" height="100"/>`;
+    }).join('');
+    const picture = await sharp(
+      Buffer.from(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200"><rect width="1600" height="1200" fill="#eee"/><g fill="#222">${squares}</g></svg>`,
+      ),
+    )
+      .jpeg()
+      .toBuffer();
+    const wikimedia = fakeWikimedia(picture);
+    const oneFace = {
+      score: 0.95,
+      box: { x: 500, y: 200, width: 600, height: 700 },
+      landmarks: {
+        leftEye: { x: 700, y: 500 },
+        rightEye: { x: 900, y: 500 },
+        nose: { x: 800, y: 620 },
+        mouth: { x: 800, y: 720 },
+        chin: { x: 800, y: 820 },
+        brow: { x: 800, y: 440 },
+      },
+    };
+
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(WIKIMEDIA)
+      .useValue(wikimedia)
+      .compile();
+    app = moduleRef.createNestApplication({ logger: false });
+    configureApp(app);
+    url = await listen(app);
+    worker = await Test.createTestingModule({ imports: [WorkerModule] })
+      .overrideProvider(WIKIMEDIA)
+      .useValue(wikimedia)
+      .overrideProvider(FACE_DETECTOR)
+      .useValue({ detect: async () => [oneFace] })
+      .compile();
+    worker.useLogger(false);
+    await worker.init();
+    runner = worker.get(BulkImportRunner);
+    queue = worker.get<Queue>(getQueueToken(MEDIA_QUEUE));
+    prisma = app.get(PrismaService);
+
+    await app.get(AuthService).upsertAdmin(email, PASSWORD);
+    const login = await send('POST', '/auth/login', { email, password: PASSWORD });
+    cookie = login.headers.getSetCookie()[0]!.split(';')[0]!;
+
+    // A hand-made pack already holds a live elephant: the mass import must not bring a second one.
+    // (Not the lion: the importer's own e2e test owns Q140, and the two suites share the base.)
+    const hand = await prisma.pack.create({
+      data: {
+        titleFr: `Main ${run}`,
+        titleEn: `Hand ${run}`,
+        category: 'ANIMAL',
+        visibility: 'PUBLIC',
+        cards: {
+          create: {
+            slug: 'wd-Q7378',
+            category: 'ANIMAL',
+            source: 'WIKIMEDIA',
+            status: 'LIVE',
+            answers: { create: [{ locale: 'fr', text: 'éléphant', aliases: [] }] },
+          },
+        },
+      },
+    });
+    extraPackIds.push(hand.id);
+  });
+
+  afterAll(async () => {
+    await prisma.card.deleteMany({ where: { bulkImportId: { in: runIds } } });
+    await prisma.bulkImport.deleteMany({ where: { id: { in: runIds } } });
+    await prisma.pack.deleteMany({ where: { id: { in: extraPackIds } } });
+    await prisma.pack.deleteMany({ where: { slug: { startsWith: 'bulk-' }, cards: { none: {} } } });
+    await prisma.user.deleteMany({ where: { email } });
+    await worker.close();
+    await app.close();
+    await rm(mediaDir, { recursive: true, force: true });
+  });
+
+  it('starts a run from the API and refuses a second one', async () => {
+    state.toolsRows = [
+      { qid: 'Q7401', popularity: 200, file: 'Hammer.jpg' },
+      { qid: 'Q1131', popularity: 190, file: 'Spanner.jpg' },
+      { qid: 'Q40847', popularity: 160, file: 'Saw.jpg' },
+      { qid: 'Q9999', popularity: 155, file: 'Elephant2.jpg' },
+    ];
+    const first = await start('objects', 3);
+    expect(first.status).toBe(201);
+    expect(first.body.run).toMatchObject({ family: 'objects', target: 3, status: 'running' });
+    const second = await start('objects', 3);
+    expect(second.status).toBe(409);
+    expect(second.body.code).toBe('BULK_RUNNING');
+  });
+
+  it('creates cards tick by tick, in a pack it opens, skipping guards and duplicates', async () => {
+    const runId = runIds[0]!;
+    await tickUntil(async () => (await current()).status === 'done');
+    const view = await current();
+    expect(view.created).toBe(2);
+    expect(view.skipReasons).toEqual({ GUARD_CLASS: 1, DUPLICATE: 1, DUPLICATE_ANSWER: 1 });
+    expect(view.note).toContain('kitchenware');
+
+    const pack = await prisma.pack.findUniqueOrThrow({ where: { slug: 'bulk-objects-1' } });
+    expect(pack).toMatchObject({ visibility: 'PUBLIC', category: 'OBJECT', restricted: false });
+
+    await settled(runId);
+    const cards = await prisma.card.findMany({
+      where: { bulkImportId: runId },
+      include: { zoomPoints: true, answers: true },
+    });
+    expect(cards.map((card) => card.status)).toEqual(['LIVE', 'LIVE']);
+    for (const card of cards) {
+      expect(card.packId).toBe(pack.id);
+      expect(card.zoomPoints.length).toBeGreaterThanOrEqual(2);
+      expect(card.zoomPoints.every((point) => point.origin === 'AUTO')).toBe(true);
+    }
+    expect((await current()).published).toBe(2);
+  });
+
+  it('resumes from the cursor after the worker forgot everything, and is done at the target', async () => {
+    // Ten tools for eight cards: the first tick makes five, the rest comes after the restart.
+    state.toolsRows = rows(2001, 10);
+    const { body } = await start('objects', 8);
+    const runId = body.run!.id;
+    await tickUntil(async () => (await created(runId)) >= 1);
+
+    // Paused: nothing moves.
+    await send('POST', `/admin/import/bulk/${runId}/pause`);
+    expect(await runner.tick()).toBe('idle');
+    const before = await created(runId);
+    // The queue drains meanwhile: the next step is not held back by pending jobs.
+    await settled(runId);
+
+    // A restart: the buffer is gone, the row remembers the page it was on; that page is asked
+    // again, and what it already gave is skipped as a duplicate.
+    runner.forget();
+    const asked = state.queries.length;
+    await send('POST', `/admin/import/bulk/${runId}/resume`);
+    await runner.tick();
+    const again = state.queries[asked]!;
+    expect(again).toContain('wd:Q39546');
+    expect(again).toContain('?links >= 150)');
+
+    await tickUntil(async () => (await current()).status === 'done');
+    expect(await created(runId)).toBe(8);
+    expect(before).toBeLessThan(8);
+    expect((await current()).skipReasons.DUPLICATE).toBe(before);
+    await settled(runId);
+  });
+
+  it('opens the next pack when the current one is switched off', async () => {
+    await prisma.pack.update({
+      where: { slug: 'bulk-objects-1' },
+      data: { visibility: 'DISABLED' },
+    });
+    state.toolsRows = rows(3001, 1);
+    const { body } = await start('objects', 1);
+    const runId = body.run!.id;
+    await tickUntil(async () => (await created(runId)) >= 1);
+    const card = await prisma.card.findFirstOrThrow({
+      where: { bulkImportId: runId },
+      include: { pack: true },
+    });
+    expect(card.pack.slug).toBe('bulk-objects-2');
+    await tickUntil(async () => (await current()).status === 'done');
+    await settled(runId);
+  });
+
+  it('never fills the public queue with the people pack', async () => {
+    const { body } = await start('people', 1);
+    const runId = body.run!.id;
+    await tickUntil(async () => (await created(runId)) >= 1);
+    await tickUntil(async () => (await current()).status === 'done');
+    await settled(runId);
+    const card = await prisma.card.findFirstOrThrow({
+      where: { bulkImportId: runId },
+      include: { pack: true, zoomPoints: true },
+    });
+    expect(card.pack).toMatchObject({
+      slug: 'bulk-people-1',
+      category: 'CELEBRITY',
+      restricted: true,
+      visibility: 'PUBLIC',
+    });
+    expect(card).toMatchObject({ isPerson: true, status: 'LIVE' });
+    expect(card.zoomPoints).toHaveLength(5);
+    const inPublicQueue = await prisma.card.count({
+      where: { ...playableWhere({ kind: 'public' }), packId: card.packId },
+    });
+    expect(inPublicQueue).toBe(0);
+    const whenChosen = await prisma.card.count({
+      where: { ...playableWhere({ kind: 'room', packIds: [card.packId] }), packId: card.packId },
+    });
+    expect(whenChosen).toBe(1);
+  });
+
+  it('keeps at most five image jobs pending', async () => {
+    state.toolsRows = rows(4001, 20);
+    const { body } = await start('objects', 20);
+    const runId = body.run!.id;
+    await tickUntil(async () => (await created(runId)) >= 1);
+    expect(await created(runId)).toBe(5);
+    const counts = await queue.getCountsPerPriority([BULK_PRIORITY]);
+    expect(counts[BULK_PRIORITY] ?? 0).toBeLessThanOrEqual(5);
+    await send('POST', `/admin/import/bulk/${runId}/stop`);
+    expect((await current()).status).toBe('stopped');
+    await settled(runId);
+  });
+});

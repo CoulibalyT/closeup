@@ -18,13 +18,12 @@ import { MEDIA_QUEUE, MediaJob } from '../pipeline/media-queue.js';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { REDIS } from '../redis/redis.module.js';
 import { PREVIEW_WIDTH, type StoredCandidate, toCandidate } from './candidates.js';
+import { CardFactory, slugOf } from './card-factory.js';
+import { peopleCandidates } from './people.js';
 import { SEARCH_LIMIT, searchQueries } from './presets.js';
-import {
-  type PersonFacts,
-  type SparqlRow,
-  WIKIMEDIA,
-  type WikimediaApi,
-} from './wikimedia.client.js';
+import { type SparqlRow, WIKIMEDIA, type WikimediaApi } from './wikimedia.client.js';
+
+export { slugOf };
 
 type StoredSearch = Omit<ImportSearch, 'candidates'> & { candidates: StoredCandidate[] };
 
@@ -46,9 +45,6 @@ const NAMESAKES = 3;
 /** A download that failed is tried again later: Commons, too, has its moments. */
 const IMPORT_JOB = { attempts: 3, backoff: { type: 'exponential', delay: 10_000 } } as const;
 
-/** Imported cards are known by their Wikidata item, so that a subject is never imported twice. */
-export const slugOf = (qid: string) => `wd-${qid}`;
-
 /**
  * The importer is one more producer of cards: it creates them with their answers and credit,
  * then hands their picture to the worker, like an upload. A search runs in the background and
@@ -64,6 +60,7 @@ export class ImporterService {
     @Inject(REDIS) private readonly redis: Redis,
     @Inject(WIKIMEDIA) private readonly wikimedia: WikimediaApi,
     @InjectQueue(MEDIA_QUEUE) private readonly queue: Queue,
+    private readonly cards: CardFactory,
   ) {}
 
   /** The last search for a source, with the packs where each subject already is. */
@@ -121,7 +118,7 @@ export class ImporterService {
     if (input.preset === 'names') return this.searchNames(input.names);
     const rows = await this.rows(input.preset);
     if (isPeopleSource(input.preset)) {
-      return { candidates: await this.candidatesForPeople(rows, new Map()), unmatched: [] };
+      return { candidates: await peopleCandidates(this.wikimedia, rows), unmatched: [] };
     }
     const [entities, files] = await Promise.all([
       this.wikimedia.entities(rows.map((row) => row.qid)),
@@ -183,39 +180,10 @@ export class ImporterService {
         rows.push({ qid, popularity: person.popularity, file: person.file ?? '' });
       }
     });
-    return { candidates: await this.candidatesForPeople(rows, queryOf, facts), unmatched };
-  }
-
-  /**
-   * People as candidates: their description, their family name as an alias, the line of a name
-   * search they answer. A person without a picture is listed, refused for want of a file.
-   */
-  private async candidatesForPeople(
-    rows: SparqlRow[],
-    queryOf: Map<string, string>,
-    known?: Map<string, PersonFacts>,
-  ): Promise<StoredCandidate[]> {
-    const facts = known ?? (await this.wikimedia.people(rows.map((row) => row.qid)));
-    const familyQids = [
-      ...new Set([...facts.values()].flatMap((f) => (f.familyNameQid ? [f.familyNameQid] : []))),
-    ];
-    const [entities, files, families] = await Promise.all([
-      this.wikimedia.entities(rows.map((row) => row.qid)),
-      this.wikimedia.files(
-        [...new Set(rows.map((row) => row.file).filter(Boolean))],
-        PREVIEW_WIDTH,
-      ),
-      this.wikimedia.entities(familyQids),
-    ]);
-    return rows.map((row) => {
-      const person = facts.get(row.qid);
-      const family = person?.familyNameQid ? families.get(person.familyNameQid) : undefined;
-      return toCandidate(row, entities.get(row.qid), row.file ? files.get(row.file) : undefined, {
-        description: person?.description ?? null,
-        familyName: { fr: family?.labels.fr, en: family?.labels.en },
-        query: queryOf.get(row.qid) ?? null,
-      });
-    });
+    return {
+      candidates: await peopleCandidates(this.wikimedia, rows, queryOf, facts),
+      unmatched,
+    };
   }
 
   /**
@@ -246,7 +214,10 @@ export class ImporterService {
         result.skipped.push({ qid, reason: 'NOT_ELIGIBLE' });
         continue;
       }
-      const cardId = await this.createCard(packId, preset, candidate);
+      const cardId = await this.cards.fromCandidate(packId, candidate, {
+        category: IMPORT_SOURCE_CATEGORY[preset],
+        isPerson: isPeopleSource(preset),
+      });
       if (!cardId) {
         result.skipped.push({ qid, reason: 'ALREADY_IN_PACK' });
         continue;
@@ -266,46 +237,6 @@ export class ImporterService {
       },
     });
     return result;
-  }
-
-  private async createCard(
-    packId: string,
-    preset: ImportSource,
-    candidate: StoredCandidate,
-  ): Promise<string | null> {
-    const slug = slugOf(candidate.qid);
-    const existing = await this.prisma.card.findFirst({
-      where: { packId, slug },
-      select: { id: true },
-    });
-    if (existing) return null;
-    const answers = (['fr', 'en'] as const).flatMap((locale) => {
-      const answer = candidate.answers[locale];
-      return answer ? [{ locale, text: answer.text, aliases: answer.aliases }] : [];
-    });
-    try {
-      const card = await this.prisma.card.create({
-        data: {
-          packId,
-          slug,
-          source: 'WIKIMEDIA',
-          status: 'PROCESSING',
-          category: IMPORT_SOURCE_CATEGORY[preset],
-          difficulty: candidate.difficulty,
-          isPerson: isPeopleSource(preset),
-          creditAuthor: candidate.credit!.author,
-          creditLicence: candidate.credit!.licence,
-          creditSourceUrl: candidate.credit!.sourceUrl,
-          answers: { create: answers },
-        },
-        select: { id: true },
-      });
-      return card.id;
-    } catch (error) {
-      // Two imports of the same subject at once: the second one finds the first one's card.
-      if ((error as { code?: string }).code === 'P2002') return null;
-      throw error;
-    }
   }
 
   private async run(input: ImportSearchInput, startedAt: string): Promise<void> {
