@@ -130,6 +130,9 @@ function fakeWikimedia(picture: Buffer): WikimediaApi & { downloads: string[] } 
         ]),
       );
     },
+    async itemsForTitles() {
+      return new Map();
+    },
     async searchHumans(name) {
       if (name === 'Omar Sy') return ['Q501', 'Q502'];
       return name === 'Paris' ? ['Q503'] : [];

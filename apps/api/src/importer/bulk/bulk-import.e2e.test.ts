@@ -115,6 +115,9 @@ function fakeWikimedia(picture: Buffer): WikimediaApi {
         ]),
       );
     },
+    async itemsForTitles() {
+      return new Map();
+    },
     async searchHumans() {
       return [];
     },

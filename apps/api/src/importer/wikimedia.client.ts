@@ -67,6 +67,8 @@ export interface WikimediaApi {
   sparql(query: string): Promise<SparqlRow[]>;
   entities(qids: string[], options?: EntityOptions): Promise<Map<string, WikidataEntity>>;
   people(qids: string[]): Promise<Map<string, PersonFacts>>;
+  /** The Wikidata item of each page of a wiki, by page title: title → QID. */
+  itemsForTitles(titles: string[], site: 'frwiki'): Promise<Map<string, string>>;
   /** Items whose name matches, best first: humans or not, the caller checks. */
   searchHumans(name: string): Promise<string[]>;
   subjects(qids: string[]): Promise<Map<string, SubjectFacts>>;
@@ -157,6 +159,28 @@ export class WikimediaHttpClient implements WikimediaApi {
           labels: { fr: label('fr'), en: label('en') },
           aliases: { fr: aliases('fr'), en: aliases('en') },
         });
+      }
+    }
+    return found;
+  }
+
+  async itemsForTitles(titles: string[], site: 'frwiki'): Promise<Map<string, string>> {
+    const found = new Map<string, string>();
+    for (const some of batches(titles)) {
+      const body = (await this.request(
+        'https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=sitelinks' +
+          `&sites=${site}&sitefilter=${site}&titles=` +
+          encodeURIComponent(some.join('|')),
+      )) as {
+        entities?: Record<
+          string,
+          { id?: string; missing?: string; sitelinks?: Record<string, { title: string }> }
+        >;
+      };
+      for (const entity of Object.values(body.entities ?? {})) {
+        const title = entity.sitelinks?.[site]?.title;
+        if (entity.missing !== undefined || !entity.id || !title) continue;
+        found.set(title, entity.id);
       }
     }
     return found;

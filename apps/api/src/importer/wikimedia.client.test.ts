@@ -227,6 +227,25 @@ describe('labels', () => {
   });
 });
 
+describe('items by title', () => {
+  it('finds the Wikidata item of a French Wikipedia page, by its title', async () => {
+    const fetch = replies(
+      json({
+        entities: {
+          Q2: { id: 'Q2', sitelinks: { frwiki: { title: 'Omar Sy' } } },
+          '-1': { missing: '' },
+        },
+      }),
+    );
+    const client = new WikimediaHttpClient({ fetch, sleep: async () => undefined });
+    const found = await client.itemsForTitles(['Omar Sy', 'Personne Inconnue'], 'frwiki');
+    expect([...found]).toEqual([['Omar Sy', 'Q2']]);
+    const url = String(fetch.mock.calls[0]![0]);
+    expect(url).toContain('sites=frwiki');
+    expect(url).toContain('titles=Omar%20Sy%7CPersonne%20Inconnue');
+  });
+});
+
 describe('a query that ran out of time', () => {
   it('is not tried again: the query service would stop it at 60 s once more', async () => {
     const fetch = replies(json({}, 504), json(sparqlBody));

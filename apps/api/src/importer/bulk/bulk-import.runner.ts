@@ -15,6 +15,7 @@ import { PrismaService } from '../../prisma/prisma.module.js';
 import { bandsOf, BULK_CLASSES, type BulkClass, bulkQuery } from '../bulk-families.js';
 import { PREVIEW_WIDTH, type StoredCandidate, toCandidate } from '../candidates.js';
 import { CardFactory, slugOf } from '../card-factory.js';
+import { answerTaken } from '../answer-taken.js';
 import { isDeniedSubject, isLatinName, isVagueSubject } from '../guards.js';
 import { peopleCandidates } from '../people.js';
 import { type SubjectFacts, WIKIMEDIA, type WikimediaApi } from '../wikimedia.client.js';
@@ -45,9 +46,6 @@ const HEALTH_QUERY = 'SELECT ?ok WHERE { BIND(1 AS ?ok) }';
 const ORPHAN_AFTER_MS = 30 * 60_000;
 /** This many failed pictures within the window pause the run: Commons is refusing, not a file. */
 const FAILURE_BREAKER = { count: 10, windowMs: 15 * 60_000 };
-/** Folded for comparison in SQL: case and the accents of French. */
-const FOLD_FROM = 'àâäáãåçéèêëíìîïñóòôöõúùûüýÿœæÀÂÄÁÃÅÇÉÈÊËÍÌÎÏÑÓÒÔÖÕÚÙÛÜÝŸ';
-const FOLD_TO = 'aaaaaaceeeeiiiinooooouuuuyyoaAAAAAACEEEEIIIINOOOOOUUUUYY';
 const jobIdOf = (cardId: string) => `bulk-${cardId}`;
 /** Between two steps, by what the last one found. */
 const PAUSE_MS: Record<Outcome, number> = {
@@ -445,17 +443,7 @@ export class BulkImportRunner implements OnApplicationBootstrap, OnModuleDestroy
     if (exists) return 'DUPLICATE';
     const text = item.candidate.answers.fr?.text;
     if (!text) return null;
-    const same = await this.prisma.$queryRaw<unknown[]>`
-      SELECT 1 FROM "CardAnswer" a
-      JOIN "Card" c ON c.id = a."cardId"
-      JOIN "Pack" p ON p.id = c."packId"
-      WHERE a.locale = 'fr'
-        AND p."ownerId" IS NULL
-        AND c.status IN ('LIVE', 'READY', 'PROCESSING', 'NEEDS_POINTS')
-        AND lower(translate(a.text, ${FOLD_FROM}, ${FOLD_TO}))
-          = lower(translate(${text}, ${FOLD_FROM}, ${FOLD_TO}))
-      LIMIT 1`;
-    return same.length ? 'DUPLICATE_ANSWER' : null;
+    return (await answerTaken(this.prisma, text)) ? 'DUPLICATE_ANSWER' : null;
   }
 
   /**
