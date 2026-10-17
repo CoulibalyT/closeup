@@ -2,6 +2,7 @@ import './config/load-env.js';
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
+import { DatasetCorrections } from './importer/dataset/corrections.js';
 import {
   type DatasetLine,
   DatasetImporter,
@@ -13,6 +14,7 @@ import { DATASET_CATEGORIES, type DatasetCategory } from './importer/dataset/man
  * The owner's dataset into the game (see the README):
  *   OWNER_EMAIL=me@example.org pnpm --filter @closeup/api import:dataset \
  *     [--only acteur] [--limit 20] [--dry-run] [--status]
+ *     [--export-corrections] [--apply-corrections]   (the owner's review, in DATASET_DIR/corrections.json)
  * DATASET_DIR defaults to data/celebrities. A rerun only adds what is missing.
  */
 const args = process.argv.slice(2);
@@ -60,7 +62,16 @@ const table = (title: string, summary: DatasetSummary) => {
 const app = await NestFactory.createApplicationContext(AppModule, { logger: ['error', 'warn'] });
 const importer = app.get(DatasetImporter);
 try {
-  if (flag('status')) {
+  const corrections = `${process.env.DATASET_DIR ?? 'data/celebrities'}/corrections.json`;
+  if (flag('export-corrections')) {
+    const { cards } = await app.get(DatasetCorrections).export(corrections);
+    console.log(`${cards} cartes écrites dans ${corrections}`);
+  } else if (flag('apply-corrections')) {
+    const r = await app.get(DatasetCorrections).apply(corrections, process.env.OWNER_EMAIL);
+    console.log(
+      `${r.cards} cartes lues · points replacés ${r.points} · niveaux changés ${r.difficulty} · retirées ${r.off} · remises en jeu ${r.on} · introuvables ${r.missing}`,
+    );
+  } else if (flag('status')) {
     table('État des packs du dataset :', await importer.status());
   } else {
     const summary = await importer.run(

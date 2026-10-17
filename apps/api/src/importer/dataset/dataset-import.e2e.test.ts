@@ -9,6 +9,7 @@ import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../../app.module.js';
 import { AuthService } from '../../auth/auth.service.js';
+import { AdminContentService } from '../../admin/admin-content.service.js';
 import { configureApp } from '../../bootstrap.js';
 import { playableWhere } from '../../content/playable.js';
 import { FACE_DETECTOR } from '../../pipeline/face/detector.js';
@@ -17,6 +18,7 @@ import { listen } from '../../testing/listen.js';
 import { WorkerModule } from '../../worker.module.js';
 import type { CommonsFile, WikimediaApi } from '../wikimedia.client.js';
 import { WIKIMEDIA } from '../wikimedia.client.js';
+import { DatasetCorrections } from './corrections.js';
 import { type DatasetLine, DatasetImporter } from './dataset-importer.service.js';
 
 const PASSWORD = 'a long enough passphrase';
@@ -492,5 +494,87 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('dataset import', () => {
       await prisma.card.findFirstOrThrow({ where: { slug: `${prefix}-petite` } }),
     ).toMatchObject({ status: 'DRAFT', processingError: 'TOO_SMALL' });
     await rm(other, { recursive: true, force: true });
+  });
+  it('exports the review and plays it back on another base: points, levels, cards taken out', async () => {
+    await settled();
+    const corrections = app.get(DatasetCorrections);
+    const alex = await prisma.card.findFirstOrThrow({ where: { slug: `${prefix}-babar` } });
+    const omar = await prisma.card.findFirstOrThrow({ where: { slug: 'wd-Q998601' } });
+    // The review: Babar moves to level 1 with hand-placed points, Omar is taken out.
+    await prisma.card.update({ where: { id: alex.id }, data: { difficulty: 1 } });
+    const image = await prisma.imageAsset.findUniqueOrThrow({ where: { id: alex.imageId! } });
+    const admin = app.get(AdminContentService);
+    const owner = await prisma.user.findUniqueOrThrow({ where: { email: ownerEmail } });
+    const actor = {
+      id: owner.id,
+      email: ownerEmail,
+      role: 'ADMIN' as const,
+      playerId: null,
+      nickname: null,
+      emailVerified: true,
+    };
+    await admin.setZoomPoints(
+      alex.id,
+      [
+        {
+          x: image.width * 0.25,
+          y: image.height * 0.25,
+          baseRadius: 40,
+          labelFr: '',
+          labelEn: '',
+          weight: 1,
+          origin: 'MANUAL',
+        },
+        {
+          x: image.width * 0.75,
+          y: image.height * 0.5,
+          baseRadius: 40,
+          labelFr: '',
+          labelEn: '',
+          weight: 1,
+          origin: 'MANUAL',
+        },
+      ],
+      actor,
+    );
+    await settled();
+    await admin.setLive(omar.id, false, actor);
+
+    const file = join(dir, 'corrections.json');
+    const exported = await corrections.export(file, prefix);
+    expect(exported.cards).toBeGreaterThanOrEqual(3);
+
+    // Another base: the same cards as the import left them.
+    await prisma.card.update({ where: { id: alex.id }, data: { difficulty: 2 } });
+    await admin.setZoomPoints(
+      alex.id,
+      [
+        { x: 10, y: 10, baseRadius: 20, labelFr: '', labelEn: '', weight: 1, origin: 'AUTO' },
+        { x: 30, y: 30, baseRadius: 20, labelFr: '', labelEn: '', weight: 1, origin: 'AUTO' },
+      ],
+      actor,
+    );
+    await settled();
+    await admin.setLive(alex.id, true, actor).catch(() => undefined);
+    await admin.setLive(omar.id, true, actor);
+
+    const applied = await corrections.apply(file, ownerEmail, prefix);
+    expect(applied).toMatchObject({ points: 1, off: 1 });
+    expect(applied.difficulty).toBeGreaterThanOrEqual(1);
+    const after = await prisma.card.findUniqueOrThrow({
+      where: { id: alex.id },
+      include: { zoomPoints: true },
+    });
+    expect(after).toMatchObject({ difficulty: 1, status: 'LIVE' });
+    expect(after.zoomPoints.map((p) => Math.round((p.x / image.width) * 100)).sort()).toEqual([
+      25, 75,
+    ]);
+    expect((await prisma.card.findUniqueOrThrow({ where: { id: omar.id } })).status).toBe('READY');
+    // Played again, nothing more to do.
+    expect(await corrections.apply(file, ownerEmail, prefix)).toMatchObject({
+      points: 0,
+      difficulty: 0,
+      off: 0,
+    });
   });
 });

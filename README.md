@@ -501,7 +501,10 @@ Added in phase 10:
   characters go into two private packs of the owner's player, locked: `publishable: false`
   makes the server refuse every way to publish them, until the admin confirms on the pack page
   that they hold the rights to every image in it (`POST /admin/packs/:id/unlock`, written to
-  the audit log). A rerun only adds what is missing and remakes what failed.
+  the audit log). A rerun only adds what is missing and remakes what failed. The owner's review of those packs (points placed by hand, levels, cards taken out) travels
+  with the dataset: `--export-corrections` writes `corrections.json` next to the manifest,
+  `--apply-corrections` plays it back on another base, card by card (by slug, points as shares of
+  the picture), and does nothing the second time.
 - **What a picture needs**: public domain, CC0, CC BY or CC BY-SA (any version, any national
   port); a named author, even in the public domain, since a card is only published with a full
   credit; JPEG or PNG; a shorter side of at least 1000 px, because every card is looked at from
