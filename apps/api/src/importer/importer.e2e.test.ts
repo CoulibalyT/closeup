@@ -384,7 +384,7 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('Wikimedia importer', () 
       qids: ['Q140'],
     });
     expect(noSearch.status).toBe(409);
-    await app.get(PrismaService).pack.deleteMany({ where: { id: playerPack } });
+    await app.get(PrismaService).pack.deleteMany({ where: { id: { in: [playerPack] } } });
     await app.get(PrismaService).player.delete({ where: { id: player.id } });
   });
 

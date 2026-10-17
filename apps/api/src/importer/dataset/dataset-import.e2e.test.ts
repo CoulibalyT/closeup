@@ -234,8 +234,9 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('dataset import', () => {
   afterAll(async () => {
     await prisma.card.deleteMany({ where: { pack: { slug: { startsWith: `${prefix}-` } } } });
     await prisma.pack.deleteMany({ where: { slug: { startsWith: `${prefix}-` } } });
-    await prisma.pack.deleteMany({ where: { id: housePackId } });
-    await prisma.player.deleteMany({ where: { id: ownerPlayerId } });
+    // `in` lists, never bare values: an undefined filter is no filter at all.
+    await prisma.pack.deleteMany({ where: { id: { in: [housePackId].filter(Boolean) } } });
+    await prisma.player.deleteMany({ where: { id: { in: [ownerPlayerId].filter(Boolean) } } });
     await prisma.user.deleteMany({ where: { email: ownerEmail } });
     await worker.close();
     await app.close();

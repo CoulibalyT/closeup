@@ -381,7 +381,9 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('player packs', () => {
       });
       expect(response.status).toBe(201);
     }
-    await prisma.pack.deleteMany({ where: { ownerId: bossPlayerId } });
+    // Never a bare variable in a delete: an undefined filter is no filter, and wipes every pack.
+    expect(bossPlayerId).toMatch(/^[0-9a-f-]{36}$/);
+    await prisma.pack.deleteMany({ where: { ownerId: { in: [bossPlayerId] } } });
 
     // A player still is.
     const { quota } = await author.json<{ quota: MyQuota }>('GET', '/me/packs');
