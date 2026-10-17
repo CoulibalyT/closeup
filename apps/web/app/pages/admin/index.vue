@@ -42,9 +42,14 @@ async function create(): Promise<void> {
   }
 }
 
-/** The one-click switch: a disabled pack leaves running games at their next round. */
+/**
+ * The one-click switch: a disabled pack leaves running games at their next round. Switched back
+ * on, a house pack plays again for everybody; a player's pack, or a locked one, comes back private
+ * (a player's pack goes through review again before the catalogue).
+ */
 async function toggle(pack: AdminPack): Promise<void> {
-  const visibility = pack.visibility === 'DISABLED' ? 'PRIVATE' : 'DISABLED';
+  const back = !pack.byPlayer && pack.publishable ? 'PUBLIC' : 'PRIVATE';
+  const visibility = pack.visibility === 'DISABLED' ? back : 'DISABLED';
   const updated = await admin.request<AdminPack>('PUT', `/admin/packs/${pack.id}/visibility`, {
     visibility,
   });
