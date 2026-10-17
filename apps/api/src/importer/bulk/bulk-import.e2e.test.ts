@@ -39,7 +39,7 @@ const LABELS: Record<string, { fr?: string; en?: string }> = {
   Q40847: { fr: 'scie', en: 'saw' },
   Q9999: { fr: 'éléphant', en: 'elephant' },
   Q7378: { fr: 'éléphant', en: 'elephant' },
-  Q601: { fr: 'Omar Sy', en: 'Omar Sy' },
+  Q997601: { fr: 'Persona Testa', en: 'Persona Testa' },
   Q998001: { fr: 'tournevis', en: 'screwdriver' },
   Q998002: { fr: 'Elephant', en: 'elephant' },
   Q998003: { fr: 'pince', en: 'pliers' },
@@ -73,7 +73,8 @@ function fakeWikimedia(picture: Buffer): WikimediaApi {
           return [{ qid: 'Q7378', popularity: 100, file: 'Elephant.jpg' }];
         }
       }
-      if (query.includes('wd:Q33999')) return [{ qid: 'Q601', popularity: 120, file: 'Omar.jpg' }];
+      if (query.includes('wd:Q33999'))
+        return [{ qid: 'Q997601', popularity: 120, file: 'Omar.jpg' }];
       return [];
     },
     async entities(qids) {
@@ -92,7 +93,7 @@ function fakeWikimedia(picture: Buffer): WikimediaApi {
         qids.map((qid) => [
           qid,
           {
-            human: qid === 'Q601',
+            human: qid === 'Q997601',
             file: 'Omar.jpg',
             popularity: 120,
             frenchArticle: true,
