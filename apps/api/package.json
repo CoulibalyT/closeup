@@ -15,6 +15,7 @@
     "bot": "node scripts/bot.mjs",
     "seed": "nest start --entryFile seed",
     "seed:sheet": "node scripts/seed-sheet.mjs",
+    "import:sheet": "nest start --entryFile import-sheet",
     "admin:create": "nest start --entryFile create-admin",
     "face:check": "node scripts/face-check.mjs",
     "prisma:generate": "prisma generate",
