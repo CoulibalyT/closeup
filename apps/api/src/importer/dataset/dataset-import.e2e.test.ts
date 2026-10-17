@@ -445,4 +445,52 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('dataset import', () => {
     expect(bad[`${prefix}-fiction`]).toEqual({ 'refused:NO_FILE': 1 });
     await rm(other, { recursive: true, force: true });
   });
+  it('takes smaller drawings into the locked packs, not smaller photos into the published ones', async () => {
+    const other = await mkdtemp(join(tmpdir(), 'closeup-dataset-small-'));
+    const squares = Array.from({ length: 6 * 5 }, (_, i) =>
+      (i % 6) + (Math.floor(i / 6) % 2) * 1 === 0 || ((i % 6) + Math.floor(i / 6)) % 2
+        ? ''
+        : `<rect x="${(i % 6) * 70}" y="${Math.floor(i / 6) * 70}" width="70" height="70"/>`,
+    ).join('');
+    const small = await sharp(
+      Buffer.from(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="420" height="350"><rect width="420" height="350" fill="#eee"/><g fill="#222">${squares}</g></svg>`,
+      ),
+    )
+      .png()
+      .toBuffer();
+    await mkdir(join(other, 'images', 'fiction'), { recursive: true });
+    await mkdir(join(other, 'images', 'acteur'), { recursive: true });
+    await writeFile(join(other, 'images', 'fiction', 'petit.png'), small);
+    await writeFile(join(other, 'images', 'acteur', 'petit.png'), small);
+    await writeFile(
+      join(other, 'manifest.json'),
+      JSON.stringify([
+        {
+          ...entries[4],
+          id: 'petit',
+          name: `Petit ${run}`,
+          image: 'images/fiction/petit.png',
+          tags: ['fiction'],
+        },
+        {
+          ...entries[0],
+          id: 'petite',
+          name: `Omar Sy ${run} bis`,
+          image: 'images/acteur/petit.png',
+          page_title: 'none',
+          page_url: 'https://fr.wikipedia.org/wiki/None',
+        },
+      ]),
+    );
+    await importer.run({ dir: other, ownerEmail, slugPrefix: prefix }, () => {});
+    await settled();
+    expect(
+      (await prisma.card.findFirstOrThrow({ where: { slug: `${prefix}-petit` } })).status,
+    ).toBe('LIVE');
+    expect(
+      await prisma.card.findFirstOrThrow({ where: { slug: `${prefix}-petite` } }),
+    ).toMatchObject({ status: 'DRAFT', processingError: 'TOO_SMALL' });
+    await rm(other, { recursive: true, force: true });
+  });
 });

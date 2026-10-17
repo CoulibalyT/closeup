@@ -39,11 +39,17 @@ export class IngestService {
   private async run(cardId: string, incomingKey: string): Promise<{ status: string }> {
     const card = await this.prisma.card.findUniqueOrThrow({
       where: { id: cardId },
-      include: { image: true, zoomPoints: { include: { crops: true } } },
+      include: {
+        image: true,
+        zoomPoints: { include: { crops: true } },
+        pack: { select: { publishable: true } },
+      },
     });
     const uploaded = await this.storage.read(incomingKey);
 
-    const decoded = await this.normalise(uploaded);
+    // A locked private pack (the owner's characters) takes smaller drawings.
+    const floor = card.pack.publishable ? UPLOAD.minSidePx : UPLOAD.lockedMinSidePx;
+    const decoded = await this.normalise(uploaded, floor);
     if ('error' in decoded) return this.refuse(cardId, card, decoded.error);
     const { data, width, height, extension } = decoded;
 
@@ -94,6 +100,7 @@ export class IngestService {
    */
   private async normalise(
     uploaded: Buffer,
+    minSidePx: number,
   ): Promise<
     | { data: Buffer; width: number; height: number; extension: 'png' | 'jpg' }
     | { error: UploadError }
@@ -101,7 +108,7 @@ export class IngestService {
     try {
       const source = () => sharp(uploaded, { limitInputPixels: MAX_INPUT_PIXELS, failOn: 'error' });
       const meta = await source().metadata();
-      const problem = checkDecodedImage(meta);
+      const problem = checkDecodedImage(meta, minSidePx);
       if (problem) return { error: problem };
 
       const upright = source()

@@ -33,15 +33,18 @@ export function checkUpload(file: {
 }
 
 /** Second gate, in the worker, once the image has been decoded. */
-export function checkDecodedImage(meta: {
-  format?: string;
-  width?: number;
-  height?: number;
-  pages?: number;
-}): UploadError | null {
+export function checkDecodedImage(
+  meta: {
+    format?: string;
+    width?: number;
+    height?: number;
+    pages?: number;
+  },
+  minSidePx: number = UPLOAD.minSidePx,
+): UploadError | null {
   if (!meta.width || !meta.height) return 'UNREADABLE';
   if (!(UPLOAD.formats as readonly string[]).includes(meta.format ?? '')) return 'UNSUPPORTED_TYPE';
   if ((meta.pages ?? 1) > 1) return 'ANIMATED';
-  if (Math.min(meta.width, meta.height) < UPLOAD.minSidePx) return 'TOO_SMALL';
+  if (Math.min(meta.width, meta.height) < minSidePx) return 'TOO_SMALL';
   return null;
 }

@@ -51,6 +51,15 @@ describe('checkUpload', () => {
 });
 
 describe('checkDecodedImage', () => {
+  it('lets a locked private pack take smaller drawings, down to its own floor', () => {
+    const small = { format: 'png', width: 420, height: 350 };
+    expect(checkDecodedImage(small)).toBe('TOO_SMALL');
+    expect(checkDecodedImage(small, UPLOAD.lockedMinSidePx)).toBeNull();
+    expect(
+      checkDecodedImage({ format: 'png', width: 320, height: 180 }, UPLOAD.lockedMinSidePx),
+    ).toBe('TOO_SMALL');
+  });
+
   it('accepts a still picture that is large enough', () => {
     expect(checkDecodedImage({ format: 'jpeg', width: 1600, height: 1200 })).toBeNull();
   });

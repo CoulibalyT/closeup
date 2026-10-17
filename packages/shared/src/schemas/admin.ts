@@ -43,6 +43,12 @@ export const UPLOAD = {
   formats: ['jpeg', 'png', 'webp'],
   /** The shorter side. Below it even the widest zoom level is mush. */
   minSidePx: 600,
+  /**
+   * The floor of a locked private pack (the owner's own characters, played at home): flat
+   * drawings stay clean when enlarged down to this; below it, mush. Chosen by the owner on
+   * 2026-10-17 from a side-by-side of 500, 350 and 180 px pictures.
+   */
+  lockedMinSidePx: 300,
   /** The stored original is resized down to this: nothing downstream needs more. */
   maxSidePx: 4096,
 } as const;
