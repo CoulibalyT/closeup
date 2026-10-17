@@ -493,6 +493,15 @@ Added in phase 10:
   the rooms their owner hosts, visible to nobody else. Admin accounts are not held to the player
   quotas. Copyrighted characters are not imported from anywhere: no free source exists, and a
   public pack would distribute them; what the owner adds to a private pack is their own affair.
+- **The owner's dataset.** `data/celebrities/` (built outside the app, git-ignored) goes in with
+  `OWNER_EMAIL=… pnpm --filter @closeup/api import:dataset [--only acteur] [--limit 20]
+[--dry-run] [--status]`. Real people go into three published, restricted celebrity packs with
+  their Commons credit (licence and author asked of Commons; size and format checked on the
+  dataset's own file; same `wd-Q…` identity as the importer, so nothing comes twice);
+  characters go into two private packs of the owner's player, locked: `publishable: false`
+  makes the server refuse every way to publish them, until the admin confirms on the pack page
+  that they hold the rights to every image in it (`POST /admin/packs/:id/unlock`, written to
+  the audit log). A rerun only adds what is missing and remakes what failed.
 - **What a picture needs**: public domain, CC0, CC BY or CC BY-SA (any version, any national
   port); a named author, even in the public domain, since a card is only published with a full
   credit; JPEG or PNG; a shorter side of at least 1000 px, because every card is looked at from
