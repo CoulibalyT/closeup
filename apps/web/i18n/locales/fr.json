@@ -502,7 +502,9 @@
       "TOO_SMALL": "Image trop petite : le gros plan serait flou.",
       "RIGHTS_NOT_CONFIRMED": "Coche la case : il faut confirmer le droit d’utiliser l’image.",
       "FAILED": "Le traitement a échoué de notre côté. Renvoie l’image.",
-      "PROCESSING": "Un traitement est déjà en cours pour cette carte."
+      "PROCESSING": "Un traitement est déjà en cours pour cette carte.",
+      "NO_FACE": "Aucun visage net : place les points à la main.",
+      "NO_DETAIL": "Image trop uniforme : place les points à la main."
     },
     "working": "Le serveur travaille sur l’image… la page se met à jour toute seule.",
     "needImage": "Ajoute une image pour poser les points de zoom.",

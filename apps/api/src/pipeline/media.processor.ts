@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
 import { CommonsImageService } from '../importer/commons-image.service.js';
 import { CropService } from '../media/crop.service.js';
+import { AutoPointsService } from './auto-points.service.js';
 import { IngestService } from './ingest.service.js';
 import { MEDIA_QUEUE, MediaJob } from './media-queue.js';
 
@@ -16,6 +17,7 @@ export class MediaProcessor extends WorkerHost {
     private readonly crops: CropService,
     private readonly ingest: IngestService,
     private readonly commons: CommonsImageService,
+    private readonly autoPoints: AutoPointsService,
   ) {
     super();
   }
@@ -29,12 +31,23 @@ export class MediaProcessor extends WorkerHost {
         return this.crops.processCard(cardId, publish);
       }
       case MediaJob.ingestImage: {
-        const { cardId, incomingKey } = job.data as { cardId: string; incomingKey: string };
-        return this.ingest.ingest(cardId, incomingKey);
+        const { cardId, incomingKey, autoPoints, publish } = job.data as {
+          cardId: string;
+          incomingKey: string;
+          autoPoints?: boolean;
+          publish?: boolean;
+        };
+        const ingested = await this.ingest.ingest(cardId, incomingKey);
+        if (!autoPoints || ingested.status !== 'NEEDS_POINTS') return ingested;
+        return this.autoPoints.apply(cardId, { publish: publish ?? false });
       }
       case MediaJob.importImage: {
-        const { cardId, file } = job.data as { cardId: string; file: string };
-        return this.commons.importImage(cardId, file);
+        const { cardId, file, publish } = job.data as {
+          cardId: string;
+          file: string;
+          publish?: boolean;
+        };
+        return this.commons.importImage(cardId, file, { publish: publish ?? false });
       }
       default:
         throw new Error(`Unknown media job: ${job.name}`);

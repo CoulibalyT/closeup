@@ -502,7 +502,9 @@
       "TOO_SMALL": "The image is too small: the close-up would be a blur.",
       "RIGHTS_NOT_CONFIRMED": "Tick the box: the right to use the image must be confirmed.",
       "FAILED": "Processing failed on our side. Upload the image again.",
-      "PROCESSING": "This card is already being processed."
+      "PROCESSING": "This card is already being processed.",
+      "NO_FACE": "No clear face: place the points by hand.",
+      "NO_DETAIL": "Too plain a picture: place the points by hand."
     },
     "working": "The server is working on the image… this page updates by itself.",
     "needImage": "Add an image to place zoom points.",

@@ -4,6 +4,7 @@ import { CommonsImageService } from './importer/commons-image.service.js';
 import { WIKIMEDIA, WikimediaHttpClient } from './importer/wikimedia.client.js';
 import { CropService } from './media/crop.service.js';
 import { MediaModule } from './media/media.module.js';
+import { AutoPointsService } from './pipeline/auto-points.service.js';
 import { FACE_DETECTOR } from './pipeline/face/detector.js';
 import { FaceApiDetector } from './pipeline/face/face-api.detector.js';
 import { IngestService } from './pipeline/ingest.service.js';
@@ -18,6 +19,7 @@ import { RedisModule } from './redis/redis.module.js';
   providers: [
     CropService,
     IngestService,
+    AutoPointsService,
     { provide: FACE_DETECTOR, useClass: FaceApiDetector },
     { provide: WIKIMEDIA, useFactory: () => new WikimediaHttpClient() },
     CommonsImageService,

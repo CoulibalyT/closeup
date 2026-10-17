@@ -13,9 +13,13 @@ export const MediaJob = {
    * ends here. `publish` lets the card go live if nothing blocks it.
    */
   processCard: 'card.process',
-  /** `{ cardId, incomingKey }`: an uploaded file becomes the card's private original. */
+  /**
+   * `{ cardId, incomingKey, autoPoints?, publish? }`: an uploaded file becomes the card's private
+   * original; `autoPoints` then places the points by itself (a dropped folder), `publish` lets it
+   * go live.
+   */
   ingestImage: 'image.ingest',
-  /** `{ cardId, file }`: a Commons file, downloaded, then ingested like an upload. */
+  /** `{ cardId, file, publish? }`: a Commons file, downloaded, then ingested like an upload. */
   importImage: 'image.import',
 } as const;
 
