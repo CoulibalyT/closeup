@@ -109,9 +109,12 @@ export class PacksService {
   async update(playerId: string, id: string, draft: PackDraft): Promise<MyPack> {
     const pack = await this.own(playerId, id);
     if (pack.visibility === 'PENDING_REVIEW') throw new ConflictException({ code: 'IN_REVIEW' });
+    const restricted = RESTRICTED_CATEGORIES.includes(draft.category);
+    // A locked pack stays restricted: it is never dealt unless its room ticks it.
+    if (!pack.publishable && !restricted) throw new ConflictException({ code: 'NOT_PUBLISHABLE' });
     const updated = await this.prisma.pack.update({
       where: { id },
-      data: { ...draft, restricted: RESTRICTED_CATEGORIES.includes(draft.category) },
+      data: { ...draft, restricted },
     });
     return this.myPack(updated, await this.counts(id));
   }

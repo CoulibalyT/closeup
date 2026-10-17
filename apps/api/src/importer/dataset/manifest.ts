@@ -117,12 +117,19 @@ export function commonsFileOf(entry: DatasetEntry): string | null {
   } catch {
     return null;
   }
+  // The dataset's thumbnails come from thumb.wikimedia.org (the manifest has 474 of them).
   if (!/^(upload|thumb)\.wikimedia\.org$/.test(url.hostname)) return null;
   const parts = url.pathname.split('/').filter(Boolean);
+  // Only Commons: /wikipedia/fr/… is a local (often fair-use) file of the French Wikipedia.
+  if (parts[0] !== 'wikipedia' || parts[1] !== 'commons') return null;
   // …/commons/thumb/9/9a/<file>/1280px-<file>, or …/commons/7/71/<file>
   const thumb = parts.indexOf('thumb');
   const name = thumb >= 0 ? parts[thumb + 3] : parts.at(-1);
-  return name ? decodeURIComponent(name) : null;
+  try {
+    return name ? decodeURIComponent(name) : null;
+  } catch {
+    return null;
+  }
 }
 
 /** The French Wikipedia title: from a frwiki page URL, else the page title. */

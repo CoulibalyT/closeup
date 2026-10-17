@@ -27,6 +27,10 @@ if (only && !DATASET_CATEGORIES.includes(only)) {
   process.exit(1);
 }
 const limit = value('limit') ? Number(value('limit')) : undefined;
+if (limit !== undefined && !(Number.isInteger(limit) && limit > 0)) {
+  console.error('--limit: a positive whole number');
+  process.exit(1);
+}
 
 const WORDS: Record<string, string> = {
   created: 'créée',
@@ -66,6 +70,7 @@ try {
         only,
         limit,
         dryRun: flag('dry-run'),
+        onWait: () => console.log('… en attente du worker'),
       },
       say,
     );

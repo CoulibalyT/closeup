@@ -62,6 +62,19 @@ describe('commonsFileOf', () => {
     expect(commonsFileOf(entry({ source_url: 'https://static.wikia.nocookie.net/x.png' }))).toBe(
       null,
     );
+    // A French Wikipedia local file is not on Commons; a broken escape is no file, not a crash.
+    expect(
+      commonsFileOf(
+        entry({ source_url: 'https://upload.wikimedia.org/wikipedia/fr/a/ab/Logo.png' }),
+      ),
+    ).toBe(null);
+    expect(
+      commonsFileOf(
+        entry({
+          source_url: 'https://upload.wikimedia.org/wikipedia/commons/a/ab/Bad%E0%A4%A.jpg',
+        }),
+      ),
+    ).toBe(null);
   });
 });
 

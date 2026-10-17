@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { access, readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Inject, Injectable } from '@nestjs/common';
@@ -31,6 +31,10 @@ export interface DatasetOptions {
   dryRun?: boolean;
   /** Prefix of the pack and card slugs: `ds` for real, another one for tests. */
   slugPrefix?: string;
+  /** How long to wait for the worker with nothing moving before giving up (default 10 min). */
+  waitLimitMs?: number;
+  /** Told once each time the command starts waiting for the worker. */
+  onWait?: () => void;
 }
 export type DatasetOutcome = 'created' | 'exists' | 'remade' | `refused:${string}`;
 export interface DatasetLine {
@@ -47,6 +51,12 @@ export type DatasetSummary = Record<string, Record<string, number>>;
 /** At most this many of the command's pictures in flight, so that a game is never starved. */
 const PENDING = 5;
 const WAIT_MS = 2_000;
+const WAIT_LIMIT_MS = 10 * 60_000;
+/** A card in flight this long with no job left is given up and made again. */
+const ORPHAN_AFTER_MS = 30 * 60_000;
+/** A failure a new try fixes; the others (too small, unreadable…) would only fail again. */
+const RETRYABLE = new Set([null, 'FAILED']);
+const jobIdOf = (cardId: string) => `ds-${cardId}`;
 
 /**
  * The owner's dataset into the game. Real people: their Commons credit, checked like the
@@ -104,7 +114,8 @@ export class DatasetImporter {
       };
 
       const imagePath = join(options.dir, entry.image);
-      if (!(await exists(imagePath))) {
+      const image = await readImage(imagePath);
+      if (!image) {
         line('refused:NO_FILE');
         continue;
       }
@@ -154,19 +165,29 @@ export class DatasetImporter {
       const packId = options.dryRun
         ? (packIds.get(target.pack) ?? (await this.findPack(packSlug)))
         : await this.ensurePack(target.pack, packSlug, ownerId, packIds);
+      if (packId && DATASET_PACKS[target.pack].private && (await this.unlocked(packId))) {
+        // The owner vouched for the images that were in it then, not for new ones.
+        line('refused:PACK_UNLOCKED');
+        continue;
+      }
       let remade = false;
       const here = packId
         ? await this.prisma.card.findFirst({
             where: { packId, slug },
-            select: { id: true, status: true },
+            select: { id: true, status: true, processingError: true, updatedAt: true },
           })
         : null;
       if (here) {
-        if (here.status !== 'DRAFT') {
+        const orphan = here.status === 'PROCESSING' && (await this.isOrphan(here));
+        if (here.status !== 'DRAFT' && !orphan) {
           line('exists');
           continue;
         }
-        // Its picture failed: it goes, and is made again.
+        if (here.status === 'DRAFT' && !RETRYABLE.has(here.processingError)) {
+          line(`refused:${here.processingError}`);
+          continue;
+        }
+        // Its picture failed, or its job vanished: it goes, and is made again.
         if (!options.dryRun) await this.prisma.card.delete({ where: { id: here.id } });
         remade = true;
       } else if (person) {
@@ -184,7 +205,7 @@ export class DatasetImporter {
         line(remade ? 'remade' : 'created', credit.licence);
         continue;
       }
-      await this.waitForRoom(prefix);
+      await this.waitForRoom(prefix, options);
       const card = await this.prisma.card.create({
         data: {
           packId: packId!,
@@ -209,11 +230,11 @@ export class DatasetImporter {
       });
       try {
         const incomingKey = storageKeys.incoming(randomUUID());
-        await this.storage.put(incomingKey, await readFile(imagePath));
+        await this.storage.put(incomingKey, image);
         await this.queue.add(
           MediaJob.ingestImage,
           { cardId: card.id, incomingKey, autoPoints: true, publish: true },
-          { attempts: 1 },
+          { attempts: 1, jobId: jobIdOf(card.id) },
         );
       } catch (error) {
         // No card without its picture on the way: a rerun makes it again.
@@ -299,19 +320,60 @@ export class DatasetImporter {
     return pack.id;
   }
 
-  private async waitForRoom(prefix: string): Promise<void> {
+  /** Whether a private pack of the dataset was unlocked or made visible since. */
+  private async unlocked(packId: string): Promise<boolean> {
+    const pack = await this.prisma.pack.findUnique({
+      where: { id: packId },
+      select: { publishable: true, visibility: true },
+    });
+    return Boolean(pack && (pack.publishable || pack.visibility !== 'PRIVATE'));
+  }
+
+  /** A card in flight for long whose job is gone (a crash between the card and its job). */
+  private async isOrphan(card: { id: string; updatedAt: Date }): Promise<boolean> {
+    if (Date.now() - card.updatedAt.getTime() < ORPHAN_AFTER_MS) return false;
+    const job = await this.queue.getJob(jobIdOf(card.id));
+    const state = job ? await job.getState() : 'missing';
+    return state === 'missing' || state === 'failed' || state === 'unknown';
+  }
+
+  /**
+   * At most PENDING pictures in flight. The wait is said once; a worker that does not move for
+   * the limit is a worker that is not running, and the command says so instead of hanging.
+   */
+  private async waitForRoom(prefix: string, options: DatasetOptions): Promise<void> {
+    const limit = options.waitLimitMs ?? WAIT_LIMIT_MS;
+    let told = false;
+    let last = -1;
+    let since = Date.now();
     for (;;) {
       const pending = await this.prisma.card.count({
         where: { status: 'PROCESSING', pack: { slug: { startsWith: `${prefix}-` } } },
       });
       if (pending < PENDING) return;
-      await new Promise((resolve) => setTimeout(resolve, WAIT_MS));
+      if (!told) {
+        options.onWait?.();
+        told = true;
+      }
+      if (pending !== last) {
+        last = pending;
+        since = Date.now();
+      } else if (Date.now() - since > limit) {
+        throw new Error(
+          `${pending} photos waiting for the worker for ${Math.round(limit / 1000)} s with nothing moving: is the worker running?`,
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, Math.min(WAIT_MS, limit / 3)));
     }
   }
 }
 
-const exists = (path: string) =>
-  access(path).then(
-    () => true,
-    () => false,
-  );
+/** The picture's bytes, or null when the path is missing, a folder, or unreadable. */
+async function readImage(path: string): Promise<Buffer | null> {
+  try {
+    if (!(await stat(path)).isFile()) return null;
+    return await readFile(path);
+  } catch {
+    return null;
+  }
+}

@@ -371,4 +371,77 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('dataset import', () => {
     expect(status[`${prefix}-acteur`]).toMatchObject({ LIVE: 1 });
     expect(status[`${prefix}-enfants`]).toMatchObject({ LIVE: 1 });
   });
+  it('gives up a card left in flight without a job, and stops waiting for a worker that is gone', async () => {
+    const fiction = await prisma.pack.findFirstOrThrow({ where: { slug: `${prefix}-fiction` } });
+    const orphan = await prisma.card.create({
+      data: {
+        packId: fiction.id,
+        slug: `${prefix}-babar`,
+        category: 'CHARACTER',
+        source: 'UPLOAD',
+        status: 'PROCESSING',
+      },
+    });
+    await prisma.$executeRaw`UPDATE "Card" SET "updatedAt" = now() - interval '1 hour' WHERE id = ${orphan.id}::uuid`;
+    const lines = await runOnce();
+    expect(outcome(lines, 'Babar', 'fiction')).toBe('remade');
+    await settled();
+
+    // Five pictures in flight that never move: the command says so and stops, it does not hang.
+    await prisma.card.deleteMany({ where: { slug: `${prefix}-babar` } });
+    await prisma.card.createMany({
+      data: Array.from({ length: 5 }, (_, i) => ({
+        packId: fiction.id,
+        slug: `${prefix}-stuck-${i}`,
+        category: 'CHARACTER' as const,
+        source: 'UPLOAD' as const,
+        status: 'PROCESSING' as const,
+      })),
+    });
+    let waited = 0;
+    await expect(
+      importer.run(
+        { dir, ownerEmail, slugPrefix: prefix, waitLimitMs: 300, onWait: () => waited++ },
+        () => {},
+      ),
+    ).rejects.toThrow(/worker/);
+    expect(waited).toBe(1);
+    await prisma.card.deleteMany({ where: { slug: { startsWith: `${prefix}-stuck-` } } });
+    await runOnce();
+    await settled();
+  });
+
+  it('adds nothing to a character pack its owner unlocked', async () => {
+    const fiction = await prisma.pack.findFirstOrThrow({ where: { slug: `${prefix}-fiction` } });
+    await prisma.pack.update({ where: { id: fiction.id }, data: { publishable: true } });
+    await prisma.card.deleteMany({ where: { slug: `${prefix}-alex` } });
+    const lines = await runOnce();
+    expect(outcome(lines, 'Alex', 'fiction')).toBe('refused:PACK_UNLOCKED');
+    expect(await prisma.card.count({ where: { slug: `${prefix}-alex` } })).toBe(0);
+    await prisma.pack.update({ where: { id: fiction.id }, data: { publishable: false } });
+  });
+
+  it('does not remake what will fail again, and an unreadable image is one line', async () => {
+    const kids = await prisma.card.findFirstOrThrow({ where: { slug: `${prefix}-alex-kids` } });
+    await prisma.card.update({
+      where: { id: kids.id },
+      data: { status: 'DRAFT', processingError: 'TOO_SMALL' },
+    });
+    const lines = await runOnce();
+    expect(outcome(lines, 'Alex', 'enfants')).toBe('refused:TOO_SMALL');
+    expect((await prisma.card.findUniqueOrThrow({ where: { id: kids.id } })).status).toBe('DRAFT');
+
+    // An image path that is a folder, then a sound one: the first is a line, the second goes in.
+    const other = await mkdtemp(join(tmpdir(), 'closeup-dataset-bad-'));
+    await mkdir(join(other, 'images', 'fiction', 'folder.jpg'), { recursive: true });
+    await writeFile(
+      join(other, 'manifest.json'),
+      JSON.stringify([
+        { ...entries[5], id: 'folder', name: `Dossier ${run}`, image: 'images/fiction/folder.jpg' },
+      ]),
+    );
+    const bad = await importer.run({ dir: other, ownerEmail, slugPrefix: prefix }, () => {});
+    expect(bad[`${prefix}-fiction`]).toEqual({ 'refused:NO_FILE': 1 });
+    await rm(other, { recursive: true, force: true });
+  });
 });

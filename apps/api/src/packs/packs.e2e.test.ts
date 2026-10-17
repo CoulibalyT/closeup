@@ -452,7 +452,7 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('player packs', () => {
     const locked = await author.json<MyPack>('POST', '/me/packs', {
       titleFr: `Verrou ${run}`,
       titleEn: `Lock ${run}`,
-      category: 'OBJECT',
+      category: 'CHARACTER',
     });
     await prisma.pack.update({ where: { id: locked.id }, data: { publishable: false } });
     const live = await makeCard('#9c6', `héros ${run}`, locked.id);
@@ -476,6 +476,15 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('player packs', () => {
       publicMatchSafe: true,
     });
     expect(flags.status).toBe(409);
+
+    // Nor by its owner turning it into an unrestricted category.
+    const recat = await author.call('PUT', `/me/packs/${locked.id}`, {
+      titleFr: `Verrou ${run}`,
+      titleEn: `Lock ${run}`,
+      category: 'OBJECT',
+    });
+    expect(recat.status).toBe(409);
+    expect(await recat.json()).toMatchObject({ code: 'NOT_PUBLISHABLE' });
 
     // A submission that slipped in before the lock is refused at review too.
     await prisma.pack.update({ where: { id: locked.id }, data: { visibility: 'PENDING_REVIEW' } });
