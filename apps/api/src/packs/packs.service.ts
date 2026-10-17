@@ -16,6 +16,7 @@ import {
   type PackDraft,
   QUOTA,
   RESTRICTED_CATEGORIES,
+  type SessionUser,
   type Takedown,
 } from '@closeup/shared';
 import type { Prisma } from '../generated/prisma/client.js';
@@ -84,9 +85,16 @@ export class PacksService {
     };
   }
 
-  async create(playerId: string, draft: PackDraft): Promise<MyPack> {
+  /** The quotas keep strangers' uploads in check; the owner's own account is not held to them. */
+  private unlimited(user: SessionUser): boolean {
+    return user.role === 'ADMIN';
+  }
+
+  async create(playerId: string, draft: PackDraft, user: SessionUser): Promise<MyPack> {
     const { packs } = await this.quota(playerId);
-    if (packs.used >= packs.max) throw new ConflictException({ code: 'QUOTA_PACKS' });
+    if (!this.unlimited(user) && packs.used >= packs.max) {
+      throw new ConflictException({ code: 'QUOTA_PACKS' });
+    }
     const pack = await this.prisma.pack.create({
       data: {
         ...draft,
@@ -167,14 +175,16 @@ export class PacksService {
     return pack;
   }
 
-  async canAddCard(playerId: string, packId: string): Promise<void> {
+  async canAddCard(playerId: string, packId: string, user: SessionUser): Promise<void> {
     const pack = await this.own(playerId, packId);
     if (pack.visibility === 'PENDING_REVIEW') throw new ConflictException({ code: 'IN_REVIEW' });
+    if (this.unlimited(user)) return;
     const cards = await this.prisma.card.count({ where: { packId } });
     if (cards >= QUOTA.cardsPerPack) throw new ConflictException({ code: 'QUOTA_CARDS' });
   }
 
-  async canUpload(playerId: string): Promise<void> {
+  async canUpload(playerId: string, user: SessionUser): Promise<void> {
+    if (this.unlimited(user)) return;
     const { uploadsToday } = await this.quota(playerId);
     if (uploadsToday.used >= uploadsToday.max)
       throw new ConflictException({ code: 'QUOTA_UPLOADS' });

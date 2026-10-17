@@ -205,6 +205,7 @@ export class AdminContentService {
     file: { buffer: Buffer; size: number } | undefined,
     rightsConfirmed: boolean,
     actor: SessionUser,
+    options: { autoPoints?: boolean; publish?: boolean } = {},
   ): Promise<AdminCard> {
     const card = await this.requireCard(id);
     if (card.status === 'PROCESSING') throw new ConflictException({ code: 'PROCESSING' });
@@ -222,7 +223,11 @@ export class AdminContentService {
       where: { id },
       data: { status: 'PROCESSING', processingError: null, rightsConfirmedAt: new Date() },
     });
-    await this.queue.add(MediaJob.ingestImage, { cardId: id, incomingKey }, { attempts: 1 });
+    await this.queue.add(
+      MediaJob.ingestImage,
+      { cardId: id, incomingKey, ...options },
+      { attempts: 1 },
+    );
     await this.audit(actor, 'card.upload', 'card', id, `${file.size} bytes, rights confirmed`);
     return this.getCard(id);
   }

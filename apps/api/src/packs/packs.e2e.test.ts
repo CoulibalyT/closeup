@@ -5,14 +5,15 @@ import { join } from 'node:path';
 import type { INestApplication, INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
-import type {
-  AdminCard,
-  AdminCardSummary,
-  AdminReport,
-  CataloguePack,
-  MyPack,
-  MyQuota,
-  PackCredits,
+import {
+  type AdminCard,
+  type AdminCardSummary,
+  type AdminReport,
+  type CataloguePack,
+  type MyPack,
+  type MyQuota,
+  type PackCredits,
+  QUOTA,
 } from '@closeup/shared';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -29,6 +30,23 @@ const picture = (background: string) =>
   sharp({ create: { width: 1200, height: 900, channels: 3, background } })
     .jpeg()
     .toBuffer();
+/** A checkerboard: detail everywhere, so that automatic points find something. */
+const textured = () => {
+  const squares = Array.from({ length: 16 * 12 }, (_, i) => {
+    const col = i % 16;
+    const row = Math.floor(i / 16);
+    return (col + row) % 2
+      ? ''
+      : `<rect x="${col * 100}" y="${row * 100}" width="100" height="100"/>`;
+  }).join('');
+  return sharp(
+    Buffer.from(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200"><rect width="1600" height="1200" fill="#eee"/><g fill="#222">${squares}</g></svg>`,
+    ),
+  )
+    .jpeg()
+    .toBuffer();
+};
 
 /** A browser that keeps its cookies, like the real thing. */
 class Browser {
@@ -345,5 +363,89 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('player packs', () => {
     );
     expect(view.cards).toHaveLength(1);
     expect(view.cards[0]).toMatchObject({ status: 'LIVE', answerFr: `théière ${run}` });
+  });
+  it('an admin account is not held to the player quotas', async () => {
+    // The admin plays too: a device with a guest player, then the admin's login takes it over.
+    const boss = new Browser(url);
+    const { playerId: bossPlayerId } = await boss.json<{ playerId: string }>(
+      'POST',
+      '/identity/guest',
+      { nickname: `Boss ${run}` },
+    );
+    await boss.call('POST', '/auth/login', { email: adminEmail, password: PASSWORD });
+    for (let i = 1; i <= QUOTA.packs + 1; i++) {
+      const response = await boss.call('POST', '/me/packs', {
+        titleFr: `Chef ${run} ${i}`,
+        titleEn: `Boss ${run} ${i}`,
+        category: 'OBJECT',
+      });
+      expect(response.status).toBe(201);
+    }
+    await prisma.pack.deleteMany({ where: { ownerId: bossPlayerId } });
+
+    // A player still is.
+    const { quota } = await author.json<{ quota: MyQuota }>('GET', '/me/packs');
+    const extra: string[] = [];
+    for (let i = quota.packs.used; i < QUOTA.packs; i++) {
+      const made = await author.json<MyPack>('POST', '/me/packs', {
+        titleFr: `Plein ${run} ${i}`,
+        titleEn: `Full ${run} ${i}`,
+        category: 'OBJECT',
+      });
+      extra.push(made.id);
+    }
+    const refused = await author.call('POST', '/me/packs', {
+      titleFr: `Trop ${run}`,
+      titleEn: `Too many ${run}`,
+      category: 'OBJECT',
+    });
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toMatchObject({ code: 'QUOTA_PACKS' });
+    await prisma.pack.deleteMany({ where: { id: { in: extra } } });
+  });
+
+  it('a dropped picture gets its points and goes live in the private pack', async () => {
+    const drop = await author.json<MyPack>('POST', '/me/packs', {
+      titleFr: `Mon dossier ${run}`,
+      titleEn: `My folder ${run}`,
+      category: 'OBJECT',
+    });
+    // What the page does for every file: a card, its answer from the file name, the picture.
+    const created = await author.json<AdminCard>('POST', `/me/packs/${drop.id}/cards`, {
+      category: 'OBJECT',
+    });
+    await author.call('PUT', `/me/packs/cards/${created.id}`, {
+      category: 'OBJECT',
+      difficulty: 2,
+      isPerson: false,
+      answers: {
+        fr: { text: `râpe ${run}`, aliases: [] },
+        en: { text: `grater ${run}`, aliases: [] },
+      },
+      credit: { author: `Awa ${run}`, licence: 'Collection privée', sourceUrl: '' },
+    });
+    const form = new FormData();
+    form.set('file', new Blob([new Uint8Array(await textured())]), 'rape.jpg');
+    form.set('rightsConfirmed', 'true');
+    form.set('auto', 'true');
+    const accepted = await author.call('POST', `/me/packs/cards/${created.id}/image`, form);
+    expect(accepted.status).toBe(201);
+
+    const done = await settled(created.id);
+    expect(done.status).toBe('LIVE');
+    const points = await prisma.zoomPoint.findMany({ where: { cardId: created.id } });
+    expect(points.length).toBeGreaterThanOrEqual(2);
+    expect(points.every((point) => point.origin === 'AUTO')).toBe(true);
+
+    // Drawn in a party of its owner that ticks the pack; never in a public game.
+    const decks = app.get(DeckService);
+    const mine = await decks.load(created.id, 'fr', 'text', {
+      kind: 'room',
+      hostPlayerId: authorPlayerId,
+      packIds: [drop.id],
+    });
+    expect(mine?.reveal.answer).toBe(`râpe ${run}`);
+    expect(await decks.load(created.id, 'fr', 'text', { kind: 'public' })).toBeNull();
+    await prisma.pack.deleteMany({ where: { id: drop.id } });
   });
 });

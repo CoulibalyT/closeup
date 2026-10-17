@@ -1,9 +1,20 @@
 <script setup lang="ts">
-import { type AdminCard, type AdminCardSummary, type MyPack, QUOTA } from '@closeup/shared';
+import {
+  type AdminCard,
+  type AdminCardSummary,
+  answerFromFileName,
+  type MyPack,
+  parallelLimit,
+  QUOTA,
+} from '@closeup/shared';
+import { ApiError } from '~/stores/session';
 
-/** One of the player's packs: its cards, and the way to ask for it to be published. */
+/**
+ * One of the player's packs: its cards, a folder of pictures dropped at once, and the way to
+ * ask for it to be published.
+ */
 const route = useRoute();
-const { t } = useI18n();
+const { t, te } = useI18n();
 const localePath = useLocalePath();
 const session = useSessionStore();
 const game = useGameStore();
@@ -20,6 +31,24 @@ useHead({ title: () => `${pack.value?.titleFr ?? t('catalogue.pack')}, ${appName
 
 const inReview = computed(() => pack.value?.visibility === 'PENDING_REVIEW');
 const isPublic = computed(() => pack.value?.visibility === 'PUBLIC');
+/** The owner's own account is not held to the quotas; the server agrees. */
+const unlimited = computed(() => session.user?.role === 'ADMIN');
+
+/** A folder dropped at once: the file name is the answer, the worker sets the points. */
+const DROP_MAX = 50;
+type Dropped = {
+  name: string;
+  answer: string;
+  state: 'waiting' | 'creating' | 'uploading' | 'done';
+  error: string | null;
+};
+const dropped = ref<Dropped[]>([]);
+const dropRights = ref(false);
+const dropping = ref(false);
+const dropError = ref<'tooMany' | 'needRights' | null>(null);
+const picker = ref<HTMLInputElement | null>(null);
+let watching: ReturnType<typeof setTimeout> | undefined;
+onBeforeUnmount(() => clearTimeout(watching));
 
 async function load(): Promise<void> {
   try {
@@ -33,7 +62,11 @@ async function load(): Promise<void> {
     failed.value = true;
   }
 }
-onMounted(load);
+onMounted(async () => {
+  // Who is looking decides the quota line and the credit of a dropped picture.
+  await session.whoAmI();
+  await load();
+});
 
 async function addCard(): Promise<void> {
   busy.value = true;
@@ -61,6 +94,97 @@ async function act(path: string, body?: unknown): Promise<void> {
   } finally {
     busy.value = false;
   }
+}
+
+function onDrop(event: DragEvent): void {
+  void take([...(event.dataTransfer?.files ?? [])]);
+}
+function onPick(event: Event): void {
+  const input = event.target as HTMLInputElement;
+  void take([...(input.files ?? [])]);
+  input.value = '';
+}
+
+async function take(all: File[]): Promise<void> {
+  const files = all.filter((file) => file.type.startsWith('image/'));
+  dropError.value = null;
+  if (!files.length || dropping.value) return;
+  if (!dropRights.value) {
+    dropError.value = 'needRights';
+    return;
+  }
+  if (files.length > DROP_MAX) {
+    dropError.value = 'tooMany';
+    return;
+  }
+  dropped.value = files.map((file) => ({
+    name: file.name,
+    answer: answerFromFileName(file.name),
+    state: 'waiting',
+    error: null,
+  }));
+  dropping.value = true;
+  // Two at a time: enough to keep the line moving, not enough to flood the worker.
+  await parallelLimit(files, 2, importOne);
+  dropping.value = false;
+  await load();
+  watchProcessing(Date.now() + 3 * 60_000);
+}
+
+/** One file: a card, its answer and credit, then the picture with automatic points. */
+async function importOne(file: File, index: number): Promise<void> {
+  const row = dropped.value[index]!;
+  if (!row.answer) {
+    row.error = 'noAnswer';
+    return;
+  }
+  const category = pack.value?.category ?? 'OBJECT';
+  const isPerson = category === 'CELEBRITY';
+  try {
+    row.state = 'creating';
+    const card = await session.request<AdminCard>('POST', `/me/packs/${id}/cards`, {
+      category,
+      isPerson,
+    });
+    await session.request('PUT', `/me/packs/cards/${card.id}`, {
+      category,
+      difficulty: 2,
+      isPerson,
+      answers: {
+        fr: { text: row.answer, aliases: [] },
+        en: { text: row.answer, aliases: [] },
+      },
+      credit: {
+        author: session.user?.nickname ?? '—',
+        licence: t('myPacks.drop.licence'),
+        sourceUrl: '',
+      },
+    });
+    row.state = 'uploading';
+    const body = new FormData();
+    body.set('file', file, file.name);
+    body.set('rightsConfirmed', 'true');
+    body.set('auto', 'true');
+    await session.request('POST', `/me/packs/cards/${card.id}/image`, body);
+    row.state = 'done';
+  } catch (failure) {
+    row.error = failure instanceof ApiError ? (failure.code ?? `HTTP ${failure.status}`) : 'other';
+  }
+}
+
+/** The worker is at the pictures: the list refreshes until none is processing. */
+function watchProcessing(until: number): void {
+  clearTimeout(watching);
+  if (Date.now() > until || !cards.value.some((card) => card.status === 'PROCESSING')) return;
+  watching = setTimeout(() => void load().then(() => watchProcessing(until)), 3000);
+}
+
+/** What to say about a file that failed: the upload's word, the quota's, or a shrug. */
+function dropErrorLabel(code: string): string {
+  if (te(`myPacks.drop.${code}`)) return t(`myPacks.drop.${code}`);
+  if (te(`admin.uploadError.${code}`)) return t(`admin.uploadError.${code}`);
+  if (te(`myPacks.error.${code}`)) return t(`myPacks.error.${code}`);
+  return t('myPacks.error.other');
 }
 
 async function remove(): Promise<void> {
@@ -111,14 +235,54 @@ async function remove(): Promise<void> {
         <button
           type="button"
           class="button quiet"
-          :disabled="busy || inReview || cards.length >= QUOTA.cardsPerPack"
+          :disabled="busy || inReview || (!unlimited && cards.length >= QUOTA.cardsPerPack)"
           @click="addCard"
         >
           {{ t('admin.newCard') }}
         </button>
         <p class="muted small">
-          {{ t('myPacks.quotaCards', { used: cards.length, max: QUOTA.cardsPerPack }) }}
+          {{
+            unlimited
+              ? t('myPacks.drop.unlimited', { used: cards.length })
+              : t('myPacks.quotaCards', { used: cards.length, max: QUOTA.cardsPerPack })
+          }}
         </p>
+      </section>
+
+      <section class="block drop" @dragover.prevent @drop.prevent="onDrop">
+        <h2>{{ t('myPacks.drop.title') }}</h2>
+        <p class="muted">{{ t('myPacks.drop.hint', { max: DROP_MAX }) }}</p>
+        <input
+          ref="picker"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          multiple
+          hidden
+          @change="onPick"
+        />
+        <label class="check">
+          <input v-model="dropRights" type="checkbox" />
+          <span>{{ t('myPacks.rights') }}</span>
+        </label>
+        <button
+          type="button"
+          class="button quiet"
+          :disabled="!dropRights || dropping || inReview"
+          @click="picker?.click()"
+        >
+          {{ t('myPacks.drop.choose') }}
+        </button>
+        <p v-if="dropError" class="error" role="alert">
+          {{ t(`myPacks.drop.${dropError}`, { max: DROP_MAX }) }}
+        </p>
+        <ol v-if="dropped.length" class="plain files" aria-live="polite">
+          <li v-for="(f, i) in dropped" :key="`${i}-${f.name}`">
+            <span>{{ f.answer || f.name }}</span>
+            <small :class="f.error ? 'error' : 'muted'">
+              {{ f.error ? dropErrorLabel(f.error) : t(`myPacks.drop.state.${f.state}`) }}
+            </small>
+          </li>
+        </ol>
       </section>
 
       <section class="block">
@@ -213,6 +377,20 @@ async function remove(): Promise<void> {
 }
 .small {
   font-size: 14px;
+}
+.drop {
+  border: 2px dashed var(--line);
+}
+.files {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+  font-size: 15px;
+}
+.files li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
 }
 .block .button,
 .block .link {

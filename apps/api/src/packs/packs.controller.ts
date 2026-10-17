@@ -103,7 +103,7 @@ export class MyPacksController {
 
   @Post()
   create(@Body() body: unknown, @Req() request: AdminRequest) {
-    return this.packs.create(this.playerOf(request), parse(packDraftSchema, body));
+    return this.packs.create(this.playerOf(request), parse(packDraftSchema, body), request.user!);
   }
 
   @Get(':id')
@@ -154,7 +154,7 @@ export class MyPacksController {
     @Req() request: AdminRequest,
   ) {
     const playerId = this.playerOf(request);
-    await this.packs.canAddCard(playerId, id);
+    await this.packs.canAddCard(playerId, id, request.user!);
     return this.content.createCard(id, parse(newCardSchema, body), request.user!);
   }
 
@@ -179,12 +179,20 @@ export class MyPacksController {
   async upload(
     @Param('cardId', ParseUUIDPipe) cardId: string,
     @UploadedFile() file: { buffer: Buffer; size: number } | undefined,
-    @Body() body: { rightsConfirmed?: string },
+    @Body() body: { rightsConfirmed?: string; auto?: string },
     @Req() request: AdminRequest,
   ) {
     const playerId = await this.ownCard(request, cardId);
-    await this.packs.canUpload(playerId);
-    return this.content.acceptUpload(cardId, file, body?.rightsConfirmed === 'true', request.user!);
+    await this.packs.canUpload(playerId, request.user!);
+    // `auto`: the folder import. The worker sets the zoom points and publishes by itself.
+    const auto = body?.auto === 'true' ? { autoPoints: true, publish: true } : {};
+    return this.content.acceptUpload(
+      cardId,
+      file,
+      body?.rightsConfirmed === 'true',
+      request.user!,
+      auto,
+    );
   }
 
   @Put('cards/:cardId/zoom-points')

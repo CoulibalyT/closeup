@@ -392,6 +392,22 @@
       "IN_REVIEW": "Your pack is being read: take the request back to change it.",
       "PUBLIC_PACK": "Take it out of the catalogue before deleting it.",
       "other": "That did not work. Try again."
+    },
+    "drop": {
+      "title": "Drop a folder of pictures",
+      "hint": "Up to {max} pictures at once. The file name becomes the answer; the zoom points are set by themselves; every card is playable right away in your parties.",
+      "choose": "Choose pictures",
+      "tooMany": "No more than {max} pictures at a time.",
+      "needRights": "Tick the rights box first.",
+      "noAnswer": "No answer in this file name.",
+      "unlimited": "{used} card(s), no limit for this account",
+      "licence": "Private collection",
+      "state": {
+        "waiting": "waiting",
+        "creating": "creating…",
+        "uploading": "sending…",
+        "done": "sent, processing"
+      }
     }
   },
   "contact": {

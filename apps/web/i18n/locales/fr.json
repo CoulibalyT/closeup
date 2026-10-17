@@ -392,6 +392,22 @@
       "IN_REVIEW": "Ton pack est en cours de lecture : retire la demande pour le modifier.",
       "PUBLIC_PACK": "Retire-le du catalogue avant de le supprimer.",
       "other": "Ça n’a pas marché. Réessaie."
+    },
+    "drop": {
+      "title": "Déposer un dossier d’images",
+      "hint": "Jusqu’à {max} images d’un coup. Le nom du fichier devient la réponse ; les points de zoom sont posés tout seuls ; chaque carte est jouable aussitôt dans tes parties.",
+      "choose": "Choisir des images",
+      "tooMany": "Pas plus de {max} images à la fois.",
+      "needRights": "Coche d’abord la case des droits.",
+      "noAnswer": "Pas de réponse dans ce nom de fichier.",
+      "unlimited": "{used} carte(s), sans limite pour ce compte",
+      "licence": "Collection privée",
+      "state": {
+        "waiting": "en attente",
+        "creating": "création…",
+        "uploading": "envoi…",
+        "done": "envoyée, en traitement"
+      }
     }
   },
   "contact": {
