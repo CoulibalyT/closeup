@@ -475,6 +475,24 @@ Added in phase 10:
   photo, not the use of the face) are accepted for people: **the owner took that image-rights
   risk on 2026-10-01**; a request through `/contact` is how a card comes down. For every other
   theme that flag is a refusal, and trademarks and insignia are refused everywhere.
+- **Thousands of cards.** `/admin/import` → Import en masse: a family (animals and plants,
+  objects and food, places and monuments, people, kids) and a number. The worker walks Wikidata
+  class by class, by popularity bands, with the same checks as a hand import plus a deny-list of
+  classes and words (`apps/api/src/importer/guards.ts`, the owner's to extend), skips Latin
+  names, group names ("rapace", "mammifère marin") and duplicates, and publishes into "Catalogue étendu" packs of 500 cards that a click
+  switches off; people go into a restricted celebrity pack. Zoom points are automatic: the face
+  for a person, the places of the picture with the most detail for anything else (6 % of the
+  shorter side; `apps/api/src/pipeline/detail/regions.ts`); a card without a clear face or
+  enough detail stays unpublished and says so. A run survives restarts (its state is a
+  `BulkImport` row), pauses and stops from the page, and yields to every other image job. A
+  page that keeps failing is tried three times a minute apart, then its class is left out and
+  noted. Before a big run, import 100 and look at the contact sheet:
+  `PACK_ID=… pnpm --filter @closeup/api import:sheet`.
+- **A folder of one's own images.** On a player pack (`/me/packs/…`), drop up to 50 pictures:
+  the file name is the answer, the points are automatic, and the cards are playable at once in
+  the rooms their owner hosts, visible to nobody else. Admin accounts are not held to the player
+  quotas. Copyrighted characters are not imported from anywhere: no free source exists, and a
+  public pack would distribute them; what the owner adds to a private pack is their own affair.
 - **What a picture needs**: public domain, CC0, CC BY or CC BY-SA (any version, any national
   port); a named author, even in the public domain, since a card is only published with a full
   credit; JPEG or PNG; a shorter side of at least 1000 px, because every card is looked at from

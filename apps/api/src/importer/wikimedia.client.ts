@@ -58,9 +58,14 @@ export interface CommonsFile {
 }
 
 /** Everything the importer asks of Wikimedia, downloads included. The tests hand it a fake. */
+/** `mul`: whether the language-neutral label stands in for a missing French or English one. */
+export interface EntityOptions {
+  mul?: boolean;
+}
+
 export interface WikimediaApi {
   sparql(query: string): Promise<SparqlRow[]>;
-  entities(qids: string[]): Promise<Map<string, WikidataEntity>>;
+  entities(qids: string[], options?: EntityOptions): Promise<Map<string, WikidataEntity>>;
   people(qids: string[]): Promise<Map<string, PersonFacts>>;
   /** Items whose name matches, best first: humans or not, the caller checks. */
   searchHumans(name: string): Promise<string[]>;
@@ -127,7 +132,10 @@ export class WikimediaHttpClient implements WikimediaApi {
     });
   }
 
-  async entities(qids: string[]): Promise<Map<string, WikidataEntity>> {
+  async entities(
+    qids: string[],
+    { mul = true }: EntityOptions = {},
+  ): Promise<Map<string, WikidataEntity>> {
     const found = new Map<string, WikidataEntity>();
     for (const ids of batches(qids)) {
       const body = (await this.request(
@@ -137,11 +145,12 @@ export class WikimediaHttpClient implements WikimediaApi {
       )) as { entities?: Record<string, RawEntity> };
       for (const [id, entity] of Object.entries(body.entities ?? {})) {
         if (entity.missing !== undefined) continue;
-        // `mul`: the one label Wikidata now gives most people, valid in every language.
+        // `mul`: the one label Wikidata now gives most people, valid in every language. For
+        // a thing it is often the scientific name ("Bos taurus"), so a caller may decline it.
         const label = (locale: 'fr' | 'en') =>
-          entity.labels?.[locale]?.value ?? entity.labels?.mul?.value;
+          entity.labels?.[locale]?.value ?? (mul ? entity.labels?.mul?.value : undefined);
         const aliases = (locale: 'fr' | 'en') =>
-          [...(entity.aliases?.[locale] ?? []), ...(entity.aliases?.mul ?? [])].map(
+          [...(entity.aliases?.[locale] ?? []), ...(mul ? (entity.aliases?.mul ?? []) : [])].map(
             (alias) => alias.value,
           );
         found.set(id, {

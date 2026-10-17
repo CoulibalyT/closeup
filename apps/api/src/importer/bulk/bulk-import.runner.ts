@@ -15,7 +15,7 @@ import { PrismaService } from '../../prisma/prisma.module.js';
 import { bandsOf, BULK_CLASSES, type BulkClass, bulkQuery } from '../bulk-families.js';
 import { PREVIEW_WIDTH, type StoredCandidate, toCandidate } from '../candidates.js';
 import { CardFactory, slugOf } from '../card-factory.js';
-import { isDeniedSubject, isLatinName } from '../guards.js';
+import { isDeniedSubject, isLatinName, isVagueSubject } from '../guards.js';
 import { peopleCandidates } from '../people.js';
 import { type SubjectFacts, WIKIMEDIA, type WikimediaApi } from '../wikimedia.client.js';
 
@@ -134,7 +134,7 @@ export class BulkImportRunner implements OnApplicationBootstrap, OnModuleDestroy
           this.logger.warn(`${cursor.className}: ${String(error)} (try ${count})`);
           return 'retry';
         }
-        // Three times is enough: this class is left out, said so, and the walk goes on.
+        // Three times is enough: this band is left out, said so, and the walk goes on.
         note = [note, `${cursor.className}: ${String(error)}`].filter(Boolean).join(' · ');
         page = await this.fetchPage(run.family as BulkFamily, cursor, skips, true);
         this.failing = null;
@@ -194,14 +194,14 @@ export class BulkImportRunner implements OnApplicationBootstrap, OnModuleDestroy
 
   /**
    * One page of subjects, judged: the candidates the admin would have seen, minus what the
-   * guards, the Latin rule and the file checks leave out (counted in `skips`). With `skipClass`,
-   * nothing is asked: the walk only moves to the next class.
+   * guards, the Latin rule and the file checks leave out (counted in `skips`). With `skipBand`,
+   * nothing is asked: the walk only moves to the next band, or the next class after the last.
    */
   private async fetchPage(
     family: BulkFamily,
     cursor: Cursor,
     skips: Skips,
-    skipClass: boolean,
+    skipBand: boolean,
   ): Promise<{ items: Queued[]; next: Cursor }> {
     const classes = BULK_CLASSES[family];
     const index = classes.findIndex((cls) => cls.key === cursor.className);
@@ -219,7 +219,7 @@ export class BulkImportRunner implements OnApplicationBootstrap, OnModuleDestroy
       }
       return nextClass();
     };
-    if (skipClass) return { items: [], next: nextClass() };
+    if (skipBand) return { items: [], next: after(false) };
 
     const rows = await this.wikimedia.sparql(bulkQuery(cls, bands[cursor.band]!, cursor.page));
     const qids = rows.map((row) => row.qid);
@@ -227,8 +227,9 @@ export class BulkImportRunner implements OnApplicationBootstrap, OnModuleDestroy
     if (cls.people) {
       candidates = await peopleCandidates(this.wikimedia, rows);
     } else {
+      // No `mul` label for a thing: it is usually the scientific name, not an answer.
       const [entities, files] = await Promise.all([
-        this.wikimedia.entities(qids),
+        this.wikimedia.entities(qids, { mul: false }),
         this.wikimedia.files([...new Set(rows.map((row) => row.file))], PREVIEW_WIDTH),
       ]);
       candidates = rows.map((row) => toCandidate(row, entities.get(row.qid), files.get(row.file)));
@@ -259,6 +260,10 @@ export class BulkImportRunner implements OnApplicationBootstrap, OnModuleDestroy
         isLatinName(candidate.answers.fr.text, subject.taxonName)
       ) {
         count('LATIN_NAME');
+        continue;
+      }
+      if (!cls.people && isVagueSubject([subject.description.fr, subject.description.en])) {
+        count('VAGUE');
         continue;
       }
       if (candidate.rejection || !candidate.credit || !candidate.answers.fr) {

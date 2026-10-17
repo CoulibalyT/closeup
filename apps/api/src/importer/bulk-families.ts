@@ -24,6 +24,8 @@ export interface BulkClass {
 
 const P31 = (qid: string) => `?item wdt:P31 wd:${qid} .`;
 const P279 = (qid: string) => `?item wdt:P279 wd:${qid} .`;
+/** Historical: died before 1900, so that the picture is old and the person is history. */
+const BEFORE_1900 = '?item wdt:P570 ?died . FILTER(YEAR(?died) < 1900)';
 const JOBS = (qids: string[]) =>
   `VALUES ?job { ${qids.map((qid) => `wd:${qid}`).join(' ')} } ?item wdt:P106 ?job .`;
 
@@ -60,8 +62,8 @@ const packs = {
   },
   kidsSpace: {
     key: 'kids-space',
-    titleFr: 'Catalogue enfants — Dinosaures et espace',
-    titleEn: 'Kids catalogue — Dinosaurs and space',
+    titleFr: 'Catalogue enfants — Espace',
+    titleEn: 'Kids catalogue — Space',
     category: 'OTHER',
   },
   kidsThings: {
@@ -101,18 +103,11 @@ export const BULK_CLASSES: Record<BulkFamily, BulkClass[]> = {
     },
     { key: 'fruits', labelFr: 'Fruits', where: P279('Q3314483'), pack: packs.nature },
     { key: 'vegetables', labelFr: 'Légumes', where: P279('Q11004'), pack: packs.nature },
-    {
-      key: 'mushrooms',
-      labelFr: 'Champignons comestibles',
-      where: P31('Q654236'),
-      pack: packs.nature,
-    },
-    { key: 'trees', labelFr: 'Arbres', where: P31('Q10884'), pack: packs.nature },
   ],
   objects: [
     { key: 'dishes', labelFr: 'Plats', where: P31('Q746549'), pack: packs.objects },
     { key: 'desserts', labelFr: 'Desserts', where: P279('Q182940'), pack: packs.objects },
-    { key: 'cheeses', labelFr: 'Fromages', where: P31('Q3444702'), pack: packs.objects },
+    { key: 'cheeses', labelFr: 'Fromages', where: P31('Q3546121'), pack: packs.objects },
     { key: 'drinks', labelFr: 'Boissons', where: P279('Q40050'), pack: packs.objects },
     {
       key: 'instruments',
@@ -139,7 +134,7 @@ export const BULK_CLASSES: Record<BulkFamily, BulkClass[]> = {
     {
       key: 'sports-gear',
       labelFr: 'Équipements de sport',
-      where: P279('Q1050636'),
+      where: P279('Q768186'),
       pack: packs.objects,
     },
     { key: 'vehicles', labelFr: 'Véhicules', where: P279('Q42889'), pack: packs.objects },
@@ -158,13 +153,11 @@ export const BULK_CLASSES: Record<BulkFamily, BulkClass[]> = {
       pack: packs.places,
     },
     { key: 'towers', labelFr: 'Tours', where: P31('Q12518'), pack: packs.places },
-    { key: 'bridges', labelFr: 'Ponts', where: P31('Q12280'), pack: packs.places },
     { key: 'castles', labelFr: 'Châteaux', where: P31('Q23413'), pack: packs.places },
     { key: 'cathedrals', labelFr: 'Cathédrales', where: P31('Q2977'), pack: packs.places },
     { key: 'museums', labelFr: 'Musées', where: P31('Q33506'), pack: packs.places },
     { key: 'skyscrapers', labelFr: 'Gratte-ciel', where: P31('Q11303'), pack: packs.places },
     { key: 'stadiums', labelFr: 'Stades', where: P31('Q483110'), pack: packs.places },
-    { key: 'lighthouses', labelFr: 'Phares', where: P31('Q39715'), pack: packs.places },
     { key: 'monuments', labelFr: 'Monuments', where: P31('Q4989906'), pack: packs.places },
     { key: 'statues', labelFr: 'Statues', where: P31('Q179700'), pack: packs.places },
     { key: 'palaces', labelFr: 'Palais', where: P31('Q16560'), pack: packs.places },
@@ -212,10 +205,32 @@ export const BULK_CLASSES: Record<BulkFamily, BulkClass[]> = {
       people: true,
       pack: packs.people,
     },
+    // One occupation per query where the occupation is large: six together timed out on every band.
     {
-      key: 'creators',
-      labelFr: 'Créateurs',
-      where: JOBS(['Q2526255', 'Q36180', 'Q1028181', 'Q33231', 'Q3501317', 'Q3499072']),
+      key: 'directors',
+      labelFr: 'Réalisateurs',
+      where: JOBS(['Q2526255']),
+      people: true,
+      pack: packs.people,
+    },
+    {
+      key: 'writers',
+      labelFr: 'Écrivains',
+      where: JOBS(['Q36180']),
+      people: true,
+      pack: packs.people,
+    },
+    {
+      key: 'painters',
+      labelFr: 'Peintres',
+      where: JOBS(['Q1028181']),
+      people: true,
+      pack: packs.people,
+    },
+    {
+      key: 'makers',
+      labelFr: 'Photographes, stylistes, chefs',
+      where: JOBS(['Q33231', 'Q3501317', 'Q3499072']),
       people: true,
       pack: packs.people,
     },
@@ -227,9 +242,16 @@ export const BULK_CLASSES: Record<BulkFamily, BulkClass[]> = {
       pack: packs.people,
     },
     {
-      key: 'historical',
-      labelFr: 'Personnages historiques',
-      where: `${JOBS(['Q116', 'Q1028181', 'Q36180', 'Q169470', 'Q4964182', 'Q36834', 'Q189290', 'Q11900058'])} ?item wdt:P570 ?died . FILTER(YEAR(?died) < 1900)`,
+      key: 'rulers',
+      labelFr: 'Souverains, militaires, explorateurs',
+      where: `${JOBS(['Q116', 'Q189290', 'Q11900058'])} ${BEFORE_1900}`,
+      people: true,
+      pack: packs.people,
+    },
+    {
+      key: 'thinkers',
+      labelFr: 'Savants et philosophes',
+      where: `${JOBS(['Q169470', 'Q4964182'])} ${BEFORE_1900}`,
       people: true,
       pack: packs.people,
     },
@@ -250,15 +272,6 @@ export const BULK_CLASSES: Record<BulkFamily, BulkClass[]> = {
       pack: packs.kidsNature,
       difficulty: 1,
       lastBand: 1,
-    },
-    {
-      key: 'kids-dinosaurs',
-      labelFr: 'Dinosaures',
-      where:
-        '?item wdt:P31 wd:Q16521 ; wdt:P105 wd:Q34740 ; wdt:P171/wdt:P171/wdt:P171/wdt:P171? wd:Q430 .',
-      pack: packs.kidsSpace,
-      difficulty: 1,
-      lastBand: 2,
     },
     {
       key: 'kids-planets',

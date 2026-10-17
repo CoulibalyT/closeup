@@ -716,7 +716,8 @@
         "GUARD_CLASS": "sujet exclu",
         "GUARD_WORD": "mot exclu",
         "LATIN_NAME": "nom latin",
-        "NOT_ELIGIBLE": "image non importable"
+        "NOT_ELIGIBLE": "image non importable",
+        "VAGUE": "sujet trop vague"
       },
       "cursor": "Classe {name}, tranche {band}, page {page}",
       "pace": "{n} cartes par heure, environ {m} min restantes",

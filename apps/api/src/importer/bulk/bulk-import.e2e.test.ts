@@ -295,7 +295,10 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('mass import', () => {
     expect(view.skipReasons).toEqual({ GUARD_CLASS: 1, DUPLICATE: 1, DUPLICATE_ANSWER: 1 });
     expect(view.note).toContain('kitchenware');
 
-    const pack = await prisma.pack.findUniqueOrThrow({ where: { slug: 'bulk-objects-1' } });
+    // The pack the run filled: on a dev database earlier catalogue packs may already exist.
+    const { packId } = await prisma.card.findFirstOrThrow({ where: { bulkImportId: runId } });
+    const pack = await prisma.pack.findUniqueOrThrow({ where: { id: packId } });
+    expect(pack.slug).toMatch(/^bulk-objects-\d+$/);
     expect(pack).toMatchObject({ visibility: 'PUBLIC', category: 'OBJECT', restricted: false });
 
     await settled(runId);
@@ -344,21 +347,29 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('mass import', () => {
   });
 
   it('opens the next pack when the current one is switched off', async () => {
-    await prisma.pack.update({
-      where: { slug: 'bulk-objects-1' },
-      data: { visibility: 'DISABLED' },
-    });
-    state.toolsRows = rows(3001, 1);
-    const { body } = await start('objects', 1);
-    const runId = body.run!.id;
-    await tickUntil(async () => (await created(runId)) >= 1);
-    const card = await prisma.card.findFirstOrThrow({
-      where: { bulkImportId: runId },
+    // The pack the first run filled is switched off, then put back as it was.
+    const { pack: used } = await prisma.card.findFirstOrThrow({
+      where: { bulkImportId: runIds[0] },
       include: { pack: true },
     });
-    expect(card.pack.slug).toBe('bulk-objects-2');
-    await tickUntil(async () => (await current()).status === 'done');
-    await settled(runId);
+    await prisma.pack.update({ where: { id: used.id }, data: { visibility: 'DISABLED' } });
+    try {
+      state.toolsRows = rows(3001, 1);
+      const { body } = await start('objects', 1);
+      const runId = body.run!.id;
+      await tickUntil(async () => (await created(runId)) >= 1);
+      const card = await prisma.card.findFirstOrThrow({
+        where: { bulkImportId: runId },
+        include: { pack: true },
+      });
+      expect(card.pack.id).not.toBe(used.id);
+      expect(card.pack).toMatchObject({ visibility: 'PUBLIC', category: 'OBJECT' });
+      expect(card.pack.slug).toMatch(/^bulk-objects-\d+$/);
+      await tickUntil(async () => (await current()).status === 'done');
+      await settled(runId);
+    } finally {
+      await prisma.pack.update({ where: { id: used.id }, data: { visibility: used.visibility } });
+    }
   });
 
   it('never fills the public queue with the people pack', async () => {
@@ -371,8 +382,8 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('mass import', () => {
       where: { bulkImportId: runId },
       include: { pack: true, zoomPoints: true },
     });
+    expect(card.pack.slug).toMatch(/^bulk-people-\d+$/);
     expect(card.pack).toMatchObject({
-      slug: 'bulk-people-1',
       category: 'CELEBRITY',
       restricted: true,
       visibility: 'PUBLIC',
@@ -380,11 +391,11 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('mass import', () => {
     expect(card).toMatchObject({ isPerson: true, status: 'LIVE' });
     expect(card.zoomPoints).toHaveLength(5);
     const inPublicQueue = await prisma.card.count({
-      where: { ...playableWhere({ kind: 'public' }), packId: card.packId },
+      where: { ...playableWhere({ kind: 'public' }), id: card.id },
     });
     expect(inPublicQueue).toBe(0);
     const whenChosen = await prisma.card.count({
-      where: { ...playableWhere({ kind: 'room', packIds: [card.packId] }), packId: card.packId },
+      where: { ...playableWhere({ kind: 'room', packIds: [card.packId] }), id: card.id },
     });
     expect(whenChosen).toBe(1);
   });

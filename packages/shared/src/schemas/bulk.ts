@@ -38,6 +38,7 @@ export const BULK_SKIPS = [
   'GUARD_CLASS',
   'GUARD_WORD',
   'LATIN_NAME',
+  'VAGUE',
   'NOT_ELIGIBLE',
 ] as const;
 export type BulkSkip = (typeof BULK_SKIPS)[number];

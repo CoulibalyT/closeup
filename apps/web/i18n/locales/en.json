@@ -716,7 +716,8 @@
         "GUARD_CLASS": "excluded subject",
         "GUARD_WORD": "excluded word",
         "LATIN_NAME": "Latin name",
-        "NOT_ELIGIBLE": "picture not importable"
+        "NOT_ELIGIBLE": "picture not importable",
+        "VAGUE": "subject too vague"
       },
       "cursor": "Class {name}, band {band}, page {page}",
       "pace": "{n} cards an hour, about {m} min left",

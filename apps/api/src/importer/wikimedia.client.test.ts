@@ -207,6 +207,24 @@ describe('labels', () => {
     });
     expect(String(fetch.mock.calls[0]![0])).toContain('languages=fr|en|mul');
   });
+
+  it('leaves the multilingual label aside when asked: for a thing it is the Latin name', async () => {
+    const fetch = replies(
+      json({
+        entities: {
+          Q830: {
+            labels: { mul: { value: 'Bos taurus' }, en: { value: 'cattle' } },
+            aliases: { mul: [{ value: 'Bos primigenius taurus' }], en: [{ value: 'cow' }] },
+          },
+        },
+      }),
+    );
+    const client = new WikimediaHttpClient({ fetch, sleep: async () => undefined });
+    expect((await client.entities(['Q830'], { mul: false })).get('Q830')).toEqual({
+      labels: { fr: undefined, en: 'cattle' },
+      aliases: { fr: [], en: ['cow'] },
+    });
+  });
 });
 
 describe('a query that ran out of time', () => {
