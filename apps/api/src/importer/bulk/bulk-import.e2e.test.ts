@@ -9,7 +9,7 @@ import { Test } from '@nestjs/testing';
 import type { BulkImportView } from '@closeup/shared';
 import type { Queue } from 'bullmq';
 import sharp from 'sharp';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { AppModule } from '../../app.module.js';
 import { AuthService } from '../../auth/auth.service.js';
 import { configureApp } from '../../bootstrap.js';
@@ -29,6 +29,8 @@ const PASSWORD = 'a long enough passphrase';
 const state = {
   toolsRows: [] as SparqlRow[],
   queries: [] as string[],
+  /** The whole query service is down: every query fails, the health check included. */
+  down: false,
 };
 
 const LABELS: Record<string, { fr?: string; en?: string }> = {
@@ -38,6 +40,9 @@ const LABELS: Record<string, { fr?: string; en?: string }> = {
   Q9999: { fr: 'éléphant', en: 'elephant' },
   Q7378: { fr: 'éléphant', en: 'elephant' },
   Q601: { fr: 'Omar Sy', en: 'Omar Sy' },
+  Q998001: { fr: 'tournevis', en: 'screwdriver' },
+  Q998002: { fr: 'Elephant', en: 'elephant' },
+  Q998003: { fr: 'pince', en: 'pliers' },
 };
 
 function fakeWikimedia(picture: Buffer): WikimediaApi {
@@ -58,6 +63,7 @@ function fakeWikimedia(picture: Buffer): WikimediaApi {
   return {
     async sparql(query) {
       state.queries.push(query);
+      if (state.down) throw new Error('fetch failed (ECONNRESET)');
       if (query.includes('wd:Q3773693')) {
         throw new Error('query.wikidata.org did not answer (HTTP 504)');
       }
@@ -172,7 +178,8 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('mass import', () => {
   };
   const rows = (from: number, count: number): SparqlRow[] =>
     Array.from({ length: count }, (_, i) => ({
-      qid: `Q${from + i}`,
+      // Far above real items: the dev database may hold real catalogue cards.
+      qid: `Q99${from + i}`,
       popularity: 200 - i,
       file: `Tool${from + i}.jpg`,
     }));
@@ -410,6 +417,170 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('mass import', () => {
     expect(counts[BULK_PRIORITY] ?? 0).toBeLessThanOrEqual(5);
     await send('POST', `/admin/import/bulk/${runId}/stop`);
     expect((await current()).status).toBe('stopped');
+    await settled(runId);
+  });
+  it('waits out an outage of the query service instead of walking past its classes', async () => {
+    state.toolsRows = rows(5001, 1);
+    state.down = true;
+    const { body } = await start('objects', 1);
+    const runId = body.run!.id;
+    const before = await prisma.bulkImport.findUniqueOrThrow({ where: { id: runId } });
+    for (let i = 0; i < 8; i++) expect(await runner.tick()).toBe('retry');
+    const during = await prisma.bulkImport.findUniqueOrThrow({ where: { id: runId } });
+    // Nothing skipped: the walk has not moved, the run is still running, and it says why.
+    expect(during.status).toBe('running');
+    expect(during.cursor ?? null).toEqual(before.cursor ?? null);
+    expect(during.note).toMatch(/Wikidata/);
+    // And it waits longer each time, within reason.
+    expect(runner.backoffMs).toBeGreaterThan(60_000);
+    expect(runner.backoffMs).toBeLessThanOrEqual(30 * 60_000);
+
+    state.down = false;
+    await tickUntil(async () => (await created(runId)) >= 1);
+    const after = await prisma.bulkImport.findUniqueOrThrow({ where: { id: runId } });
+    expect(after.note ?? '').not.toMatch(/injoignable|unreachable/);
+    await tickUntil(async () => (await current()).status === 'done');
+    await settled(runId);
+  });
+
+  it('judges a duplicate answer against the catalogue only, in flight too, accents aside', async () => {
+    // A player's private card does not block a catalogue subject…
+    const player = await prisma.player.create({ data: { nickname: `Bulk ${run}` } });
+    const mine = await prisma.pack.create({
+      data: {
+        titleFr: `Perso ${run}`,
+        titleEn: `Mine ${run}`,
+        category: 'OBJECT',
+        visibility: 'PRIVATE',
+        ownerId: player.id,
+        cards: {
+          create: {
+            category: 'OBJECT',
+            source: 'UPLOAD',
+            status: 'LIVE',
+            answers: { create: [{ locale: 'fr', text: 'tournevis', aliases: [] }] },
+          },
+        },
+      },
+    });
+    // …while a house card still being processed does.
+    const house = await prisma.pack.create({
+      data: {
+        titleFr: `Maison ${run}`,
+        titleEn: `House ${run}`,
+        category: 'OBJECT',
+        visibility: 'PUBLIC',
+        cards: {
+          create: {
+            category: 'OBJECT',
+            source: 'UPLOAD',
+            status: 'PROCESSING',
+            answers: { create: [{ locale: 'fr', text: 'pince', aliases: [] }] },
+          },
+        },
+      },
+    });
+    extraPackIds.push(mine.id, house.id);
+    state.toolsRows = [
+      { qid: 'Q998001', popularity: 190, file: 'Screwdriver.jpg' },
+      { qid: 'Q998002', popularity: 180, file: 'Elephant3.jpg' },
+      { qid: 'Q998003', popularity: 170, file: 'Pliers.jpg' },
+    ];
+    const { body } = await start('objects', 3);
+    const runId = body.run!.id;
+    await tickUntil(async () => (await current()).status === 'done');
+    const made = await prisma.card.findMany({
+      where: { bulkImportId: runId },
+      include: { answers: true },
+    });
+    expect(made.map((card) => card.answers.find((a) => a.locale === 'fr')?.text)).toEqual([
+      'tournevis',
+    ]);
+    // "Elephant" is the hand pack's "éléphant"; "pince" is in flight in the house pack.
+    expect((await current()).skipReasons).toMatchObject({ DUPLICATE_ANSWER: 2 });
+    await settled(runId);
+    await prisma.pack.deleteMany({ where: { id: { in: [mine.id, house.id] } } });
+    await prisma.player.delete({ where: { id: player.id } });
+  });
+
+  it('counts its pictures in flight from the cards, and gives up on a card left without a job', async () => {
+    state.toolsRows = rows(6001, 3);
+    const { body } = await start('objects', 10);
+    const runId = body.run!.id;
+    const pack = await prisma.pack.create({
+      data: { titleFr: `Vol ${run}`, titleEn: `Flight ${run}`, category: 'OBJECT' },
+    });
+    extraPackIds.push(pack.id);
+    // Five pictures in flight that the queue does not list as waiting (active, or retrying).
+    const inFlight = await Promise.all(
+      Array.from({ length: 5 }, (_, i) =>
+        prisma.card.create({
+          data: {
+            packId: pack.id,
+            slug: `wd-Q9969${i}`,
+            category: 'OBJECT',
+            source: 'WIKIMEDIA',
+            status: 'PROCESSING',
+            bulkImportId: runId,
+          },
+        }),
+      ),
+    );
+    expect(await runner.tick()).toBe('full');
+
+    // One of them lost its job an hour ago: it is given up, and no longer holds a place.
+    await prisma.$executeRaw`UPDATE "Card" SET "updatedAt" = now() - interval '1 hour' WHERE id = ${inFlight[0]!.id}::uuid`;
+    expect(await runner.tick()).not.toBe('full');
+    const lost = await prisma.card.findUniqueOrThrow({ where: { id: inFlight[0]!.id } });
+    expect(lost).toMatchObject({ status: 'DRAFT', processingError: 'FAILED' });
+    await send('POST', `/admin/import/bulk/${runId}/stop`);
+    await prisma.card.deleteMany({ where: { packId: pack.id } });
+    await settled(runId);
+  });
+
+  it('pauses when the pictures keep failing, rather than burning subjects', async () => {
+    state.toolsRows = rows(7001, 3);
+    const { body } = await start('objects', 10);
+    const runId = body.run!.id;
+    const pack = await prisma.pack.create({
+      data: { titleFr: `Raté ${run}`, titleEn: `Failed ${run}`, category: 'OBJECT' },
+    });
+    extraPackIds.push(pack.id);
+    await prisma.card.createMany({
+      data: Array.from({ length: 10 }, (_, i) => ({
+        packId: pack.id,
+        slug: `wd-Q9979${i}`,
+        category: 'OBJECT' as const,
+        source: 'WIKIMEDIA' as const,
+        status: 'DRAFT' as const,
+        processingError: 'FAILED',
+        bulkImportId: runId,
+      })),
+    });
+    expect(await runner.tick()).toBe('idle');
+    const row = await current();
+    expect(row.status).toBe('paused');
+    expect(row.note).toMatch(/images|pictures/i);
+    await send('POST', `/admin/import/bulk/${runId}/stop`);
+    await prisma.card.deleteMany({ where: { packId: pack.id } });
+  });
+
+  it('removes a card whose picture could not be queued', async () => {
+    state.toolsRows = rows(8101, 1);
+    const { body } = await start('objects', 1);
+    const runId = body.run!.id;
+    const add = vi.spyOn(queue, 'add').mockRejectedValueOnce(new Error('Redis went away'));
+    try {
+      for (let i = 0; i < 300 && add.mock.calls.length === 0; i++) {
+        await runner.tick().catch(() => 'failed');
+      }
+      expect(add).toHaveBeenCalled();
+      expect(await prisma.card.count({ where: { slug: 'wd-Q998101' } })).toBe(0);
+    } finally {
+      add.mockRestore();
+    }
+    await tickUntil(async () => (await created(runId)) >= 1);
+    await tickUntil(async () => (await current()).status === 'done');
     await settled(runId);
   });
 });

@@ -41,6 +41,8 @@ type Dropped = {
   answer: string;
   state: 'waiting' | 'creating' | 'uploading' | 'done';
   error: string | null;
+  /** Once made: how the worker's verdict finds its line. */
+  cardId: string | null;
 };
 const dropped = ref<Dropped[]>([]);
 const dropRights = ref(false);
@@ -96,8 +98,39 @@ async function act(path: string, body?: unknown): Promise<void> {
   }
 }
 
+/** The files of a drop; a dropped folder is opened, its sub-folders too. */
+async function filesOfDrop(transfer: DataTransfer): Promise<File[]> {
+  const entries = [...transfer.items]
+    .map((item) => item.webkitGetAsEntry?.())
+    .filter((entry): entry is FileSystemEntry => Boolean(entry));
+  if (!entries.length) return [...transfer.files];
+  const files: File[] = [];
+  const walk = async (entry: FileSystemEntry): Promise<void> => {
+    if (entry.isFile) {
+      files.push(
+        await new Promise<File>((resolve, reject) =>
+          (entry as FileSystemFileEntry).file(resolve, reject),
+        ),
+      );
+      return;
+    }
+    const reader = (entry as FileSystemDirectoryEntry).createReader();
+    // A directory reader gives its entries a batch at a time, until an empty batch.
+    for (;;) {
+      const batch = await new Promise<FileSystemEntry[]>((resolve, reject) =>
+        reader.readEntries(resolve, reject),
+      );
+      if (!batch.length) break;
+      for (const child of batch) await walk(child);
+    }
+  };
+  for (const entry of entries) await walk(entry);
+  return files;
+}
+
 function onDrop(event: DragEvent): void {
-  void take([...(event.dataTransfer?.files ?? [])]);
+  const transfer = event.dataTransfer;
+  if (transfer) void filesOfDrop(transfer).then(take);
 }
 function onPick(event: Event): void {
   const input = event.target as HTMLInputElement;
@@ -122,6 +155,7 @@ async function take(all: File[]): Promise<void> {
     answer: answerFromFileName(file.name),
     state: 'waiting',
     error: null,
+    cardId: null,
   }));
   dropping.value = true;
   // Two at a time: enough to keep the line moving, not enough to flood the worker.
@@ -146,6 +180,7 @@ async function importOne(file: File, index: number): Promise<void> {
       category,
       isPerson,
     });
+    row.cardId = card.id;
     await session.request('PUT', `/me/packs/cards/${card.id}`, {
       category,
       difficulty: 2,
@@ -169,12 +204,30 @@ async function importOne(file: File, index: number): Promise<void> {
     row.state = 'done';
   } catch (failure) {
     row.error = failure instanceof ApiError ? (failure.code ?? `HTTP ${failure.status}`) : 'other';
+    // An empty card would only take a place in the pack: it goes.
+    if (row.cardId) {
+      await session.request('DELETE', `/me/packs/cards/${row.cardId}`).catch(() => undefined);
+      row.cardId = null;
+    }
+  }
+}
+
+/** The worker refused some pictures (too small, unreadable…): each line says why. */
+async function showRefusals(): Promise<void> {
+  const byId = new Map(cards.value.map((card) => [card.id, card]));
+  for (const row of dropped.value) {
+    if (!row.cardId || row.error || byId.get(row.cardId)?.status !== 'DRAFT') continue;
+    const card = await session
+      .request<AdminCard>('GET', `/me/packs/cards/${row.cardId}`)
+      .catch(() => null);
+    row.error = card?.processingError ?? 'FAILED';
   }
 }
 
 /** The worker is at the pictures: the list refreshes until none is processing. */
 function watchProcessing(until: number): void {
   clearTimeout(watching);
+  void showRefusals();
   if (Date.now() > until || !cards.value.some((card) => card.status === 'PROCESSING')) return;
   watching = setTimeout(() => void load().then(() => watchProcessing(until)), 3000);
 }

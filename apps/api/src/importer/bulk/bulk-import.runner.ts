@@ -32,8 +32,23 @@ type Queued = { cls: BulkClass; candidate: StoredCandidate; facts: SubjectFacts 
 type Skips = Record<string, number>;
 type Outcome = 'idle' | 'full' | 'retry' | 'worked' | 'done';
 
-/** A page that will not come is asked again this many times, a minute apart, then its class goes. */
+/**
+ * A page that will not come is asked again this many times, a minute apart. Then a trivial query
+ * says whether the service is down (wait, longer each time) or only this band is bad (skip it).
+ */
 const RETRIES = 3;
+/** The longest wait between two tries while the query service is down. */
+const MAX_BACKOFF_MS = 30 * 60_000;
+/** A query any healthy service answers at once. */
+const HEALTH_QUERY = 'SELECT ?ok WHERE { BIND(1 AS ?ok) }';
+/** A picture whose job vanished (a restart between the card and its job) is given up after this. */
+const ORPHAN_AFTER_MS = 30 * 60_000;
+/** This many failed pictures within the window pause the run: Commons is refusing, not a file. */
+const FAILURE_BREAKER = { count: 10, windowMs: 15 * 60_000 };
+/** Folded for comparison in SQL: case and the accents of French. */
+const FOLD_FROM = 'àâäáãåçéèêëíìîïñóòôöõúùûüýÿœæÀÂÄÁÃÅÇÉÈÊËÍÌÎÏÑÓÒÔÖÕÚÙÛÜÝŸ';
+const FOLD_TO = 'aaaaaaceeeeiiiinooooouuuuyyoaAAAAAACEEEEIIIINOOOOOUUUUYY';
+const jobIdOf = (cardId: string) => `bulk-${cardId}`;
 /** Between two steps, by what the last one found. */
 const PAUSE_MS: Record<Outcome, number> = {
   worked: 2_000,
@@ -64,6 +79,10 @@ export class BulkImportRunner implements OnApplicationBootstrap, OnModuleDestroy
   private buffer: { runId: string; items: Queued[]; next: Cursor } | null = null;
   /** A page that keeps failing, and how many times. */
   private failing: { key: string; count: number } | null = null;
+  /** While the query service is down: since when, and how long the next wait is. */
+  private outage: { since: Date; waitMs: number } | null = null;
+  /** The wait the loop takes after a 'retry': a minute, or longer during an outage. */
+  backoffMs = PAUSE_MS.retry;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -83,7 +102,8 @@ export class BulkImportRunner implements OnApplicationBootstrap, OnModuleDestroy
       } catch (error) {
         this.logger.error(`A step failed: ${String(error)}`);
       }
-      if (!this.stopped) this.timer = setTimeout(() => void loop(), PAUSE_MS[outcome]);
+      const pause = outcome === 'retry' ? this.backoffMs : PAUSE_MS[outcome];
+      if (!this.stopped) this.timer = setTimeout(() => void loop(), pause);
     };
     void loop();
   }
@@ -97,6 +117,8 @@ export class BulkImportRunner implements OnApplicationBootstrap, OnModuleDestroy
   forget(): void {
     this.buffer = null;
     this.failing = null;
+    this.outage = null;
+    this.backoffMs = PAUSE_MS.retry;
   }
 
   /** One step of the run in progress, if any. */
@@ -106,11 +128,18 @@ export class BulkImportRunner implements OnApplicationBootstrap, OnModuleDestroy
       orderBy: { startedAt: 'asc' },
     });
     if (!run) return 'idle';
-    const created = await this.prisma.card.count({ where: { bulkImportId: run.id } });
+    await this.sweepOrphans(run.id);
+    if (await this.picturesKeepFailing(run)) return 'idle';
+    // A card whose picture failed does not count: the target is cards that can be played.
+    const created = await this.prisma.card.count({
+      where: { bulkImportId: run.id, status: { not: 'DRAFT' } },
+    });
     if (created >= run.target) return this.finish(run, 'done');
 
-    const counts = await this.queue.getCountsPerPriority([BULK_PRIORITY]);
-    const pending = counts[String(BULK_PRIORITY)] ?? 0;
+    // In flight, from the cards themselves: waiting, active and retrying jobs alike.
+    const pending = await this.prisma.card.count({
+      where: { bulkImportId: run.id, status: 'PROCESSING' },
+    });
     if (pending >= BULK.pendingJobs) return 'full';
 
     const skips: Skips = { ...(run.skipReasons as Skips) };
@@ -126,15 +155,23 @@ export class BulkImportRunner implements OnApplicationBootstrap, OnModuleDestroy
       try {
         page = await this.fetchPage(run.family as BulkFamily, cursor, skips, false);
         this.failing = null;
+        if (this.outage) note = await this.endOutage(run);
       } catch (error) {
         const key = `${run.id}:${cursor.className}:${cursor.band}:${cursor.page}`;
         const count = this.failing?.key === key ? this.failing.count + 1 : 1;
         this.failing = { key, count };
         if (count < RETRIES) {
           this.logger.warn(`${cursor.className}: ${String(error)} (try ${count})`);
+          this.backoffMs = this.outage?.waitMs ?? PAUSE_MS.retry;
           return 'retry';
         }
-        // Three times is enough: this band is left out, said so, and the walk goes on.
+        if (!(await this.serviceAnswers())) {
+          // The service is down, not this band: the walk stays where it is and waits it out.
+          await this.startOrExtendOutage(run);
+          return 'retry';
+        }
+        if (this.outage) note = await this.endOutage(run);
+        // This band alone will not come: it is left out, said so, and the walk goes on.
         note = [note, `${cursor.className}: ${String(error)}`].filter(Boolean).join(' · ');
         page = await this.fetchPage(run.family as BulkFamily, cursor, skips, true);
         this.failing = null;
@@ -154,8 +191,26 @@ export class BulkImportRunner implements OnApplicationBootstrap, OnModuleDestroy
 
     const room = Math.min(BULK.pendingJobs - pending, run.target - created);
     const packs = new Map<string, string>();
+    try {
+      await this.makeCards(run, room, packs, skips);
+    } finally {
+      // What this step skipped is kept even when a card could not be made.
+      await this.prisma.bulkImport.update({
+        where: { id: run.id },
+        data: { skipped: total(skips), skipReasons: skips },
+      });
+    }
+    return 'worked';
+  }
+
+  private async makeCards(
+    run: BulkImport,
+    room: number,
+    packs: Map<string, string>,
+    skips: Skips,
+  ): Promise<number> {
     let made = 0;
-    while (made < room && this.buffer.items.length) {
+    while (made < room && this.buffer?.items.length) {
       const next = this.buffer.items.shift()!;
       const skip = await this.whySkip(next);
       if (skip) {
@@ -173,18 +228,117 @@ export class BulkImportRunner implements OnApplicationBootstrap, OnModuleDestroy
         skips.DUPLICATE = (skips.DUPLICATE ?? 0) + 1;
         continue;
       }
-      await this.queue.add(
-        MediaJob.importImage,
-        { cardId, file: next.candidate.file, publish: true },
-        { priority: BULK_PRIORITY, attempts: 3, backoff: { type: 'exponential', delay: 10_000 } },
-      );
+      try {
+        await this.queue.add(
+          MediaJob.importImage,
+          { cardId, file: next.candidate.file, publish: true },
+          {
+            jobId: jobIdOf(cardId),
+            priority: BULK_PRIORITY,
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 10_000 },
+          },
+        );
+      } catch (error) {
+        // A card with no job would wait for ever and keep its subject out: it goes, and the
+        // subject is tried again at the next step.
+        await this.prisma.card.delete({ where: { id: cardId } });
+        this.buffer?.items.unshift(next);
+        throw error;
+      }
       made++;
     }
+    return made;
+  }
+
+  /** A card left PROCESSING with no job (a restart between the two) is given up after a while. */
+  private async sweepOrphans(runId: string): Promise<void> {
+    const stale = await this.prisma.card.findMany({
+      where: {
+        bulkImportId: runId,
+        status: 'PROCESSING',
+        updatedAt: { lt: new Date(Date.now() - ORPHAN_AFTER_MS) },
+      },
+      select: { id: true },
+    });
+    for (const { id } of stale) {
+      const job = await this.queue.getJob(jobIdOf(id));
+      const state = job ? await job.getState() : 'missing';
+      if (state === 'missing' || state === 'failed' || state === 'unknown') {
+        await this.prisma.card.update({
+          where: { id },
+          data: { status: 'DRAFT', processingError: 'FAILED' },
+        });
+        this.logger.warn(`Card ${id}: its picture job is gone, given up`);
+      }
+    }
+  }
+
+  /** Pictures failing in a row mean Commons is refusing: the run pauses and says so. */
+  private async picturesKeepFailing(run: BulkImport): Promise<boolean> {
+    const failed = await this.prisma.card.count({
+      where: {
+        bulkImportId: run.id,
+        status: 'DRAFT',
+        processingError: { not: null },
+        updatedAt: { gte: new Date(Date.now() - FAILURE_BREAKER.windowMs) },
+      },
+    });
+    if (failed < FAILURE_BREAKER.count) return false;
+    const why = `${failed} images refused in the last 15 min (Wikimedia Commons?): paused, resume when it answers again`;
     await this.prisma.bulkImport.update({
       where: { id: run.id },
-      data: { skipped: total(skips), skipReasons: skips },
+      data: { status: 'paused', note: [run.note, why].filter(Boolean).join(' · ') },
     });
-    return 'worked';
+    this.buffer = null;
+    this.logger.warn(`Run ${run.family}: ${why}`);
+    return true;
+  }
+
+  /** Whether the query service answers at all. */
+  private async serviceAnswers(): Promise<boolean> {
+    try {
+      await this.wikimedia.sparql(HEALTH_QUERY);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private outageNote(): string {
+    return `Wikidata unreachable since ${this.outage!.since.toISOString().slice(11, 16)} UTC, waiting`;
+  }
+
+  private async startOrExtendOutage(run: BulkImport): Promise<void> {
+    const first = !this.outage;
+    this.outage = first
+      ? { since: new Date(), waitMs: 2 * PAUSE_MS.retry }
+      : { ...this.outage!, waitMs: Math.min(this.outage!.waitMs * 2, MAX_BACKOFF_MS) };
+    this.backoffMs = this.outage.waitMs;
+    // The page is tried again after the wait, from its first try.
+    this.failing = { key: this.failing!.key, count: RETRIES - 1 };
+    if (first) {
+      await this.prisma.bulkImport.update({
+        where: { id: run.id },
+        data: { note: [run.note, this.outageNote()].filter(Boolean).join(' · ') },
+      });
+      this.logger.warn(this.outageNote());
+    }
+  }
+
+  /** The service answers again: the outage line leaves the note. */
+  private async endOutage(run: BulkImport): Promise<string | null> {
+    const line = this.outageNote();
+    this.outage = null;
+    this.backoffMs = PAUSE_MS.retry;
+    const note =
+      (run.note ?? '')
+        .split(' · ')
+        .filter((part) => part && part !== line)
+        .join(' · ') || null;
+    await this.prisma.bulkImport.update({ where: { id: run.id }, data: { note } });
+    this.logger.log('Wikidata answers again');
+    return note;
   }
 
   private firstCursor(family: BulkFamily): Cursor {
@@ -278,7 +432,11 @@ export class BulkImportRunner implements OnApplicationBootstrap, OnModuleDestroy
     return { items, next: after(rows.length >= BULK.pageSize) };
   }
 
-  /** A subject already in any pack, or an answer a live card already gives, is not made again. */
+  /**
+   * A subject already in any pack is not made again; nor is an answer a catalogue card already
+   * gives or is about to give (house packs only: a player's private card blocks nothing), case
+   * and accents aside.
+   */
   private async whySkip(item: Queued): Promise<string | null> {
     const exists = await this.prisma.card.findFirst({
       where: { slug: slugOf(item.candidate.qid) },
@@ -287,15 +445,17 @@ export class BulkImportRunner implements OnApplicationBootstrap, OnModuleDestroy
     if (exists) return 'DUPLICATE';
     const text = item.candidate.answers.fr?.text;
     if (!text) return null;
-    const sameAnswer = await this.prisma.cardAnswer.findFirst({
-      where: {
-        locale: 'fr',
-        text: { equals: text, mode: 'insensitive' },
-        card: { status: 'LIVE' },
-      },
-      select: { id: true },
-    });
-    return sameAnswer ? 'DUPLICATE_ANSWER' : null;
+    const same = await this.prisma.$queryRaw<unknown[]>`
+      SELECT 1 FROM "CardAnswer" a
+      JOIN "Card" c ON c.id = a."cardId"
+      JOIN "Pack" p ON p.id = c."packId"
+      WHERE a.locale = 'fr'
+        AND p."ownerId" IS NULL
+        AND c.status IN ('LIVE', 'READY', 'PROCESSING', 'NEEDS_POINTS')
+        AND lower(translate(a.text, ${FOLD_FROM}, ${FOLD_TO}))
+          = lower(translate(${text}, ${FOLD_FROM}, ${FOLD_TO}))
+      LIMIT 1`;
+    return same.length ? 'DUPLICATE_ANSWER' : null;
   }
 
   /**
