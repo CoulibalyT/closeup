@@ -5,6 +5,7 @@ import {
   type Category,
   checkUpload,
   FACE,
+  faceOf,
   fromEyes,
   type Point,
   UPLOAD,
@@ -440,7 +441,12 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <h2>{{ t('admin.preview') }}</h2>
-          <AdminLevelPreview :src="blobUrl" :image="image" :point="current" />
+          <AdminLevelPreview
+            :src="blobUrl"
+            :image="image"
+            :point="current"
+            :face="faceOf(card?.detection)"
+          />
         </template>
       </div>
     </section>

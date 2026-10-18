@@ -20,7 +20,7 @@ export const DEFAULT_ROUND_SECONDS: RoundSeconds = 60;
 
 /** A round without a clock: zoom and hint on a fixed schedule, points still reward speed. */
 export const UNTIMED = {
-  levelAtMs: [0, 15_000, 30_000],
+  levelAtMs: [0, 15_000, 30_000, 45_000],
   hintAtMs: 30_000,
   /** The value goes from 1000 to 200 over this, then stays at 200. */
   decayMs: 90_000,
@@ -33,8 +33,8 @@ export const ZOOM = {
    * the eyes, which reproduces the prototype's 0.75 / 1.35 / 2.4 / 4.2 × eye distance.
    */
   levelMultipliers: [0.75, 1.35, 2.4, 4.2],
-  /** Elapsed time at which each automatic level starts. The last level needs a bonus. */
-  autoLevelAtMs: [0, 10_000, 20_000],
+  /** Elapsed time at which each automatic level starts (a 30-second round, in quarters). */
+  autoLevelAtMs: [0, 7_500, 15_000, 22_500],
   maxLevel: 3,
   /** Below this eye distance the first level is too blurry: the pipeline warns. */
   minEyeDistancePx: 70,

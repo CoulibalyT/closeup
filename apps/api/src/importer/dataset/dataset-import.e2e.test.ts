@@ -304,7 +304,7 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('dataset import', () => {
       creditAuthor: 'Ann Photo',
       creditLicence: 'CC BY-SA 4.0',
     });
-    expect(omar.zoomPoints).toHaveLength(5);
+    expect(omar.zoomPoints).toHaveLength(3);
 
     const alex = await prisma.card.findFirstOrThrow({
       where: { slug: `${prefix}-alex` },

@@ -1,19 +1,30 @@
 <script setup lang="ts">
-import { cropPlan, type ImageSize, type ZoomPointGeometry } from '@closeup/shared';
+import {
+  cropPlan,
+  type FaceLandmarks,
+  type ImageSize,
+  type ZoomPointGeometry,
+} from '@closeup/shared';
 
 /**
  * The four zoom levels of one point, as players will see them. Drawn with the very function the
  * worker cuts the real crops with (`cropPlan`), from the image already loaded: no request, so it
  * follows the point while it is being dragged.
  */
-const props = defineProps<{ src: string; image: ImageSize; point: ZoomPointGeometry }>();
+const props = defineProps<{
+  src: string;
+  image: ImageSize;
+  point: ZoomPointGeometry;
+  /** A detected face: its views are framed on the eyes and the nose, as the worker does. */
+  face?: FaceLandmarks | null;
+}>();
 const { t } = useI18n();
 
 // Where to put the background so that `offset` is the first visible pixel.
 const position = (offset: number, room: number) => (room <= 0 ? 0 : (offset / room) * 100);
 
 const levels = computed(() =>
-  cropPlan(props.image, props.point).map((crop) => ({
+  cropPlan(props.image, props.point, props.face ?? null).map((crop) => ({
     level: crop.level,
     side: crop.side,
     style: {

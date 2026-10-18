@@ -109,24 +109,34 @@ describe('starting a game', () => {
 });
 
 describe('the clock of a round', () => {
-  it('starts, zooms out at 10 s and 20 s, and ends at 30 s', () => {
+  it('starts, zooms out every quarter, and ends at 30 s', () => {
     // The room hint has its own tests: the clock alone here.
     const game = new Game({ mode: 'private', hints: false });
     const start = game.toFirstRound();
     expect(game.state.phase).toBe('playing');
-    expect(game.state.wakeAt).toBe(start + 10_000);
+    expect(game.state.wakeAt).toBe(start + 7_500);
 
-    game.send({ type: 'tick' }, start + 10_000);
+    game.send({ type: 'tick' }, start + 7_500);
     expect(game.state.round!.level).toBe(1);
-    expect(game.state.wakeAt).toBe(start + 20_000);
+    expect(game.state.wakeAt).toBe(start + 15_000);
 
-    game.send({ type: 'tick' }, start + 20_000);
+    game.send({ type: 'tick' }, start + 15_000);
     expect(game.state.round!.level).toBe(2);
+    expect(game.state.wakeAt).toBe(start + 22_500);
+
+    game.send({ type: 'tick' }, start + 22_500);
+    expect(game.state.round!.level).toBe(3);
     expect(game.state.wakeAt).toBe(start + 30_000);
 
     game.send({ type: 'tick' }, start + 30_000);
     expect(game.state.phase).toBe('reveal');
-    expect(game.events().slice(-4)).toEqual(['roundStart', 'roundLevel', 'roundLevel', 'roundEnd']);
+    expect(game.events().slice(-5)).toEqual([
+      'roundStart',
+      'roundLevel',
+      'roundLevel',
+      'roundLevel',
+      'roundEnd',
+    ]);
   });
 
   it('catches up in order when a tick arrives late', () => {
@@ -136,7 +146,7 @@ describe('the clock of a round', () => {
     const levels = game.effects.flatMap((e) =>
       e.type === 'emit' && e.event.type === 'roundLevel' ? [e.event.level] : [],
     );
-    expect(levels).toEqual([1, 2]);
+    expect(levels).toEqual([1, 2, 3]);
   });
 
   it('ignores an early tick', () => {
@@ -144,7 +154,7 @@ describe('the clock of a round', () => {
     const start = game.toFirstRound();
     game.send({ type: 'tick' }, start + 4_000);
     expect(game.state.round!.level).toBe(0);
-    expect(game.state.wakeAt).toBe(start + 10_000);
+    expect(game.state.wakeAt).toBe(start + 7_500);
   });
 });
 
@@ -152,11 +162,11 @@ describe('the length of a round', () => {
   it("zooms out and ends on the room's own schedule", () => {
     const game = new Game({ mode: 'private', roundSeconds: 60 });
     const start = game.toFirstRound();
-    expect(game.state.wakeAt).toBe(start + 20_000);
-    game.send({ type: 'tick' }, start + 20_000);
+    expect(game.state.wakeAt).toBe(start + 15_000);
+    game.send({ type: 'tick' }, start + 15_000);
     expect(game.state.round!.level).toBe(1);
-    game.send({ type: 'tick' }, start + 40_000);
-    expect(game.state.round!.level).toBe(2);
+    game.send({ type: 'tick' }, start + 45_000);
+    expect(game.state.round!.level).toBe(3);
     expect(game.state.wakeAt).toBe(start + 60_000);
     game.send({ type: 'tick' }, start + 59_999);
     expect(game.state.phase).toBe('playing');
@@ -194,7 +204,7 @@ describe('the length of a round', () => {
     const game = new Game({ mode: 'private', roundSeconds: null });
     const start = game.toFirstRound();
     expect(game.state.wakeAt).toBe(start + 15_000);
-    game.send({ type: 'tick' }, start + 30_000);
+    game.send({ type: 'tick' }, start + 45_000);
     expect(game.state.wakeAt).toBe(start + 600_000);
     game.send({ type: 'tick' }, start + 600_000);
     expect(game.state.phase).toBe('reveal');
@@ -416,14 +426,14 @@ describe('several players', () => {
     const game = twoPlayers();
     const start = game.toFirstRound();
     const id = game.roundId;
-    game.send({ type: 'guess', playerId: 'p1', roundId: id, text: 'orange' }, start + 5_000);
-    game.send({ type: 'guess', playerId: 'p2', roundId: id, text: 'orange' }, start + 7_000);
+    game.send({ type: 'guess', playerId: 'p1', roundId: id, text: 'orange' }, start + 4_000);
+    game.send({ type: 'guess', playerId: 'p2', roundId: id, text: 'orange' }, start + 5_000);
     expect(game.state.phase).toBe('playing');
-    expect(game.state.wakeAt).toBe(start + 8_500);
+    expect(game.state.wakeAt).toBe(start + 6_500);
 
-    game.send({ type: 'tick' }, start + 8_500);
+    game.send({ type: 'tick' }, start + 6_500);
     expect(game.state.phase).toBe('reveal');
-    expect(game.state.revealUntil).toBe(start + 8_500 + 8_000);
+    expect(game.state.revealUntil).toBe(start + 6_500 + 8_000);
   });
 
   it('breaks the streak of whoever did not find', () => {

@@ -170,7 +170,7 @@ describe('a snapshot for someone who reconnects mid-round', () => {
       lockedUntil: start + 14_000,
       crop: { level: 1 },
     });
-    expect(snapshot.round!.levelAt).toEqual([start + 10_000, start + 20_000]);
+    expect(snapshot.round!.levelAt).toEqual([start + 7_500, start + 15_000, start + 22_500]);
   });
 });
 

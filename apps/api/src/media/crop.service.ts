@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { cropPlan, publishBlockers, ZOOM } from '@closeup/shared';
+import { cropPlan, type FaceDetection, faceOf, publishBlockers, ZOOM } from '@closeup/shared';
 import sharp from 'sharp';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { STORAGE, type StorageDriver, storageKeys } from './storage.js';
@@ -53,9 +53,11 @@ export class CropService {
 
     await this.renderReveal(image.id, original);
 
+    // A face's wider views are framed on its eyes and nose, whatever point the round opens on.
+    const face = faceOf(card.detection as FaceDetection | null);
     let crops = 0;
     for (const point of card.zoomPoints) {
-      for (const planned of cropPlan(image, point)) {
+      for (const planned of cropPlan(image, point, face)) {
         // A size larger than its source would only store blur.
         const sizes = ZOOM.cropSizesPx.filter((px, i) => i === 0 || planned.side >= px);
         for (const sizePx of sizes) {

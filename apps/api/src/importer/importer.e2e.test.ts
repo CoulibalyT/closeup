@@ -449,7 +449,7 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('Wikimedia importer', () 
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
     expect(card?.status).toBe('READY');
-    expect(card?.zoomPoints).toHaveLength(5);
+    expect(card?.zoomPoints).toHaveLength(3);
     expect(card?.zoomPoints.every((point) => point.cropsReady)).toBe(true);
   });
 });

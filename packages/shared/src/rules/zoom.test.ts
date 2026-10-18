@@ -2,17 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { cropSidePx, zoomLevelAt } from './zoom.js';
 
 describe('zoomLevelAt', () => {
-  it('follows the automatic schedule: 0 s, 10 s, 20 s', () => {
+  it('follows the automatic schedule: a 30-second round in quarters', () => {
     expect(zoomLevelAt(0)).toBe(0);
-    expect(zoomLevelAt(9_999)).toBe(0);
-    expect(zoomLevelAt(10_000)).toBe(1);
-    expect(zoomLevelAt(19_999)).toBe(1);
-    expect(zoomLevelAt(20_000)).toBe(2);
-    expect(zoomLevelAt(30_000)).toBe(2);
+    expect(zoomLevelAt(7_499)).toBe(0);
+    expect(zoomLevelAt(7_500)).toBe(1);
+    expect(zoomLevelAt(15_000)).toBe(2);
+    expect(zoomLevelAt(22_499)).toBe(2);
   });
 
-  it('never reaches the last level without a bonus', () => {
-    expect(zoomLevelAt(29_999, 0)).toBe(2);
+  it('reaches the widest view, the whole face, at three quarters of the round', () => {
+    expect(zoomLevelAt(22_500, 0)).toBe(3);
+    expect(zoomLevelAt(30_000, 0)).toBe(3);
   });
 
   it('adds bonus levels and caps at the last level', () => {

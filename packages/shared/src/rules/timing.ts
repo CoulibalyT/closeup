@@ -36,7 +36,8 @@ export function roundTiming(settings: { roundSeconds?: number | null }): RoundTi
   const durationMs = seconds * 1000;
   return {
     durationMs,
-    levelAtMs: [0, durationMs / 3, (2 * durationMs) / 3].map(Math.round),
+    // Four views, the last one at three quarters: the whole face (or subject) before the end.
+    levelAtMs: [0, 1, 2, 3].map((quarter) => Math.round((quarter * durationMs) / 4)),
     hintAtMs: Math.round(durationMs * HINT_AT_RATIO),
     decayMs: durationMs,
     safetyMs: null,

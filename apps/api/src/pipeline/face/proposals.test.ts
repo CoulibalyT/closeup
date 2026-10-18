@@ -93,11 +93,7 @@ describe('autoZoomPoints', () => {
 
   it('turns one clear face into three points inside the image: an eye, the nose, the mouth', () => {
     const points = autoZoomPoints(assessFaces([face(200)]), size)!;
-    expect(points.map((p) => p.labelEn)).toEqual([
-      'an eye',
-      'the nose',
-      'the mouth',
-    ]);
+    expect(points.map((p) => p.labelEn)).toEqual(['an eye', 'the nose', 'the mouth']);
     expect(points.every((p) => p.origin === 'AUTO' && p.x <= 2000 && p.y <= 1500)).toBe(true);
   });
 

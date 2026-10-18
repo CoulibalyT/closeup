@@ -403,7 +403,7 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('mass import', () => {
       visibility: 'PUBLIC',
     });
     expect(card).toMatchObject({ isPerson: true, status: 'LIVE' });
-    expect(card.zoomPoints).toHaveLength(5);
+    expect(card.zoomPoints).toHaveLength(3);
     const inPublicQueue = await prisma.card.count({
       where: { ...playableWhere({ kind: 'public' }), id: card.id },
     });
