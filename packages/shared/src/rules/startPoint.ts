@@ -1,4 +1,9 @@
-import { DIFFICULTY_STARTS, type Difficulty, type StartZone } from '../constants/game.js';
+import {
+  DIFFICULTIES,
+  DIFFICULTY_STARTS,
+  type Difficulty,
+  type StartZone,
+} from '../constants/game.js';
 import type { FaceLandmarks } from './cropPlan.js';
 import type { Point } from './face.js';
 
@@ -50,4 +55,19 @@ export function startPoints<T extends Point & { labelEn?: string | null }>(
     return zone === null || allowed.includes(zone);
   });
   return kept.length ? kept : points;
+}
+
+/**
+ * The difficulties a point's views are cut for: those that may open on it, plus `normal`, which
+ * every point has (a card's fallback when no point suits the room). Off a face: `normal` only.
+ */
+export function cutVariants(
+  point: Point & { labelEn?: string | null },
+  face: FaceLandmarks | null,
+): Difficulty[] {
+  const zone = face ? startZoneOf(point, face) : null;
+  if (!zone) return ['normal'];
+  return DIFFICULTIES.filter(
+    (difficulty) => difficulty === 'normal' || DIFFICULTY_STARTS[difficulty].includes(zone),
+  );
 }

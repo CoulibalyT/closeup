@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { startPoints, startZoneOf } from './startPoint.js';
+import { cutVariants, startPoints, startZoneOf } from './startPoint.js';
 
 const face = {
   leftEye: { x: 950, y: 900 },
@@ -44,5 +44,17 @@ describe('startPoints', () => {
 
   it('falls back to every point rather than leave a card unplayable', () => {
     expect(ids(startPoints([mouth], 'easy', face))).toEqual(['mouth']);
+  });
+});
+
+describe('cutVariants', () => {
+  it('cuts a view set only for the difficulties that may open on the point', () => {
+    expect(cutVariants(eye, face)).toEqual(['easy', 'normal', 'hard']);
+    expect(cutVariants(nose, face)).toEqual(['normal', 'hard']);
+    expect(cutVariants(mouth, face)).toEqual(['normal', 'hard']);
+  });
+
+  it('cuts one normal set for a point off any face', () => {
+    expect(cutVariants({ x: 10, y: 10, labelEn: null }, null)).toEqual(['normal']);
   });
 });

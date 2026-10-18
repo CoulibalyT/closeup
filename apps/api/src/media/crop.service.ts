@@ -1,8 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   cropPlan,
-  DIFFICULTIES,
-  type Difficulty,
+  cutVariants,
   type FaceDetection,
   faceOf,
   publishBlockers,
@@ -85,9 +84,17 @@ export class CropService {
     // A face's wider views are framed on its eyes and nose, whatever point the round opens on.
     const face = faceOf(card.detection as FaceDetection | null);
     let crops = 0;
-    // A face is framed once per room difficulty; anything else once, as `normal`.
-    const variants: Difficulty[] = face ? [...DIFFICULTIES] : ['normal'];
     for (const point of card.zoomPoints) {
+      // Framed once per difficulty that may open on this point (an eye: easy too), else once.
+      const variants = cutVariants(point, face);
+      // Views a difficulty can no longer open on go, rows and files.
+      const stale = await this.prisma.crop.findMany({
+        where: { zoomPointId: point.id, variant: { notIn: variants } },
+      });
+      for (const crop of stale) await this.storage.remove(crop.storageKey);
+      if (stale.length) {
+        await this.prisma.crop.deleteMany({ where: { id: { in: stale.map((crop) => crop.id) } } });
+      }
       for (const variant of variants) {
         for (const planned of cropPlan(image, point, face, variant)) {
           // A size larger than its source would only store blur.
