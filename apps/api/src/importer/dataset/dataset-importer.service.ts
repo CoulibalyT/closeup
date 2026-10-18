@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -38,8 +38,10 @@ export interface DatasetOptions {
   onWait?: () => void;
   /** Cards per pack before "— 2" opens (default 500, like the mass import). */
   packSize?: number;
+  /** Remake a card whose picture file changed in the dataset since it was imported. */
+  replaceChanged?: boolean;
 }
-export type DatasetOutcome = 'created' | 'exists' | 'remade' | `refused:${string}`;
+export type DatasetOutcome = 'created' | 'exists' | 'remade' | 'replaced' | `refused:${string}`;
 export interface DatasetLine {
   index: number;
   total: number;
@@ -79,6 +81,25 @@ export class DatasetImporter {
     @Inject(STORAGE) private readonly storage: StorageDriver,
     @InjectQueue(MEDIA_QUEUE) private readonly queue: Queue,
   ) {}
+
+  /** A card and its files: the picture, its reveal and every crop. */
+  private async dropCard(id: string): Promise<void> {
+    const card = await this.prisma.card.findUniqueOrThrow({
+      where: { id },
+      include: { image: true, zoomPoints: { include: { crops: true } } },
+    });
+    for (const point of card.zoomPoints) {
+      for (const crop of point.crops) await this.storage.remove(crop.storageKey);
+    }
+    if (card.image) {
+      await this.storage.remove(card.image.originalKey);
+      if (card.image.revealKey) await this.storage.remove(card.image.revealKey);
+    }
+    await this.prisma.$transaction([
+      this.prisma.card.delete({ where: { id } }),
+      ...(card.image ? [this.prisma.imageAsset.delete({ where: { id: card.image.id } })] : []),
+    ]);
+  }
 
   async run(options: DatasetOptions, report: (line: DatasetLine) => void): Promise<DatasetSummary> {
     const prefix = options.slugPrefix ?? 'ds';
@@ -204,12 +225,26 @@ export class DatasetImporter {
       const here = packId
         ? await this.prisma.card.findFirst({
             where: { packId, slug },
-            select: { id: true, status: true, processingError: true, updatedAt: true },
+            select: {
+              id: true,
+              status: true,
+              processingError: true,
+              updatedAt: true,
+              sourceHash: true,
+            },
           })
         : null;
+      const sourceHash = createHash('sha256').update(image).digest('hex');
+      let replaced = false;
       if (here) {
         const orphan = here.status === 'PROCESSING' && (await this.isOrphan(here));
-        if (here.status !== 'DRAFT' && !orphan) {
+        const changed =
+          options.replaceChanged && here.sourceHash !== null && here.sourceHash !== sourceHash;
+        if (changed && here.status !== 'PROCESSING') {
+          // A new photo: the card goes and is made again, its old points and review with it.
+          if (!options.dryRun) await this.dropCard(here.id);
+          replaced = true;
+        } else if (here.status !== 'DRAFT' && !orphan) {
           line('exists');
           continue;
         }
@@ -217,9 +252,11 @@ export class DatasetImporter {
           line(`refused:${here.processingError}`);
           continue;
         }
-        // Its picture failed, or its job vanished: it goes, and is made again.
-        if (!options.dryRun) await this.prisma.card.delete({ where: { id: here.id } });
-        remade = true;
+        if (!replaced) {
+          // Its picture failed, or its job vanished: it goes, and is made again.
+          if (!options.dryRun) await this.prisma.card.delete({ where: { id: here.id } });
+          remade = true;
+        }
       } else if (person && photo.suffix) {
         // Another photo of a person: it follows the main one, which decided whether they come.
         const main = await this.prisma.card.findFirst({
@@ -241,8 +278,9 @@ export class DatasetImporter {
         }
       }
 
+      const outcome = replaced ? 'replaced' : remade ? 'remade' : 'created';
       if (options.dryRun) {
-        line(remade ? 'remade' : 'created', credit.licence);
+        line(outcome, credit.licence);
         continue;
       }
       await this.waitForRoom(prefix, options);
@@ -250,6 +288,7 @@ export class DatasetImporter {
         data: {
           packId: packId!,
           slug,
+          sourceHash,
           source: person ? 'WIKIMEDIA' : 'UPLOAD',
           status: 'PROCESSING',
           category: DATASET_PACKS[target.pack].category,
@@ -283,7 +322,7 @@ export class DatasetImporter {
       }
       const room = packs.get(target.pack);
       if (room && room.id === packId) room.count += 1;
-      line(remade ? 'remade' : 'created', credit.licence);
+      line(outcome, credit.licence);
     }
     return summary;
   }

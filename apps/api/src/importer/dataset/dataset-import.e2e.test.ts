@@ -670,4 +670,33 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('dataset import', () => {
     await prisma.card.deleteMany({ where: { id: { in: cards.map((c) => c.id) } } });
     await rm(other, { recursive: true, force: true });
   });
+  it('replaces a photo the dataset changed, only when asked, and never plays an old correction on it', async () => {
+    await settled();
+    const corrections = app.get(DatasetCorrections);
+    const file = join(dir, 'corrections-photo.json');
+    const before = await prisma.card.findFirstOrThrow({ where: { slug: `${prefix}-babar` } });
+    expect(before.sourceHash).toMatch(/^[0-9a-f]{64}$/);
+    await corrections.export(file, prefix);
+
+    // The dataset swaps Babar's picture.
+    const swapped = await sharp({
+      create: { width: 900, height: 900, channels: 3, background: '#36c' },
+    })
+      .png()
+      .toBuffer();
+    await writeFile(join(dir, 'images/fiction/babar.jpg'), swapped);
+
+    const plain = await runOnce();
+    expect(outcome(plain, 'Babar', 'fiction')).toBe('exists');
+    const replaced = await runOnce({ replaceChanged: true });
+    expect(outcome(replaced, 'Babar', 'fiction')).toBe('replaced');
+    await settled();
+    const after = await prisma.card.findFirstOrThrow({ where: { slug: `${prefix}-babar` } });
+    expect(after.id).not.toBe(before.id);
+    expect(after.sourceHash).not.toBe(before.sourceHash);
+
+    // The review was of the old picture: it is not played on the new one.
+    const applied = await corrections.apply(file, ownerEmail, prefix);
+    expect(applied.stale).toBeGreaterThanOrEqual(1);
+  });
 });

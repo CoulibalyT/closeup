@@ -192,6 +192,8 @@ model Card {
   pack              Pack         @relation(fields: [packId], references: [id], onDelete: Cascade)
   /// Stable handle for seeded and imported cards, unique inside a pack.
   slug              String?
+  /// SHA-256 of the file an import read the picture from: a changed file is a new photo.
+  sourceHash        String?
   category          Category
   difficulty        Int          @default(2)
   status            CardStatus   @default(DRAFT)

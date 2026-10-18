@@ -14,7 +14,7 @@ import { DATASET_CATEGORIES, type DatasetCategory } from './importer/dataset/man
 /**
  * The owner's dataset into the game (see the README):
  *   OWNER_EMAIL=me@example.org pnpm --filter @closeup/api import:dataset \
- *     [--only acteur] [--limit 20] [--dry-run] [--status]
+ *     [--only acteur] [--limit 20] [--dry-run] [--status] [--replace-changed]
  *     [--export-corrections] [--apply-corrections]   (the owner's review, in DATASET_DIR/corrections.json)
  * DATASET_DIR defaults to data/celebrities. A rerun only adds what is missing.
  */
@@ -82,7 +82,7 @@ try {
       );
     }
     console.log(
-      `${r.cards} cartes lues · points replacés ${r.points} · niveaux changés ${r.difficulty} · retirées ${r.off} · remises en jeu ${r.on} · introuvables ${r.missing}`,
+      `${r.cards} cartes lues · points replacés ${r.points} · niveaux changés ${r.difficulty} · retirées ${r.off} · remises en jeu ${r.on} · introuvables ${r.missing} · photo changée depuis ${r.stale}`,
     );
   } else if (flag('status')) {
     table('État des packs du dataset :', await importer.status());
@@ -94,6 +94,7 @@ try {
         only,
         limit,
         dryRun: flag('dry-run'),
+        replaceChanged: flag('replace-changed'),
         onWait: () => console.log('… en attente du worker'),
       },
       say,

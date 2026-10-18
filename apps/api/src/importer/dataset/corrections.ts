@@ -19,6 +19,8 @@ interface CardCorrection {
   off: boolean;
   /** x, y and radius as shares of the width, the height and the shorter side. */
   points: { x: number; y: number; r: number }[];
+  /** The photo these points were placed on (dataset cards): another photo, they are stale. */
+  sourceHash?: string;
 }
 interface CorrectionsFile {
   version: 1;
@@ -32,6 +34,8 @@ export interface CorrectionsResult {
   off: number;
   on: number;
   missing: number;
+  /** Reviewed on a photo the dataset has replaced since: left alone, to review again. */
+  stale: number;
 }
 
 const WAIT_MS = 1_000;
@@ -73,6 +77,7 @@ export class DatasetCorrections {
             slug: card.slug!,
             difficulty: card.difficulty,
             off: card.status === 'READY',
+            ...(card.sourceHash ? { sourceHash: card.sourceHash } : {}),
             points: card.zoomPoints.map((p) => ({
               x: round(p.x / width),
               y: round(p.y / height),
@@ -100,6 +105,7 @@ export class DatasetCorrections {
       off: 0,
       on: 0,
       missing: 0,
+      stale: 0,
     };
     const relive: string[] = [];
     const offs: string[] = [];
@@ -108,16 +114,29 @@ export class DatasetCorrections {
       const pack = wanted.pack.replace(/^ds-/, `${prefix}-`);
       // A catalogue pack is numbered by its run ("bulk-objects-2" here, "-1" there): any pack of
       // the same family will do, the subject's slug is what identifies the card.
+      // Same for a full dataset pack: "ds-acteur — 2" is `ds-acteur-2`.
       const family = /^bulk-(.+)-\d+$/.exec(pack)?.[1];
-      const card = await this.prisma.card.findFirst({
+      const base = family ? `bulk-${family}` : pack.replace(/-\d+$/, '');
+      const candidates = await this.prisma.card.findMany({
         where: {
           slug: wanted.slug.replace(/^ds-/, `${prefix}-`),
-          pack: family ? { slug: { startsWith: `bulk-${family}-` } } : { slug: pack },
+          pack: { OR: [{ slug: base }, { slug: { startsWith: `${base}-` } }] },
         },
-        include: { image: true, zoomPoints: { orderBy: { id: 'asc' } } },
+        include: {
+          pack: { select: { slug: true } },
+          image: true,
+          zoomPoints: { orderBy: { id: 'asc' } },
+        },
       });
+      const card = candidates.find(
+        (c) => c.pack.slug === base || /^-\d+$/.test(c.pack.slug!.slice(base.length)),
+      );
       if (!card?.image || card.status === 'PROCESSING') {
         result.missing++;
+        continue;
+      }
+      if (wanted.sourceHash && card.sourceHash && wanted.sourceHash !== card.sourceHash) {
+        result.stale++;
         continue;
       }
       result.cards++;
