@@ -171,6 +171,17 @@ export const MATCHMAKING = {
  */
 export const PUBLIC_GAMES = { open: false } as const;
 
+/** How hard a room's close-ups are: where a face's round may open. */
+export const DIFFICULTIES = ['easy', 'normal', 'hard'] as const;
+export type Difficulty = (typeof DIFFICULTIES)[number];
+export const DEFAULT_DIFFICULTY: Difficulty = 'normal';
+export type StartZone = 'eye' | 'nose' | 'mouth';
+export const DIFFICULTY_STARTS: Record<Difficulty, readonly StartZone[]> = {
+  easy: ['eye'],
+  normal: ['eye', 'nose'],
+  hard: ['eye', 'nose', 'mouth'],
+};
+
 export const NICKNAME = { minLength: 2, maxLength: 16 } as const;
 
 export const TIME_SYNC = {

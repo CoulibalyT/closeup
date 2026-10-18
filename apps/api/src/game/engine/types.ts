@@ -1,4 +1,5 @@
 import type {
+  Difficulty,
   BonusItem,
   BonusType,
   DisplayMode,
@@ -34,6 +35,8 @@ export interface RoomSettings {
   hints?: boolean;
   /** Length of a round in seconds, `null` without a clock. Absent in rooms saved before: 30. */
   roundSeconds?: number | null;
+  /** Where a face's round may open. The deck reads it, the reducer never. Absent: normal. */
+  difficulty?: Difficulty;
 }
 
 export interface McqOption {

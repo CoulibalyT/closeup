@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { DEFAULT_ROUND_SECONDS, DISPLAY_MODES, SCORING_MODES } from '../constants/game.js';
+import {
+  DEFAULT_DIFFICULTY,
+  DEFAULT_ROUND_SECONDS,
+  DIFFICULTIES,
+  DISPLAY_MODES,
+  SCORING_MODES,
+} from '../constants/game.js';
 import { packChoiceSchema } from './packs.js';
 import { idSchema, localeSchema, nicknameSchema, roomCodeSchema } from './common.js';
 import { answerModeSchema, phaseSchema } from './events.js';
@@ -37,6 +43,8 @@ export const roomSettingsSchema = z.strictObject({
   display: z.enum(DISPLAY_MODES).default('phones'),
   /** A hint for everyone when nobody found at 60 % of the round. */
   hints: z.boolean().default(true),
+  /** Where a face's round may open: easy, an eye; normal, an eye or the nose; hard, anything. */
+  difficulty: z.enum(DIFFICULTIES).default(DEFAULT_DIFFICULTY),
   /** Length of a round in seconds; `null` is "Sans chrono". */
   roundSeconds: z
     .union([z.literal(30), z.literal(45), z.literal(60), z.literal(90), z.null()])

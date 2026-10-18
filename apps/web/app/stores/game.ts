@@ -45,7 +45,9 @@ import {
   roundPrepareSchema,
   roundStartSchema,
   ServerEvent,
+  DEFAULT_DIFFICULTY,
   DEFAULT_ROUND_SECONDS,
+  type Difficulty,
   type RoundSeconds,
 } from '@closeup/shared';
 import { defineStore } from 'pinia';
@@ -115,6 +117,7 @@ export const useGameStore = defineStore('game', () => {
   const roundSeconds = ref<RoundSeconds | null>(DEFAULT_ROUND_SECONDS);
   /** The room setting: a hint for everyone when nobody found late in the round. */
   const hintsOn = ref(true);
+  const difficulty = ref<Difficulty>(DEFAULT_DIFFICULTY);
   /** The room's hint, once shown this round. */
   const roundHint = ref<RoundHint | null>(null);
   /** Who answered with a partial answer this round (a film of the person…). */
@@ -273,6 +276,7 @@ export const useGameStore = defineStore('game', () => {
     scoring.value = view.scoring;
     roundSeconds.value = view.roundSeconds as RoundSeconds | null;
     hintsOn.value = view.hints;
+    difficulty.value = view.difficulty;
     inventory.value = view.inventory;
     shielded.value = view.shielded;
     totalRounds.value = view.totalRounds;
@@ -325,6 +329,7 @@ export const useGameStore = defineStore('game', () => {
       scoring.value = settings.scoring;
       roundSeconds.value = settings.roundSeconds as RoundSeconds | null;
       hintsOn.value = settings.hints;
+      difficulty.value = settings.difficulty;
       display.value = settings.display;
       packIds.value = settings.packIds;
       totalRounds.value = settings.rounds;
@@ -644,6 +649,7 @@ export const useGameStore = defineStore('game', () => {
     skipRound,
     reportZoom,
     hintsOn,
+    difficulty,
     roundHint,
     partialIds,
     partialPoints,

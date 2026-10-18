@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ROOM, roomCodeSchema, DEFAULT_ROUND_SECONDS } from '@closeup/shared';
+import { DEFAULT_DIFFICULTY, ROOM, roomCodeSchema, DEFAULT_ROUND_SECONDS } from '@closeup/shared';
 import { renderSVG } from 'uqr';
 
 /**
@@ -102,6 +102,7 @@ async function reopen(): Promise<void> {
         display: 'bigscreen',
         roundSeconds: DEFAULT_ROUND_SECONDS,
         hints: true,
+        difficulty: DEFAULT_DIFFICULTY,
         packIds: [],
       },
       locale.value as 'fr' | 'en',

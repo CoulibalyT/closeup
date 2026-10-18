@@ -2,6 +2,8 @@
 import {
   type AnswerMode,
   type CataloguePack,
+  DIFFICULTIES,
+  type Difficulty,
   DISPLAY_MODES,
   type DisplayMode,
   ROOM,
@@ -57,6 +59,7 @@ const draft = reactive({
   display: game.display,
   roundSeconds: game.roundSeconds,
   hints: game.hintsOn,
+  difficulty: game.difficulty,
   packIds: [...game.packIds],
 });
 watch(
@@ -68,9 +71,10 @@ watch(
       game.display,
       game.roundSeconds,
       game.hintsOn,
+      game.difficulty,
     ] as const,
-  ([rounds, answerMode, scoring, display, roundSeconds, hints]) =>
-    Object.assign(draft, { rounds, answerMode, scoring, display, roundSeconds, hints }),
+  ([rounds, answerMode, scoring, display, roundSeconds, hints, difficulty]) =>
+    Object.assign(draft, { rounds, answerMode, scoring, display, roundSeconds, hints, difficulty }),
 );
 watch(
   () => game.packIds,
@@ -105,6 +109,10 @@ function setRoundSeconds(roundSeconds: RoundSeconds | null): void {
 }
 function setHints(hints: boolean): void {
   draft.hints = hints;
+  void game.updateSettings({ ...draft });
+}
+function setDifficulty(difficulty: Difficulty): void {
+  draft.difficulty = difficulty;
   void game.updateSettings({ ...draft });
 }
 function setRounds(rounds: number): void {
@@ -316,6 +324,19 @@ const screenMissing = computed(() => bigScreen.value && game.screens === 0);
           </label>
           <p class="muted hint">{{ t('lobby.hintsHint') }}</p>
         </fieldset>
+        <fieldset>
+          <legend>{{ t('lobby.difficulty') }}</legend>
+          <label v-for="level in DIFFICULTIES" :key="level">
+            <input
+              type="radio"
+              name="lobby-difficulty"
+              :checked="draft.difficulty === level"
+              @change="setDifficulty(level)"
+            />
+            <span>{{ t(`lobby.difficultyLevel.${level}`) }}</span>
+          </label>
+          <p class="muted hint">{{ t(`lobby.difficultyHint.${draft.difficulty}`) }}</p>
+        </fieldset>
       </template>
       <p v-else class="muted">
         {{
@@ -331,6 +352,7 @@ const screenMissing = computed(() => bigScreen.value && game.screens === 0);
             : t('lobby.secondsSummary', { n: game.roundSeconds })
         }}
         {{ game.hintsOn ? t('lobby.hintsOn') : '' }}
+        {{ t('lobby.difficultySummary', { level: t(`lobby.difficultyLevel.${game.difficulty}`) }) }}
         <template v-if="bigScreen">{{ t('home.displayHint.bigscreen') }}</template>
       </p>
 

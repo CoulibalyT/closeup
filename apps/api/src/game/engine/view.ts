@@ -246,6 +246,7 @@ export function eventToWire(
           display: displayOf(state),
           roundSeconds: roundSecondsOf(state),
           hints: state.settings.hints ?? true,
+          difficulty: state.settings.difficulty ?? 'normal',
           packIds: state.settings.packIds ?? [],
         }),
       };
@@ -407,6 +408,7 @@ export function toSnapshot(
     display: displayOf(state),
     roundSeconds: roundSecondsOf(state),
     hints: state.settings.hints ?? true,
+    difficulty: state.settings.difficulty ?? 'normal',
     inventory: me?.inventory ?? [],
     shielded: me?.shielded ?? false,
     round: showRound

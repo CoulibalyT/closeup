@@ -80,6 +80,7 @@ async function replaySolo(): Promise<void> {
         display: 'phones',
         roundSeconds: game.roundSeconds,
         hints: game.hintsOn,
+        difficulty: game.difficulty,
         packIds: [],
       },
       locale.value as 'fr' | 'en',

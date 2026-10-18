@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { cropPlan, type FaceDetection, faceOf, publishBlockers, ZOOM } from '@closeup/shared';
 import sharp from 'sharp';
+import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { STORAGE, type StorageDriver, storageKeys } from './storage.js';
 
@@ -23,6 +24,26 @@ export class CropService {
     private readonly prisma: PrismaService,
     @Inject(STORAGE) private readonly storage: StorageDriver,
   ) {}
+
+  /**
+   * Cuts again the crops of every card with a detected face, after a change in how its views are
+   * framed. A card in play stays in play, one taken out stays out.
+   */
+  async recutFaces(onCard: (slug: string) => void): Promise<{ cards: number }> {
+    const cards = await this.prisma.card.findMany({
+      where: { detection: { not: Prisma.DbNull }, status: { in: ['LIVE', 'READY'] } },
+      select: { id: true, slug: true, status: true, detection: true },
+      orderBy: { slug: 'asc' },
+    });
+    let done = 0;
+    for (const card of cards) {
+      if (!faceOf(card.detection as FaceDetection | null)) continue;
+      await this.processCard(card.id, card.status === 'LIVE');
+      onCard(card.slug ?? card.id);
+      done++;
+    }
+    return { cards: done };
+  }
 
   /** The downscaled rendition shown on the reveal and in the admin. Never the original. */
   async renderReveal(imageId: string, original: Buffer): Promise<void> {

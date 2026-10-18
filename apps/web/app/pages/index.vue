@@ -4,6 +4,7 @@ import {
   PUBLIC_GAMES,
   ROOM,
   roomCodeSchema,
+  DEFAULT_DIFFICULTY,
   DEFAULT_ROUND_SECONDS,
 } from '@closeup/shared';
 
@@ -93,6 +94,7 @@ const createParty = () =>
         display: 'phones',
         roundSeconds: DEFAULT_ROUND_SECONDS,
         hints: true,
+        difficulty: DEFAULT_DIFFICULTY,
         packIds: [],
       },
       locale.value as 'fr' | 'en',
@@ -113,6 +115,7 @@ const openScreen = () =>
         display: 'bigscreen',
         roundSeconds: DEFAULT_ROUND_SECONDS,
         hints: true,
+        difficulty: DEFAULT_DIFFICULTY,
         packIds: [],
       },
       locale.value as 'fr' | 'en',
@@ -131,6 +134,7 @@ const playSolo = () =>
       display: 'phones' as const,
       roundSeconds: DEFAULT_ROUND_SECONDS,
       hints: true,
+      difficulty: DEFAULT_DIFFICULTY,
       packIds: [],
     };
     return `/play/${await game.createRoom('solo', settings, locale.value as 'fr' | 'en')}`;

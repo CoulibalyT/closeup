@@ -1,6 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
-import { type Locale, MULTIPLE_CHOICE, revealZone, ZOOM } from '@closeup/shared';
+import {
+  type Difficulty,
+  type FaceDetection,
+  faceOf,
+  type Locale,
+  MULTIPLE_CHOICE,
+  revealZone,
+  startPoints,
+  ZOOM,
+} from '@closeup/shared';
 import { normalise } from '../game/engine/matching.js';
 import type { AnswerMode, EngineCard } from '../game/engine/types.js';
 import { PrismaService } from '../prisma/prisma.module.js';
@@ -43,6 +52,7 @@ export class DeckService {
     language: Locale,
     answerMode: AnswerMode,
     scope: DeckScope = { kind: 'room' },
+    difficulty: Difficulty = 'normal',
   ): Promise<EngineCard | null> {
     const card = await this.prisma.card.findFirst({
       where: { id: cardId, ...playableWhere(scope) },
@@ -55,7 +65,9 @@ export class DeckService {
     if (!card?.image?.revealKey) return null;
 
     const playable = card.zoomPoints.filter((point) => point.crops.length > ZOOM.maxLevel);
-    const point = pickWeighted(playable, Math.random);
+    // The room's difficulty decides where a face may open; the second zone may be anywhere.
+    const face = faceOf(card.detection as FaceDetection | null);
+    const point = pickWeighted(startPoints(playable, difficulty, face), Math.random);
     const primary = card.answers.find((a) => a.locale === language) ?? card.answers[0];
     if (!point || !primary) return null;
     const fallback = card.answers.find((a) => a.id !== primary.id);

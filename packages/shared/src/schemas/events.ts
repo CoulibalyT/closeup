@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { BONUS_TYPES, DISPLAY_MODES, FREE_TEXT, SCORING_MODES } from '../constants/game.js';
+import {
+  BONUS_TYPES,
+  DIFFICULTIES,
+  DISPLAY_MODES,
+  FREE_TEXT,
+  SCORING_MODES,
+} from '../constants/game.js';
 import { idSchema, localeSchema, nicknameSchema, roomCodeSchema } from './common.js';
 
 /**
@@ -331,6 +337,7 @@ export const roomStateSchema = z.strictObject({
   /** Length of a round in seconds, `null` without a clock (no countdown is shown). */
   roundSeconds: z.int().positive().nullable(),
   hints: z.boolean(),
+  difficulty: z.enum(DIFFICULTIES),
   phase: phaseSchema,
   /** `null` while a room opened from a big screen waits for its first player. */
   hostId: idSchema.nullable(),
@@ -418,6 +425,7 @@ export const roomSettingsEventSchema = z.strictObject({
   display: displayModeSchema,
   roundSeconds: z.int().positive().nullable(),
   hints: z.boolean(),
+  difficulty: z.enum(DIFFICULTIES),
   packIds: z.array(idSchema),
 });
 export type RoomSettingsEvent = z.infer<typeof roomSettingsEventSchema>;

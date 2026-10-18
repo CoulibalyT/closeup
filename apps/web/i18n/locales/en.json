@@ -98,7 +98,19 @@
     "hintsOn": "Automatic hints.",
     "soloHint": "Pick your settings, then start.",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "difficulty": "Difficulty",
+    "difficultyLevel": {
+      "easy": "Easy",
+      "normal": "Normal",
+      "hard": "Hard"
+    },
+    "difficultyHint": {
+      "easy": "On a face, the round always opens on an eye.",
+      "normal": "On a face, the round opens on an eye or the nose.",
+      "hard": "On a face, the round may open on an eye, the nose or the mouth."
+    },
+    "difficultySummary": "Difficulty: {level}."
   },
   "ranking": {
     "found": "found it",

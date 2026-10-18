@@ -293,6 +293,7 @@ export class RoomService implements OnApplicationBootstrap, OnModuleDestroy {
           state.language,
           state.settings.answerMode,
           deckScope(state),
+          state.settings.difficulty ?? 'normal',
         );
         if (card) {
           await this.dispatch(code, { type: 'cardReady', card });

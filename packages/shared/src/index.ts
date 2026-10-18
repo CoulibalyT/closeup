@@ -4,6 +4,7 @@ export * from './constants/game.js';
 export * from './rules/scoring.js';
 export * from './rules/zoom.js';
 export * from './rules/cropPlan.js';
+export * from './rules/startPoint.js';
 export * from './rules/face.js';
 export * from './rules/nickname.js';
 export * from './rules/matchmaking.js';

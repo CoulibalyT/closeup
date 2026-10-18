@@ -98,7 +98,19 @@
     "hintsOn": "Indices automatiques.",
     "soloHint": "Choisis tes réglages, puis lance la partie.",
     "yes": "Oui",
-    "no": "Non"
+    "no": "Non",
+    "difficulty": "Difficulté",
+    "difficultyLevel": {
+      "easy": "Facile",
+      "normal": "Normal",
+      "hard": "Difficile"
+    },
+    "difficultyHint": {
+      "easy": "Sur un visage, la manche part toujours d’un œil.",
+      "normal": "Sur un visage, la manche part d’un œil ou du nez.",
+      "hard": "Sur un visage, la manche peut partir d’un œil, du nez ou de la bouche."
+    },
+    "difficultySummary": "Difficulté : {level}."
   },
   "ranking": {
     "found": "a trouvé",

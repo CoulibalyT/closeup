@@ -18,6 +18,7 @@
     "import:sheet": "nest start --entryFile import-sheet",
     "import:dataset": "nest start --entryFile import-dataset --",
     "import:hints": "nest start --entryFile import-hints --",
+    "crops:faces": "nest start --entryFile crops-faces",
     "admin:create": "nest start --entryFile create-admin",
     "face:check": "node scripts/face-check.mjs",
     "prisma:generate": "prisma generate",

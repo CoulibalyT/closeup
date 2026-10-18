@@ -53,6 +53,7 @@ export const PUBLIC_SETTINGS = {
   // Strangers play the short classic round.
   roundSeconds: 30,
   hints: true,
+  difficulty: 'normal',
 } as const;
 
 export const queueKey = (language: Locale): string => `closeup:mm:${language}`;
