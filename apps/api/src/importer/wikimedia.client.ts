@@ -63,10 +63,21 @@ export interface EntityOptions {
   mul?: boolean;
 }
 
+/** A person's occupation (feminine form for a woman, when Wikidata has it) and works. */
+export interface PersonWorks {
+  occupation: string | null;
+  works: string[];
+  /** Wikidata's short description in the language: "joueur de tennis espagnol". */
+  description?: string | null;
+  female?: boolean;
+}
+
 export interface WikimediaApi {
   sparql(query: string): Promise<SparqlRow[]>;
   entities(qids: string[], options?: EntityOptions): Promise<Map<string, WikidataEntity>>;
   people(qids: string[]): Promise<Map<string, PersonFacts>>;
+  /** What each person is known for, in a language: occupation and works, best known first. */
+  personFacts(qids: string[], locale: 'fr' | 'en'): Promise<Map<string, PersonWorks>>;
   /** The Wikidata item of each page of a wiki, by page title: title → QID. */
   itemsForTitles(titles: string[], site: 'frwiki'): Promise<Map<string, string>>;
   /** Items whose name matches, best first: humans or not, the caller checks. */
@@ -158,6 +169,63 @@ export class WikimediaHttpClient implements WikimediaApi {
         found.set(id, {
           labels: { fr: label('fr'), en: label('en') },
           aliases: { fr: aliases('fr'), en: aliases('en') },
+        });
+      }
+    }
+    return found;
+  }
+
+  async personFacts(qids: string[], locale: 'fr' | 'en'): Promise<Map<string, PersonWorks>> {
+    const found = new Map<string, PersonWorks>(
+      qids.map((q) => [q, { occupation: null, works: [] }]),
+    );
+    // Small batches: a filmography is long, and the public endpoint gives up after 60 s.
+    for (let start = 0; start < qids.length; start += PERSON_BATCH) {
+      const ids = qids.slice(start, start + PERSON_BATCH);
+      const label = (v: string) => `?${v} rdfs:label ?label FILTER(LANG(?label) = "${locale}")`;
+      const query = `SELECT ?item ?kind ?label ?links WHERE {
+  VALUES ?item { ${ids.map((q) => `wd:${q}`).join(' ')} }
+  { ?item wdt:P106 ?x . BIND("occ" AS ?kind) ?x wikibase:sitelinks ?links .
+    ?x rdfs:label ?male FILTER(LANG(?male) = "${locale}")
+    OPTIONAL { ?x wdt:P2521 ?female FILTER(LANG(?female) = "${locale}") }
+    BIND(IF(EXISTS { ?item wdt:P21 wd:Q6581072 } && BOUND(?female), ?female, ?male) AS ?label) }
+  UNION { ?item wdt:P800 ?x . BIND("work" AS ?kind) ?x wikibase:sitelinks ?links . ${label('x')} }
+  UNION { ?x wdt:P161 ?item . BIND("work" AS ?kind) ?x wikibase:sitelinks ?links FILTER(?links >= 30) ${label('x')} }
+  UNION { ?item wdt:P54 ?x . BIND("work" AS ?kind) ?x wikibase:sitelinks ?links FILTER(?links >= 20) ${label('x')} }
+  UNION { ?x wdt:P175 ?item . BIND("work" AS ?kind) ?x wikibase:sitelinks ?links FILTER(?links >= 15) ${label('x')} }
+  UNION { ?item schema:description ?label FILTER(LANG(?label) = "${locale}") BIND("desc" AS ?kind) BIND(0 AS ?links) }
+  UNION { ?item wdt:P21 wd:Q6581072 . BIND("female" AS ?kind) BIND("1" AS ?label) BIND(0 AS ?links) }
+}`;
+      const body = (await this.request(
+        'https://query.wikidata.org/sparql?format=json&query=' + encodeURIComponent(query),
+        'application/sparql-results+json',
+      )) as { results?: { bindings?: Record<string, { value: string } | undefined>[] } };
+      type Rows = {
+        occ: [string, number][];
+        work: [string, number][];
+        desc: string | null;
+        female: boolean;
+      };
+      const rows = new Map<string, Rows>();
+      for (const row of body.results?.bindings ?? []) {
+        const qid = row.item?.value.split('/').pop() ?? '';
+        const kind = row.kind?.value ?? 'work';
+        const text = row.label?.value?.trim();
+        if (!found.has(qid) || !text) continue;
+        const mine = rows.get(qid) ?? { occ: [], work: [], desc: null, female: false };
+        if (kind === 'desc') mine.desc = text;
+        else if (kind === 'female') mine.female = true;
+        else mine[kind === 'occ' ? 'occ' : 'work'].push([text, Number(row.links?.value ?? 0)]);
+        rows.set(qid, mine);
+      }
+      for (const [qid, { occ, work, desc, female }] of rows) {
+        const byLinks = (list: [string, number][]) =>
+          [...list].sort((a, b) => b[1] - a[1]).map(([text]) => text);
+        found.set(qid, {
+          occupation: byLinks(occ)[0] ?? null,
+          works: [...new Set(byLinks(work))],
+          ...(desc ? { description: desc } : {}),
+          ...(female ? { female } : {}),
         });
       }
     }
@@ -348,6 +416,9 @@ export function retryDelay(retryAfter: string | null, attempt: number): number {
   const seconds = Number.isFinite(asked) && asked > 0 ? Math.min(asked, 30) : 5 * attempt;
   return seconds * 1000;
 }
+
+/** People per filmography query. */
+const PERSON_BATCH = 15;
 
 function batches<T>(items: T[]): T[][] {
   const groups: T[][] = [];

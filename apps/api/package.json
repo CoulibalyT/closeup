@@ -17,6 +17,7 @@
     "seed:sheet": "node scripts/seed-sheet.mjs",
     "import:sheet": "nest start --entryFile import-sheet",
     "import:dataset": "nest start --entryFile import-dataset --",
+    "import:hints": "nest start --entryFile import-hints --",
     "admin:create": "nest start --entryFile create-admin",
     "face:check": "node scripts/face-check.mjs",
     "prisma:generate": "prisma generate",

@@ -130,6 +130,9 @@ function fakeWikimedia(picture: Buffer): WikimediaApi & { downloads: string[] } 
         ]),
       );
     },
+    async personFacts() {
+      return new Map();
+    },
     async itemsForTitles() {
       return new Map();
     },

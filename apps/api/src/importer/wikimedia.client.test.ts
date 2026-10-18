@@ -227,6 +227,39 @@ describe('labels', () => {
   });
 });
 
+describe('what a person is known for', () => {
+  it('reads the occupation (the feminine form for a woman) and the works, best known first', async () => {
+    const binding = (item: string, kind: string, label: string, links: number) => ({
+      item: { value: `http://www.wikidata.org/entity/${item}` },
+      kind: { value: kind },
+      label: { value: label },
+      links: { value: String(links) },
+    });
+    const fetch = replies(
+      json({
+        results: {
+          bindings: [
+            binding('Q1', 'occ', 'producteur', 40),
+            binding('Q1', 'occ', 'actrice', 120),
+            binding('Q1', 'work', 'Barbie', 90),
+            binding('Q1', 'work', 'Le Loup de Wall Street', 110),
+            binding('Q2', 'work', 'Real Madrid', 150),
+          ],
+        },
+      }),
+    );
+    const client = new WikimediaHttpClient({ fetch, sleep: async () => undefined });
+    const facts = await client.personFacts(['Q1', 'Q2', 'Q3'], 'fr');
+    expect(facts.get('Q1')).toEqual({
+      occupation: 'actrice',
+      works: ['Le Loup de Wall Street', 'Barbie'],
+    });
+    expect(facts.get('Q2')).toEqual({ occupation: null, works: ['Real Madrid'] });
+    expect(facts.get('Q3')).toEqual({ occupation: null, works: [] });
+    expect(decodeURIComponent(String(fetch.mock.calls[0]![0]))).toContain('wd:Q1 wd:Q2 wd:Q3');
+  });
+});
+
 describe('items by title', () => {
   it('finds the Wikidata item of a French Wikipedia page, by its title', async () => {
     const fetch = replies(
