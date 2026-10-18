@@ -91,13 +91,12 @@ describe('zonesFrom68', () => {
 describe('autoZoomPoints', () => {
   const size = { width: 2000, height: 1500 };
 
-  it('turns one clear face into four points inside the image: no right eye, no forehead', () => {
+  it('turns one clear face into three points inside the image: an eye, the nose, the mouth', () => {
     const points = autoZoomPoints(assessFaces([face(200)]), size)!;
     expect(points.map((p) => p.labelEn)).toEqual([
       'an eye',
       'the nose',
       'the mouth',
-      'the chin',
     ]);
     expect(points.every((p) => p.origin === 'AUTO' && p.x <= 2000 && p.y <= 1500)).toBe(true);
   });

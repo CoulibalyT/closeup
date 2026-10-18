@@ -39,7 +39,7 @@ function setUp(card: object, picture = Buffer.alloc(0)) {
 }
 
 describe('AutoPointsService', () => {
-  it('gives a person with one clear face their four points and publishes when asked', async () => {
+  it('gives a person with one clear face their three points and publishes when asked', async () => {
     const { service, prisma, crops } = setUp({
       isPerson: true,
       image: { width: 2000, height: 1600, originalKey: 'o' },
@@ -49,7 +49,7 @@ describe('AutoPointsService', () => {
     const [{ data }] = prisma.card.update.mock.calls[0] as unknown as [
       { data: { zoomPoints: { create: unknown[] } } },
     ];
-    expect(data.zoomPoints.create).toHaveLength(4);
+    expect(data.zoomPoints.create).toHaveLength(3);
     expect(crops.processCard).toHaveBeenCalledWith('c1', true);
   });
 
