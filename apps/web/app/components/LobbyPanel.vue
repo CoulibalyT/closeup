@@ -124,7 +124,9 @@ async function start(): Promise<void> {
   starting.value = false;
 }
 
-const enoughPlayers = computed(() => game.presentCount >= ROOM.minPlayers);
+/** Playing alone: the same settings, without the code, the guests or the big screen. */
+const solo = computed(() => game.mode === 'solo');
+const enoughPlayers = computed(() => solo.value || game.presentCount >= ROOM.minPlayers);
 // Phones show no image in big-screen mode: the game waits for a screen (the server checks too).
 const bigScreen = computed(() => game.display === 'bigscreen');
 const screenMissing = computed(() => bigScreen.value && game.screens === 0);
@@ -134,7 +136,11 @@ const screenMissing = computed(() => bigScreen.value && game.screens === 0);
   <section class="lobby">
     <!-- Two groups, which only become columns on a computer: who is here and how to bring more,
          then what the host decides. On a phone both wrappers step aside (display: contents). -->
-    <div class="guests">
+    <div v-if="solo" class="guests">
+      <h1 class="display code">{{ t('home.solo') }}</h1>
+      <p class="muted">{{ t('lobby.soloHint') }}</p>
+    </div>
+    <div v-else class="guests">
       <div class="booth">
         <p class="muted code-label">{{ t('lobby.codeLabel') }}</p>
         <h1 class="display code">{{ game.code }}</h1>
@@ -191,7 +197,7 @@ const screenMissing = computed(() => bigScreen.value && game.screens === 0);
 
     <div class="setup">
       <template v-if="game.isHost">
-        <fieldset>
+        <fieldset v-if="!solo">
           <legend>{{ t('home.display') }}</legend>
           <label v-for="mode in DISPLAY_MODES" :key="mode">
             <input
@@ -282,7 +288,7 @@ const screenMissing = computed(() => bigScreen.value && game.screens === 0);
           </label>
           <p class="muted hint">{{ t(`home.scoringHint.${draft.scoring}`) }}</p>
         </fieldset>
-        <fieldset>
+        <fieldset class="seconds">
           <legend>{{ t('lobby.roundSeconds') }}</legend>
           <label v-for="seconds in [...ROUND_SECONDS, null]" :key="String(seconds)">
             <input
@@ -297,15 +303,19 @@ const screenMissing = computed(() => bigScreen.value && game.screens === 0);
           </label>
           <p v-if="draft.roundSeconds === null" class="muted hint">{{ t('lobby.untimedHint') }}</p>
         </fieldset>
-        <label class="switch">
-          <input
-            type="checkbox"
-            :checked="draft.hints"
-            @change="setHints(($event.target as HTMLInputElement).checked)"
-          />
-          <span>{{ t('lobby.hints') }}</span>
-        </label>
-        <p class="muted hint">{{ t('lobby.hintsHint') }}</p>
+        <fieldset>
+          <legend>{{ t('lobby.hints') }}</legend>
+          <label v-for="on in [true, false]" :key="String(on)">
+            <input
+              type="radio"
+              name="lobby-hints"
+              :checked="draft.hints === on"
+              @change="setHints(on)"
+            />
+            <span>{{ t(on ? 'lobby.yes' : 'lobby.no') }}</span>
+          </label>
+          <p class="muted hint">{{ t('lobby.hintsHint') }}</p>
+        </fieldset>
       </template>
       <p v-else class="muted">
         {{
@@ -508,6 +518,13 @@ label span {
   border: 1.5px solid var(--line);
   border-radius: var(--radius);
   font-weight: 600;
+}
+/* Five lengths do not fit a phone's width on one line: three, then two, never a broken "60 s". */
+.seconds label {
+  flex: 1 0 calc(33% - var(--space-2));
+}
+.seconds span {
+  white-space: nowrap;
 }
 label input:checked + span {
   border-color: var(--accent);

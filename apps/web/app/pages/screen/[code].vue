@@ -9,7 +9,6 @@ import { renderSVG } from 'uqr';
  */
 const route = useRoute();
 const { t, locale } = useI18n();
-const hintText = useHintText();
 const localePath = useLocalePath();
 const game = useGameStore();
 const { appName } = useRuntimeConfig().public;
@@ -216,10 +215,7 @@ async function reopen(): Promise<void> {
         </template>
         <p v-else class="display ready">{{ t('play.getReady') }}</p>
         <EventFeed class="feed" />
-        <p v-if="game.roundHint" class="room-hint" role="status">
-          <span class="label">{{ t('play.hint') }}</span>
-          {{ hintText(game.roundHint) }}
-        </p>
+        <RoomHint v-if="game.roundHint" :hint="game.roundHint" />
         <RankingList
           class="board"
           :players="game.players"
@@ -281,21 +277,6 @@ async function reopen(): Promise<void> {
 </template>
 
 <style scoped>
-.room-hint {
-  margin: var(--space-2) 0;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius);
-  background: var(--surface);
-  font-weight: 600;
-}
-.room-hint .label {
-  margin-right: var(--space-2);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
 .tv {
   --ring-width: 1.7vmin;
   display: flex;

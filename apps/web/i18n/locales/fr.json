@@ -2,7 +2,7 @@
   "home": {
     "language": "Langue",
     "pitch": "Un détail en très gros plan. L'image recule peu à peu. Tu trouves ce que c'est avant la fin ?",
-    "solo": "S'entraîner en solo",
+    "solo": "Jouer seul",
     "rounds": "Nombre de manches",
     "answerMode": "Comment tu réponds",
     "text": "J'écris",
@@ -35,7 +35,7 @@
     "bigScreen": "Grand écran",
     "bigScreenHint": "L'image passe sur la télé, les téléphones servent de manette.",
     "friendsHint": "Tu lances la partie, tu partages le code, tout le monde te rejoint.",
-    "soloHint": "Juste toi et les images, pour prendre le coup d'œil.",
+    "soloHint": "Toi et les images, avec les mêmes réglages qu’entre amis.",
     "orStart": "Ou lance une partie",
     "more": "Le reste",
     "close": "Fermer"
@@ -95,7 +95,10 @@
     "untimedHint": "Pas de compte à rebours : la manche dure jusqu’à ce que tout le monde ait répondu, ou que l’hôte passe. Les points baissent quand même avec le temps.",
     "hints": "Indices automatiques",
     "hintsHint": "Si personne n’a trouvé à 60 % du temps, un indice s’affiche pour tous (la réponse vaut alors 150 points de moins).",
-    "hintsOn": "Indices automatiques."
+    "hintsOn": "Indices automatiques.",
+    "soloHint": "Choisis tes réglages, puis lance la partie.",
+    "yes": "Oui",
+    "no": "Non"
   },
   "ranking": {
     "found": "a trouvé",

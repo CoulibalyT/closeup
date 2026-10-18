@@ -1,13 +1,5 @@
 <script setup lang="ts">
-import {
-  type AnswerMode,
-  NICKNAME,
-  ROOM,
-  roomCodeSchema,
-  SCORING_MODES,
-  type ScoringMode,
-  DEFAULT_ROUND_SECONDS,
-} from '@closeup/shared';
+import { NICKNAME, ROOM, roomCodeSchema, DEFAULT_ROUND_SECONDS } from '@closeup/shared';
 
 const { t, locale, locales } = useI18n();
 const localePath = useLocalePath();
@@ -68,10 +60,10 @@ function pasteCode(event: ClipboardEvent): void {
 
 // --- the other ways in, behind the panel ---
 const panel = ref<HTMLDialogElement | null>(null);
-const panelMode = ref<'create' | 'solo'>('create');
+const panelMode = ref<'create'>('create');
 const panelOpen = ref(false);
 
-function openPanel(mode: 'create' | 'solo'): void {
+function openPanel(mode: 'create'): void {
   panelMode.value = mode;
   failed.value = false;
   panelOpen.value = true;
@@ -123,16 +115,13 @@ const openScreen = () =>
     return `/screen/${code}`;
   });
 
-// solo training
-const rounds = ref<number>(ROOM.roundsOptions[0]);
-const answerMode = ref<AnswerMode>('text');
-const scoring = ref<ScoringMode>('decay');
+// playing alone: same settings as a party, chosen in the lobby
 const playSolo = () =>
   go(async () => {
     const settings = {
-      rounds: rounds.value,
-      answerMode: answerMode.value,
-      scoring: scoring.value,
+      rounds: ROOM.defaultRounds,
+      answerMode: 'text' as const,
+      scoring: 'decay' as const,
       display: 'phones' as const,
       roundSeconds: DEFAULT_ROUND_SECONDS,
       hints: true,
@@ -204,7 +193,7 @@ const playSolo = () =>
         <span class="hint">{{ t('publicGame.short') }}</span>
       </NuxtLink>
 
-      <button type="button" class="tile" :disabled="busy" @click="openPanel('solo')">
+      <button type="button" class="tile" :disabled="busy" @click="playSolo">
         <span class="n">03</span>
         <span class="name display">{{ t('home.solo') }}</span>
         <span class="hint">{{ t('home.soloHint') }}</span>
@@ -242,40 +231,6 @@ const playSolo = () =>
         <button type="submit" class="button" :disabled="busy || !nicknameOk">
           {{ t('home.create') }}
         </button>
-      </form>
-
-      <form v-else class="stack" @submit.prevent="playSolo">
-        <h2 class="display">{{ t('home.solo') }}</h2>
-
-        <fieldset>
-          <legend>{{ t('home.rounds') }}</legend>
-          <label v-for="n in ROOM.roundsOptions" :key="n" class="choice">
-            <input v-model="rounds" type="radio" name="rounds" :value="n" />
-            <span>{{ n }}</span>
-          </label>
-        </fieldset>
-
-        <fieldset>
-          <legend>{{ t('home.answerMode') }}</legend>
-          <label class="choice">
-            <input v-model="answerMode" type="radio" name="mode" value="text" />
-            <span>{{ t('home.text') }}</span>
-          </label>
-          <label class="choice">
-            <input v-model="answerMode" type="radio" name="mode" value="mcq" />
-            <span>{{ t('home.mcq') }}</span>
-          </label>
-        </fieldset>
-
-        <fieldset>
-          <legend>{{ t('home.scoring') }}</legend>
-          <label v-for="mode in SCORING_MODES" :key="mode" class="choice">
-            <input v-model="scoring" type="radio" name="scoring" :value="mode" />
-            <span>{{ t(`home.scoringMode.${mode}`) }}</span>
-          </label>
-        </fieldset>
-
-        <button type="submit" class="button" :disabled="busy">{{ t('home.play') }}</button>
       </form>
 
       <p v-if="failed" class="error" role="alert">{{ t('home.failed') }}</p>

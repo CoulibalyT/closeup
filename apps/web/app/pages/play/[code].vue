@@ -3,7 +3,6 @@ import { roomCodeSchema } from '@closeup/shared';
 
 const route = useRoute();
 const { t, locale } = useI18n();
-const hintText = useHintText();
 const localePath = useLocalePath();
 const game = useGameStore();
 const { appName } = useRuntimeConfig().public;
@@ -28,8 +27,7 @@ const controller = computed(() => game.display === 'bigscreen');
 const cabin = computed(
   () =>
     ['lobby', 'countdown', 'playing', 'reveal', 'ended'].includes(game.stage) &&
-    !(controller.value && inRound.value) &&
-    !(solo.value && game.stage === 'lobby'),
+    !(controller.value && inRound.value),
 );
 // A malus lasts a few seconds: a ticking clock makes it end on screen without a server event.
 const clock = ref(0);
@@ -118,11 +116,8 @@ async function quit(): Promise<void> {
     </div>
 
     <template v-else-if="game.stage === 'lobby'">
-      <p v-if="solo" class="notice muted">{{ t('play.connecting') }}</p>
-      <template v-else>
-        <LobbyPanel />
-        <button type="button" class="quit" @click="quit">{{ t('lobby.leave') }}</button>
-      </template>
+      <LobbyPanel />
+      <button type="button" class="quit" @click="quit">{{ t('lobby.leave') }}</button>
     </template>
 
     <template v-else-if="(game.stage === 'countdown' || game.stage === 'playing') && game.round">
@@ -176,10 +171,7 @@ async function quit(): Promise<void> {
               <template v-else-if="game.scoring === 'fixed'">{{ t('play.worthFixed') }}</template>
               <template v-else>{{ t('play.worthNote') }}</template>
             </p>
-            <p v-if="game.roundHint" class="room-hint" role="status">
-              <span class="label">{{ t('play.hint') }}</span>
-              {{ hintText(game.roundHint) }}
-            </p>
+            <RoomHint v-if="game.roundHint" :hint="game.roundHint" />
             <button
               v-if="game.roundSeconds === null && (game.isHost || solo)"
               type="button"
@@ -309,21 +301,6 @@ async function quit(): Promise<void> {
 </template>
 
 <style scoped>
-.room-hint {
-  margin: var(--space-2) 0;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius);
-  background: var(--surface);
-  font-weight: 600;
-}
-.room-hint .label {
-  margin-right: var(--space-2);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
 .screen {
   display: flex;
   flex-direction: column;

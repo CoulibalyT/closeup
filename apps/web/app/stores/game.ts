@@ -503,10 +503,6 @@ export const useGameStore = defineStore('game', () => {
       return;
     }
     hydrate(ack.data);
-    // Solo training has no lobby to wait in: it starts as soon as the player is there.
-    if (ack.data.mode === 'solo' && ack.data.phase === 'lobby') {
-      await io.emitWithAck(ClientEvent.gameStart);
-    }
   }
 
   async function enter(roomCode: string, as: Role = 'player'): Promise<void> {

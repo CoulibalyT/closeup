@@ -2,7 +2,7 @@
   "home": {
     "language": "Language",
     "pitch": "One detail, from very close. The picture slowly pulls back. Can you name it before the end?",
-    "solo": "Practise on your own",
+    "solo": "Play alone",
     "rounds": "Number of rounds",
     "answerMode": "How you answer",
     "text": "I type it",
@@ -35,7 +35,7 @@
     "bigScreen": "Big screen",
     "bigScreenHint": "The picture goes on the TV, phones become the controllers.",
     "friendsHint": "You open the game, you share the code, everyone joins you.",
-    "soloHint": "Just you and the pictures, to get your eye in.",
+    "soloHint": "You and the pictures, with the same settings as with friends.",
     "orStart": "Or start a game",
     "more": "The rest",
     "close": "Close"
@@ -95,7 +95,10 @@
     "untimedHint": "No countdown: the round lasts until everyone has answered, or the host skips. Points still go down with time.",
     "hints": "Automatic hints",
     "hintsHint": "If nobody has found at 60 % of the time, a hint shows for everyone (the answer is then worth 150 points less).",
-    "hintsOn": "Automatic hints."
+    "hintsOn": "Automatic hints.",
+    "soloHint": "Pick your settings, then start.",
+    "yes": "Yes",
+    "no": "No"
   },
   "ranking": {
     "found": "found it",
