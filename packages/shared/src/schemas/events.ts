@@ -22,6 +22,8 @@ export const ClientEvent = {
   revealSkip: 'reveal:skip',
   /** The host ends a round without a clock; in solo, the player gives up. */
   roundSkip: 'round:skip',
+  /** "Gros plan raté": the close-ups of the round just played showed nothing to recognise. */
+  roundReport: 'round:report',
   matchmakingJoin: 'mm:join',
   matchmakingLeave: 'mm:leave',
 } as const;
@@ -95,6 +97,7 @@ export type BonusUse = z.infer<typeof bonusUseSchema>;
 
 export const revealSkipSchema = z.object({ roundId: idSchema });
 export const roundSkipSchema = z.object({ roundId: idSchema });
+export const roundReportSchema = z.object({ roundId: idSchema });
 
 /** The queue is per language: matched strangers must be able to read the same answers. */
 export const matchmakingJoinSchema = z.object({

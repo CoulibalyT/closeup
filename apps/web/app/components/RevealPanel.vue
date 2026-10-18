@@ -15,6 +15,13 @@ const props = defineProps<{
 }>();
 defineEmits<{ next: [] }>();
 const { t } = useI18n();
+const game = useGameStore();
+
+// "Gros plan raté": one tap, once per round; the card lands in the admin's reports.
+const zoomReported = ref(false);
+async function reportZoom(): Promise<void> {
+  zoomReported.value = await game.reportZoom(props.reveal.roundId);
+}
 
 const gains = computed(() =>
   Object.fromEntries(props.reveal.results.map((result) => [result.playerId, result.points])),
@@ -86,11 +93,26 @@ onBeforeUnmount(() => clearInterval(timer));
       <button v-if="canSkip" type="button" class="button" @click="$emit('next')">
         {{ reveal.isLast ? t('reveal.seeResult') : t('reveal.next') }}
       </button>
+      <p v-if="zoomReported" class="muted zoom-report">{{ t('reveal.zoomReported') }}</p>
+      <button v-else type="button" class="link zoom-report" @click="reportZoom">
+        {{ t('reveal.badZoom') }}
+      </button>
     </div>
   </section>
 </template>
 
 <style scoped>
+.zoom-report {
+  margin-top: var(--space-2);
+  font-size: 14px;
+}
+button.zoom-report {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  text-decoration: underline;
+  cursor: pointer;
+}
 .reveal {
   display: flex;
   flex-direction: column;

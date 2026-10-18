@@ -106,7 +106,7 @@ export type Takedown = z.infer<typeof takedownSchema>;
 export const contentReportSchema = z.strictObject({
   targetType: z.enum(['PACK', 'CARD']),
   targetId: idSchema,
-  reason: z.enum(['rights', 'inappropriate', 'wrong_answer', 'other']),
+  reason: z.enum(['rights', 'inappropriate', 'wrong_answer', 'bad_zoom', 'other']),
   message: z.string().trim().max(500).default(''),
 });
 export type ContentReport = z.infer<typeof contentReportSchema>;

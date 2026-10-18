@@ -582,6 +582,12 @@ export const useGameStore = defineStore('game', () => {
     return null;
   }
 
+  /** "Gros plan raté": tells the admin the close-ups of the round just played were unplayable. */
+  async function reportZoom(roundId: string): Promise<boolean> {
+    const ack = await send(ClientEvent.roundReport, { roundId });
+    return Boolean(ack?.ok);
+  }
+
   /** A round without a clock ends when the host says so (solo: when the player gives up). */
   async function skipRound(): Promise<void> {
     if (round.value) await send(ClientEvent.roundSkip, { roundId: round.value.roundId });
@@ -636,6 +642,7 @@ export const useGameStore = defineStore('game', () => {
     scoring,
     roundSeconds,
     skipRound,
+    reportZoom,
     hintsOn,
     roundHint,
     partialIds,

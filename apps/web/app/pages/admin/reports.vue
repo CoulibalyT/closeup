@@ -95,6 +95,13 @@ async function unban(report: AdminReport): Promise<void> {
           </span>
         </div>
         <p v-if="report.message" class="message">{{ report.message }}</p>
+        <NuxtLink
+          v-if="report.targetType === 'CARD' && report.targetId"
+          class="link"
+          :to="`/admin/cards/${report.targetId}`"
+        >
+          {{ t('admin.openCard') }}
+        </NuxtLink>
         <p class="muted small">
           {{ new Date(report.createdAt).toLocaleString() }}
           <template v-if="report.alsoReported">

@@ -189,6 +189,17 @@ export class RoomService implements OnApplicationBootstrap, OnModuleDestroy {
     return toSnapshot(state, viewerId, this.sign, Date.now(), screens);
   }
 
+  /**
+   * The card of a round a player was dealt, while the room still shows it (the round or its
+   * reveal): what a "bad close-up" report is about. The card id itself never leaves the server.
+   */
+  cardOfRound(code: string, playerId: string, roundId: string): string | null {
+    const state = this.actors.get(code)?.record.state;
+    const round = state?.round;
+    if (!round || round.id !== roundId || !round.perPlayer[playerId]) return null;
+    return round.card.cardId;
+  }
+
   /** Big-screen rooms cannot start blind: the gateway checks that a screen is there. */
   needsScreen(code: string): boolean {
     return this.actors.get(code)?.record.state.settings.display === 'bigscreen';

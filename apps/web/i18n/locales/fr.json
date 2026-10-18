@@ -201,7 +201,9 @@
     "seeResult": "Voir le résultat",
     "watched": "Manche terminée",
     "nextIn": "Manche suivante dans {seconds} s",
-    "resultIn": "Résultat dans {seconds} s"
+    "resultIn": "Résultat dans {seconds} s",
+    "badZoom": "Gros plan raté ?",
+    "zoomReported": "Merci, c’est noté : on va regarder cette image."
   },
   "end": {
     "title": "Partie terminée, ton score",
@@ -339,7 +341,11 @@
       "nickname": "Pseudo déplacé",
       "cheating": "Triche",
       "harassment": "Insultes, harcèlement",
-      "other": "Autre"
+      "other": "Autre",
+      "bad_zoom": "Gros plan raté",
+      "wrong_answer": "Réponse fausse ou trompeuse",
+      "rights": "Droits d’image",
+      "inappropriate": "Contenu déplacé"
     },
     "message": "Ce qui s’est passé (facultatif)",
     "send": "Envoyer le signalement",
@@ -628,7 +634,8 @@
     "hintGivesAnswer": "L’indice contient la réponse : reformule-le.",
     "secondaryFr": "Réponses partielles (français)",
     "secondaryEn": "Réponses partielles (anglais)",
-    "secondaryHelp": "Séparées par des virgules : « Pirates des Caraïbes, Edward aux mains d’argent »."
+    "secondaryHelp": "Séparées par des virgules : « Pirates des Caraïbes, Edward aux mains d’argent ».",
+    "openCard": "Ouvrir la carte"
   },
   "status": {
     "title": "État de {appName}",

@@ -118,6 +118,16 @@ async function playSolo() {
     `${reveal.reveal.answer}, ${reveal.reveal.credit.licence}`,
   );
 
+  const reported = await socket.emitWithAck('round:report', { roundId: round.roundId });
+  const again = await socket.emitWithAck('round:report', { roundId: round.roundId });
+  const stranger = await socket.emitWithAck('round:report', {
+    roundId: '00000000-0000-7000-8000-000000000000',
+  });
+  check(
+    'a bad close-up is reported once per round, and only for the round just played',
+    reported.ok && again.ok && stranger.ok === false,
+  );
+
   const over = once('game:end');
   await socket.emitWithAck('reveal:skip', { roundId: round.roundId });
   const end = await over;

@@ -201,7 +201,9 @@
     "seeResult": "See the result",
     "watched": "Round over",
     "nextIn": "Next round in {seconds} s",
-    "resultIn": "Result in {seconds} s"
+    "resultIn": "Result in {seconds} s",
+    "badZoom": "Bad close-up?",
+    "zoomReported": "Thanks, noted: we will look at this picture."
   },
   "end": {
     "title": "Game over, your score",
@@ -339,7 +341,11 @@
       "nickname": "Inappropriate nickname",
       "cheating": "Cheating",
       "harassment": "Insults, harassment",
-      "other": "Other"
+      "other": "Other",
+      "bad_zoom": "Bad close-up",
+      "wrong_answer": "Wrong or misleading answer",
+      "rights": "Image rights",
+      "inappropriate": "Inappropriate content"
     },
     "message": "What happened (optional)",
     "send": "Send the report",
@@ -628,7 +634,8 @@
     "hintGivesAnswer": "The hint contains the answer: rephrase it.",
     "secondaryFr": "Partial answers (French)",
     "secondaryEn": "Partial answers (English)",
-    "secondaryHelp": "Comma-separated: “Pirates of the Caribbean, Edward Scissorhands”."
+    "secondaryHelp": "Comma-separated: “Pirates of the Caribbean, Edward Scissorhands”.",
+    "openCard": "Open the card"
   },
   "status": {
     "title": "{appName} status",

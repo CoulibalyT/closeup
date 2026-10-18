@@ -20,6 +20,7 @@ import {
   ok,
   PROTOCOL_VERSION,
   revealSkipSchema,
+  roundReportSchema,
   roundSkipSchema,
   ROOM,
   roomJoinSchema,
@@ -39,6 +40,7 @@ import type { Namespace, Socket } from 'socket.io';
 import type { z } from 'zod';
 import { DEVICE_COOKIE, readCookie } from '../../identity/device-token.js';
 import { type Identity, IdentityService } from '../../identity/identity.service.js';
+import { ModerationService } from '../../moderation/moderation.service.js';
 import type { Command, Reply } from '../engine/types.js';
 import { MatchmakingService } from '../matchmaking/matchmaking.service.js';
 import { RoomService } from '../rooms/room.service.js';
@@ -67,10 +69,14 @@ const privateChannel = (code: string, playerId: string) => `room:${code}:player:
 export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
   private namespace!: Namespace;
 
+  /** One "bad close-up" report per player and round. */
+  private readonly reported = new Set<string>();
+
   constructor(
     private readonly rooms: RoomService,
     private readonly identities: IdentityService,
     private readonly matchmaking: MatchmakingService,
+    private readonly moderation: ModerationService,
   ) {}
 
   afterInit(namespace: Namespace): void {
@@ -387,6 +393,31 @@ export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
       (playerId, { roundId }) => ({ type: 'skipRound', playerId, roundId }),
       [roundSkipSchema, body],
     );
+  }
+
+  @SubscribeMessage(ClientEvent.roundReport)
+  async onRoundReport(
+    @ConnectedSocket() socket: GameSocket,
+    @MessageBody() body: unknown,
+  ): Promise<Reply> {
+    const { identity, roomCode, role } = socket.data;
+    if (!identity) return fail('UNAUTHENTICATED', 'Unknown device');
+    if (!roomCode || role !== 'player') return fail('ROOM_NOT_FOUND', 'Join a room first');
+    const parsed = roundReportSchema.safeParse(body);
+    if (!parsed.success) return fail('INVALID_PAYLOAD', 'Malformed payload');
+    const cardId = this.rooms.cardOfRound(roomCode, identity.playerId, parsed.data.roundId);
+    if (!cardId) return fail('BAD_PHASE', 'This round is over');
+    const key = `${roomCode}:${parsed.data.roundId}:${identity.playerId}`;
+    if (!this.reported.has(key)) {
+      this.reported.add(key);
+      // Bounded: a long-lived server forgets old rounds.
+      if (this.reported.size > 10_000) this.reported.clear();
+      await this.moderation.reportContent(
+        { targetType: 'CARD', targetId: cardId, reason: 'bad_zoom', message: '' },
+        identity.playerId,
+      );
+    }
+    return ok({});
   }
 
   @SubscribeMessage(ClientEvent.revealSkip)
