@@ -649,6 +649,15 @@ async function playPublic() {
   const players = guests.map((who) => player(who.cookie));
   await Promise.all(players.map((who) => who.ready));
 
+  // v1 plays people and characters only, never with strangers: the queue is closed.
+  const closed = await players[0].socket.emitWithAck('mm:join', { nickname: 'Un', language: 'fr' });
+  if (closed.error?.code === 'PUBLIC_CLOSED') {
+    check('the public queue is closed (v1)', true);
+    for (const who of players) who.socket.disconnect();
+    return;
+  }
+  await players[0].socket.emitWithAck('mm:leave');
+
   const refused = await players[0].socket.emitWithAck('mm:join', {
     nickname: 'connard',
     language: 'fr',

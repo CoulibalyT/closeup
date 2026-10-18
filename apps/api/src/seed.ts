@@ -122,12 +122,12 @@ for (const pack of SEED_PACKS) {
     descriptionFr: pack.descriptionFr,
     descriptionEn: pack.descriptionEn,
     category: pack.category,
-    visibility: 'PUBLIC' as const,
     publicMatchSafe: true,
   };
+  // Published when first made; after that, the admin decides (a disabled pack stays disabled).
   const row = await prisma.pack.upsert({
     where: { slug: pack.slug },
-    create: { slug: pack.slug, ...data },
+    create: { slug: pack.slug, visibility: 'PUBLIC', ...data },
     update: data,
   });
   for (const card of pack.cards) {

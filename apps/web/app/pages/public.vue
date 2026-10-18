@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { MATCHMAKING, NICKNAME, PUBLIC_SETTINGS } from '@closeup/shared';
+import { MATCHMAKING, NICKNAME, PUBLIC_GAMES, PUBLIC_SETTINGS } from '@closeup/shared';
 
 /** The public queue: a nickname, a language, and the wait. Nothing is negotiated with strangers. */
 const { t, locale } = useI18n();
@@ -25,6 +25,7 @@ const secondsLeft = computed(() => {
 void clock;
 
 onMounted(async () => {
+  if (!PUBLIC_GAMES.open) return;
   nickname.value = game.rememberedNickname();
   await game.ensureGuest().catch(() => undefined);
   ticker = setInterval(() => (clock.value = Date.now()), 500);
@@ -57,7 +58,11 @@ async function join(): Promise<void> {
 
 <template>
   <PageShell :title="t('publicGame.heading')">
-    <template v-if="!waiting">
+    <template v-if="!PUBLIC_GAMES.open">
+      <p>{{ t('publicGame.closed') }}</p>
+    </template>
+
+    <template v-else-if="!waiting">
       <p>{{ t('publicGame.pitch') }}</p>
       <p class="muted rules">
         {{

@@ -314,6 +314,7 @@
     "needAccount": "You need an account to be in it: without one, a device is not somebody."
   },
   "publicGame": {
+    "closed": "Games with strangers are coming back soon. Meanwhile, play with friends or on your own.",
     "short": "A game right away, with random people who speak your language.",
     "title": "Public game, {appName}",
     "heading": "With strangers",
@@ -329,6 +330,7 @@
       "banned": "That nickname will not do. Pick another one.",
       "reserved": "That nickname is reserved.",
       "too_short": "That nickname is too short.",
+      "PUBLIC_CLOSED": "Games with strangers are coming back soon. Meanwhile, play with friends or on your own.",
       "too_long": "That nickname is too long.",
       "other": "The search failed. Try again."
     }

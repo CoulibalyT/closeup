@@ -104,6 +104,7 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('public games and moderat
       DATABASE_URL: process.env.TEST_DATABASE_URL ?? '',
       REDIS_URL: process.env.TEST_REDIS_URL ?? '',
       QUEUE_PREFIX: `test-${randomUUID()}`,
+      PUBLIC_MATCHES: 'on',
     });
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication({ logger: false });

@@ -314,6 +314,7 @@
     "needAccount": "Pour y figurer, il faut un compte : sans lui, un appareil n’est pas quelqu’un."
   },
   "publicGame": {
+    "closed": "Les parties avec des inconnus reviennent bientôt. En attendant, joue entre amis ou seul.",
     "short": "Une partie tout de suite, avec des gens au hasard qui parlent ta langue.",
     "title": "Partie publique, {appName}",
     "heading": "Avec des inconnus",
@@ -329,6 +330,7 @@
       "banned": "Ce pseudo ne passera pas. Prends-en un autre.",
       "reserved": "Ce pseudo est réservé.",
       "too_short": "Ce pseudo est trop court.",
+      "PUBLIC_CLOSED": "Les parties avec des inconnus reviennent bientôt. En attendant, joue entre amis ou seul.",
       "too_long": "Ce pseudo est trop long.",
       "other": "La recherche a échoué. Réessaie."
     }

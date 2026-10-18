@@ -30,6 +30,8 @@ export const ERROR_CODES = [
   'FROZEN',
   'BANNED',
   'NICKNAME_REJECTED',
+  // The public queue is closed (`PUBLIC_GAMES`).
+  'PUBLIC_CLOSED',
   'BONUS_NOT_OWNED',
   'TARGET_INVALID',
   'TARGET_BUSY',

@@ -40,6 +40,7 @@ import type { Namespace, Socket } from 'socket.io';
 import type { z } from 'zod';
 import { DEVICE_COOKIE, readCookie } from '../../identity/device-token.js';
 import { type Identity, IdentityService } from '../../identity/identity.service.js';
+import { AppConfig } from '../../config/app-config.js';
 import { ModerationService } from '../../moderation/moderation.service.js';
 import type { Command, Reply } from '../engine/types.js';
 import { MatchmakingService } from '../matchmaking/matchmaking.service.js';
@@ -77,6 +78,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
     private readonly identities: IdentityService,
     private readonly matchmaking: MatchmakingService,
     private readonly moderation: ModerationService,
+    private readonly config: AppConfig,
   ) {}
 
   afterInit(namespace: Namespace): void {
@@ -353,6 +355,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
   ): Promise<Reply> {
     const { identity } = socket.data;
     if (!identity) return fail('UNAUTHENTICATED', 'Unknown device');
+    if (this.config.env.PUBLIC_MATCHES === 'off') return fail('PUBLIC_CLOSED', 'closed');
     const request = matchmakingJoinSchema.safeParse(body);
     if (!request.success) return fail('INVALID_PAYLOAD', 'mm:join expects { nickname, language }');
 

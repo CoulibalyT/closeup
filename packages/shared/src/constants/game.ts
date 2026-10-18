@@ -165,6 +165,12 @@ export const MATCHMAKING = {
   timeoutMs: 20_000,
 } as const;
 
+/**
+ * Games with strangers. Closed in v1: the game plays real people and characters only, which are
+ * never dealt to strangers. Reopened with the v2 catalogue (objects, places, animals).
+ */
+export const PUBLIC_GAMES = { open: false } as const;
+
 export const NICKNAME = { minLength: 2, maxLength: 16 } as const;
 
 export const TIME_SYNC = {

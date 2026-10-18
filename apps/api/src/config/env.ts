@@ -1,3 +1,4 @@
+import { PUBLIC_GAMES } from '@closeup/shared';
 import { z } from 'zod';
 
 const DEV_MEDIA_SECRET = 'dev-only-media-secret-never-use-this-in-production';
@@ -41,6 +42,8 @@ const envSchema = z
     QUEUE_PREFIX: z.string().min(1).default('bull'),
     /** Whether the worker runs the mass import loop; tests drive it by hand. */
     BULK_RUNNER: z.enum(['on', 'off']).default('on'),
+    /** Whether the public queue takes players; tests open it whatever the release says. */
+    PUBLIC_MATCHES: z.enum(['on', 'off']).default(PUBLIC_GAMES.open ? 'on' : 'off'),
     /** Key of the encrypted media URLs. */
     MEDIA_SECRET: z.string().min(32).default(DEV_MEDIA_SECRET),
   })

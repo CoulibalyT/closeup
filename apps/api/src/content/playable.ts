@@ -7,7 +7,8 @@ export type DeckScope =
   /**
    * A solo or private room. Its host may draw from every published pack and from their own,
    * published or not — the brief's "playable in the creator's private rooms straight away".
-   * `packIds` empty means every published pack that is not restricted (celebrities, characters).
+   * `packIds` empty means every published pack, celebrities and characters included: v1 plays
+   * nothing else, and a private room is people who know each other.
    */
   | { kind: 'room'; hostPlayerId?: string; packIds?: string[] };
 
@@ -32,8 +33,6 @@ export function playableWhere(scope: DeckScope): Prisma.CardWhereInput {
       visibility: { in: ['PRIVATE', 'PENDING_REVIEW', 'PUBLIC'] },
     });
   }
-  // No pack chosen means every published pack except the restricted ones: a celebrity pack is
-  // only dealt in a room whose host ticked it.
-  const chosen = scope.packIds?.length ? { id: { in: scope.packIds } } : { restricted: false };
+  const chosen = scope.packIds?.length ? { id: { in: scope.packIds } } : {};
   return { status: 'LIVE', pack: { ...chosen, OR: allowed } };
 }

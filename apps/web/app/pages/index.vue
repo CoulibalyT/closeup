@@ -1,5 +1,11 @@
 <script setup lang="ts">
-import { NICKNAME, ROOM, roomCodeSchema, DEFAULT_ROUND_SECONDS } from '@closeup/shared';
+import {
+  NICKNAME,
+  PUBLIC_GAMES,
+  ROOM,
+  roomCodeSchema,
+  DEFAULT_ROUND_SECONDS,
+} from '@closeup/shared';
 
 const { t, locale, locales } = useI18n();
 const localePath = useLocalePath();
@@ -178,7 +184,11 @@ const playSolo = () =>
       </div>
     </section>
 
-    <section class="tiles wrap" :aria-label="t('home.orStart')">
+    <section
+      class="tiles wrap"
+      :class="{ three: !PUBLIC_GAMES.open }"
+      :aria-label="t('home.orStart')"
+    >
       <h2 class="lead">{{ t('home.orStart') }}</h2>
 
       <button type="button" class="tile first" :disabled="busy" @click="openPanel('create')">
@@ -187,20 +197,20 @@ const playSolo = () =>
         <span class="hint">{{ t('home.friendsHint') }}</span>
       </button>
 
-      <NuxtLink class="tile" :to="localePath('/public')">
+      <NuxtLink v-if="PUBLIC_GAMES.open" class="tile" :to="localePath('/public')">
         <span class="n">02</span>
         <span class="name display">{{ t('publicGame.heading') }}</span>
         <span class="hint">{{ t('publicGame.short') }}</span>
       </NuxtLink>
 
       <button type="button" class="tile" :disabled="busy" @click="playSolo">
-        <span class="n">03</span>
+        <span class="n">{{ PUBLIC_GAMES.open ? '03' : '02' }}</span>
         <span class="name display">{{ t('home.solo') }}</span>
         <span class="hint">{{ t('home.soloHint') }}</span>
       </button>
 
       <button type="button" class="tile" :disabled="busy" @click="openScreen">
-        <span class="n">04</span>
+        <span class="n">{{ PUBLIC_GAMES.open ? '04' : '03' }}</span>
         <span class="name display">{{ t('home.bigScreen') }}</span>
         <span class="hint">{{ t('home.bigScreenHint') }}</span>
       </button>
@@ -413,6 +423,10 @@ const playSolo = () =>
   .tiles {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  /* Three ways in: the main one takes the whole first row, the other two pair up. */
+  .tiles.three .tile.first {
+    grid-column: 1 / -1;
+  }
 }
 
 /* Desktop: the curtain is the left half, with the name, the pitch and the code; the four ways
@@ -465,7 +479,8 @@ const playSolo = () =>
     grid-row: 2;
     grid-template-columns: minmax(0, 1fr);
     /* The label keeps its own height; the four tiles share the rest. */
-    grid-template-rows: auto repeat(4, minmax(0, 1fr));
+    grid-template-rows: auto;
+    grid-auto-rows: minmax(0, 1fr);
     width: auto;
     margin: 0;
     padding: var(--space-4) 4vw var(--space-10);

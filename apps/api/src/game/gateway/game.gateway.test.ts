@@ -12,6 +12,7 @@ import { io, type Socket } from 'socket.io-client';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { IdentityService } from '../../identity/identity.service.js';
 import { listen } from '../../testing/listen.js';
+import { AppConfig } from '../../config/app-config.js';
 import { ModerationService } from '../../moderation/moderation.service.js';
 import { MatchmakingService } from '../matchmaking/matchmaking.service.js';
 import { RoomService } from '../rooms/room.service.js';
@@ -32,6 +33,7 @@ describe('GameGateway', () => {
         { provide: IdentityService, useValue: { resolve: async () => null } },
         { provide: MatchmakingService, useValue: { listen: () => undefined } },
         { provide: ModerationService, useValue: {} },
+        { provide: AppConfig, useValue: { env: { PUBLIC_MATCHES: 'on' } } },
       ],
     }).compile();
     app = moduleRef.createNestApplication();

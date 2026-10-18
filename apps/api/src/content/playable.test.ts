@@ -9,11 +9,10 @@ describe('playableWhere', () => {
     });
   });
 
-  it('keeps restricted packs out of a room that chose no pack, the host’s own included', () => {
+  it('deals every published pack, restricted ones included, to a room that chose none', () => {
     expect(playableWhere({ kind: 'room', hostPlayerId: 'p1' })).toEqual({
       status: 'LIVE',
       pack: {
-        restricted: false,
         OR: [
           { visibility: 'PUBLIC' },
           { ownerId: 'p1', visibility: { in: ['PRIVATE', 'PENDING_REVIEW', 'PUBLIC'] } },
