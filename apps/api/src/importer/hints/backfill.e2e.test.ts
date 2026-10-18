@@ -60,7 +60,6 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('hint backfill', () => {
   let backfill: HintBackfill;
   let dir: string;
   let packId = '';
-  const prefix = `h${run}`;
 
   const card = (slug: string, fr: string, extra: Record<string, unknown> = {}) =>
     prisma.card.create({

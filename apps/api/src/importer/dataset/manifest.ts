@@ -5,7 +5,19 @@ import { answerFrom } from '../candidates.js';
  * The owner's dataset (`data/celebrities/manifest.json`, built outside the app): what an entry
  * says, and where it goes. Pure: the importer service does the reading and the writing.
  */
-export const DATASET_CATEGORIES = ['acteur', 'chanteur', 'sportif', 'fiction', 'enfants'] as const;
+export const DATASET_CATEGORIES = [
+  'acteur',
+  'chanteur',
+  'sportif',
+  'tele',
+  'culture',
+  'fiction',
+  'enfants',
+] as const;
+/** Real people: their pictures come from Commons and need a free licence. */
+const PEOPLE: readonly DatasetCategory[] = ['acteur', 'chanteur', 'sportif', 'tele', 'culture'];
+/** Below this width a face gives no close-up worth playing (the dataset measures it). */
+export const MIN_FACE_PX = 150;
 export type DatasetCategory = (typeof DATASET_CATEGORIES)[number];
 
 const entrySchema = z.looseObject({
@@ -13,7 +25,7 @@ const entrySchema = z.looseObject({
   name: z.string().min(1),
   category: z.enum(DATASET_CATEGORIES),
   image: z.string().min(1),
-  source: z.literal('fandom').optional(),
+  source: z.enum(['fandom', 'wikipedia']).optional(),
   wiki: z.string().optional(),
   source_url: z.string(),
   page_url: z.string(),
@@ -21,6 +33,19 @@ const entrySchema = z.looseObject({
   tags: z.array(z.string()).optional(),
   /** The Commons file of a replaced picture: the truth when it disagrees with `source_url`. */
   file: z.string().optional(),
+  /** Width of the largest face on the picture, real people only. */
+  face_px: z.number().optional(),
+  /** Several photos of a person, the main one first: one card each. */
+  images: z
+    .array(
+      z.looseObject({
+        file: z.string().min(1),
+        face_px: z.number().optional(),
+        source_url: z.string().optional(),
+        page_url: z.string().optional(),
+      }),
+    )
+    .optional(),
 });
 export type DatasetEntry = z.infer<typeof entrySchema>;
 
@@ -79,6 +104,20 @@ export const DATASET_PACKS: Record<
     category: 'CHARACTER',
     private: true,
   },
+  tele: {
+    slug: 'ds-tele',
+    titleFr: 'Télé & internet',
+    titleEn: 'TV & internet',
+    category: 'CELEBRITY',
+    private: false,
+  },
+  culture: {
+    slug: 'ds-culture',
+    titleFr: 'Culture & histoire',
+    titleEn: 'Culture & history',
+    category: 'CELEBRITY',
+    private: false,
+  },
   enfants: {
     slug: 'ds-enfants',
     titleFr: 'Héros des enfants',
@@ -95,8 +134,43 @@ export interface DatasetTarget {
   difficulty: 1 | 2;
 }
 
-export const isRealPerson = (entry: DatasetEntry) =>
-  entry.category === 'acteur' || entry.category === 'chanteur' || entry.category === 'sportif';
+export const isRealPerson = (entry: DatasetEntry) => PEOPLE.includes(entry.category);
+
+export interface DatasetPhoto {
+  /** Added to the card's slug: '' for the main photo, '-p2', '-p3' for the others. */
+  suffix: string;
+  path: string;
+  commonsFile: string | null;
+  facePx: number | undefined;
+}
+
+/**
+ * The pictures of an entry, one card each: a person's photos (main first), or a character's
+ * single artwork. Several photos keep players from learning a picture instead of a face.
+ */
+export function photosOf(entry: DatasetEntry): DatasetPhoto[] {
+  const main: DatasetPhoto = {
+    suffix: '',
+    path: entry.image,
+    commonsFile: commonsFileOf(entry),
+    facePx: entry.face_px,
+  };
+  if (!isRealPerson(entry) || !entry.images?.length) return [main];
+  return entry.images.map((photo, index) =>
+    index === 0 && photo.file === entry.image
+      ? { ...main, facePx: photo.face_px ?? main.facePx }
+      : {
+          suffix: index === 0 ? '' : `-p${index + 1}`,
+          path: photo.file,
+          commonsFile: commonsFileOf({
+            ...entry,
+            file: undefined,
+            source_url: photo.source_url ?? '',
+          }),
+          facePx: photo.face_px,
+        },
+  );
+}
 
 /** Each pack an entry goes to; a character tagged `enfants` goes to both character packs. */
 export function targetsOf(entry: DatasetEntry): DatasetTarget[] {

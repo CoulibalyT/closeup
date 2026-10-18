@@ -13,13 +13,14 @@ import { slugOf } from '../card-factory.js';
 import { WIKIMEDIA, type WikimediaApi } from '../wikimedia.client.js';
 import {
   answerOf,
-  commonsFileOf,
   DATASET_PACKS,
   type DatasetCategory,
   type DatasetPackKey,
   frwikiTitleOf,
   isRealPerson,
+  MIN_FACE_PX,
   parseManifest,
+  photosOf,
   targetsOf,
 } from './manifest.js';
 
@@ -35,6 +36,8 @@ export interface DatasetOptions {
   waitLimitMs?: number;
   /** Told once each time the command starts waiting for the worker. */
   onWait?: () => void;
+  /** Cards per pack before "— 2" opens (default 500, like the mass import). */
+  packSize?: number;
 }
 export type DatasetOutcome = 'created' | 'exists' | 'remade' | `refused:${string}`;
 export interface DatasetLine {
@@ -42,12 +45,16 @@ export interface DatasetLine {
   total: number;
   name: string;
   pack: string;
+  /** '-p2', '-p3' for a person's other photos. */
+  photo?: string;
   outcome: DatasetOutcome;
   detail?: string;
 }
 /** Per pack slug, how many lines ended in each outcome (or, for `status`, cards per status). */
 export type DatasetSummary = Record<string, Record<string, number>>;
 
+/** Cards per pack, like the mass import's catalogue packs. */
+const PACK_SIZE = 500;
 /** At most this many of the command's pictures in flight, so that a game is never starved. */
 const PENDING = 5;
 const WAIT_MS = 2_000;
@@ -81,14 +88,24 @@ export class DatasetImporter {
     if (options.only) entries = entries.filter((entry) => entry.category === options.only);
     if (options.limit) entries = entries.slice(0, options.limit);
 
-    const work = entries.flatMap((entry) => targetsOf(entry).map((target) => ({ entry, target })));
+    // One card per photo of a person, and per pack a character goes to.
+    const work = entries.flatMap((entry) =>
+      targetsOf(entry).flatMap((target) =>
+        photosOf(entry).map((photo) => ({ entry, target, photo })),
+      ),
+    );
+    const packSize = options.packSize ?? PACK_SIZE;
     const needsOwner = work.some(({ target }) => DATASET_PACKS[target.pack].private);
     const ownerId = needsOwner ? await this.ownerOf(options.ownerEmail) : null;
 
     // Commons and Wikidata, in batches, before the loop.
     const people = entries.filter(isRealPerson);
     const fileNames = [
-      ...new Set(people.map(commonsFileOf).filter((name): name is string => !!name)),
+      ...new Set(
+        people
+          .flatMap((entry) => photosOf(entry).map((photo) => photo.commonsFile))
+          .filter((name): name is string => !!name),
+      ),
     ];
     const files = fileNames.length
       ? await this.wikimedia.files(fileNames, PREVIEW_WIDTH)
@@ -96,9 +113,9 @@ export class DatasetImporter {
     const titles = [...new Set(people.map(frwikiTitleOf))];
     const items = titles.length ? await this.wikimedia.itemsForTitles(titles, 'frwiki') : new Map();
 
-    const packIds = new Map<DatasetPackKey, string>();
+    const packs = new Map<DatasetPackKey, { id: string; slug: string; count: number }>();
     const summary: DatasetSummary = {};
-    for (const [index, { entry, target }] of work.entries()) {
+    for (const [index, { entry, target, photo }] of work.entries()) {
       const packSlug = `${prefix}-${target.pack}`;
       const line = (outcome: DatasetOutcome, detail?: string) => {
         report({
@@ -106,6 +123,7 @@ export class DatasetImporter {
           total: work.length,
           name: entry.name,
           pack: packSlug,
+          ...(photo.suffix ? { photo: photo.suffix } : {}),
           outcome,
           detail,
         });
@@ -113,7 +131,7 @@ export class DatasetImporter {
         counts[outcome] = (counts[outcome] ?? 0) + 1;
       };
 
-      const imagePath = join(options.dir, entry.image);
+      const imagePath = join(options.dir, photo.path);
       const image = await readImage(imagePath);
       if (!image) {
         line('refused:NO_FILE');
@@ -126,10 +144,14 @@ export class DatasetImporter {
       }
 
       const person = isRealPerson(entry);
+      if (person && photo.facePx !== undefined && photo.facePx < MIN_FACE_PX) {
+        line('refused:SMALL_FACE');
+        continue;
+      }
       let credit: { author: string; licence: string; sourceUrl: string };
       let slug: string;
       if (person) {
-        const name = commonsFileOf(entry);
+        const name = photo.commonsFile;
         const file = name ? files.get(name) : undefined;
         if (!file) {
           line('refused:NO_COMMONS_FILE');
@@ -152,7 +174,7 @@ export class DatasetImporter {
         }
         credit = judged.credit;
         const qid = items.get(frwikiTitleOf(entry));
-        slug = qid ? slugOf(qid) : `${prefix}-${entry.id}`;
+        slug = (qid ? slugOf(qid) : `${prefix}-${entry.id}`) + photo.suffix;
       } else {
         credit = {
           author: entry.source === 'fandom' ? `Fandom — ${entry.wiki ?? '?'}` : 'Wikipédia',
@@ -162,9 +184,17 @@ export class DatasetImporter {
         slug = `${prefix}-${entry.id}${target.slugSuffix}`;
       }
 
-      const packId = options.dryRun
-        ? (packIds.get(target.pack) ?? (await this.findPack(packSlug)))
-        : await this.ensurePack(target.pack, packSlug, ownerId, packIds);
+      // The card may already be in any pack of the family ("— 2"…): that is where it is.
+      const family = { OR: [{ slug: packSlug }, { slug: { startsWith: `${packSlug}-` } }] };
+      const placed = await this.prisma.card.findFirst({
+        where: { slug, pack: family },
+        select: { packId: true },
+      });
+      const packId =
+        placed?.packId ??
+        (options.dryRun
+          ? (packs.get(target.pack)?.id ?? (await this.findPack(packSlug)))
+          : await this.packWithRoom(target.pack, packSlug, ownerId, packs, packSize));
       if (packId && DATASET_PACKS[target.pack].private && (await this.unlocked(packId))) {
         // The owner vouched for the images that were in it then, not for new ones.
         line('refused:PACK_UNLOCKED');
@@ -190,6 +220,16 @@ export class DatasetImporter {
         // Its picture failed, or its job vanished: it goes, and is made again.
         if (!options.dryRun) await this.prisma.card.delete({ where: { id: here.id } });
         remade = true;
+      } else if (person && photo.suffix) {
+        // Another photo of a person: it follows the main one, which decided whether they come.
+        const main = await this.prisma.card.findFirst({
+          where: { slug: slug.slice(0, -photo.suffix.length) },
+          select: { id: true },
+        });
+        if (!main) {
+          line('refused:NO_MAIN_PHOTO');
+          continue;
+        }
       } else if (person) {
         const elsewhere = await this.prisma.card.findFirst({
           where: { slug },
@@ -241,6 +281,8 @@ export class DatasetImporter {
         await this.prisma.card.delete({ where: { id: card.id } });
         throw error;
       }
+      const room = packs.get(target.pack);
+      if (room && room.id === packId) room.count += 1;
       line(remade ? 'remade' : 'created', credit.licence);
     }
     return summary;
@@ -287,37 +329,48 @@ export class DatasetImporter {
     );
   }
 
-  /** The pack by slug, made with its flags the first time; an existing pack is left as it is. */
-  private async ensurePack(
+  /**
+   * The pack of the family with room left: "ds-sportif", then "ds-sportif-2"… Each is made with
+   * its flags the first time; an existing pack is left as it is.
+   */
+  private async packWithRoom(
     key: DatasetPackKey,
-    slug: string,
+    family: string,
     ownerId: string | null,
-    cache: Map<DatasetPackKey, string>,
+    cache: Map<DatasetPackKey, { id: string; slug: string; count: number }>,
+    packSize: number,
   ): Promise<string> {
     const cached = cache.get(key);
-    if (cached) return cached;
-    const found = await this.findPack(slug);
-    if (found) {
-      cache.set(key, found);
-      return found;
+    if (cached && cached.count < packSize) return cached.id;
+    for (let n = 1; ; n++) {
+      const slug = n === 1 ? family : `${family}-${n}`;
+      const found = await this.prisma.pack.findFirst({
+        where: { slug },
+        select: { id: true, _count: { select: { cards: true } } },
+      });
+      if (found && found._count.cards >= packSize) continue;
+      const spec = DATASET_PACKS[key];
+      const id =
+        found?.id ??
+        (
+          await this.prisma.pack.create({
+            data: {
+              slug,
+              titleFr: n === 1 ? spec.titleFr : `${spec.titleFr} — ${n}`,
+              titleEn: n === 1 ? spec.titleEn : `${spec.titleEn} — ${n}`,
+              category: spec.category,
+              restricted: true,
+              publicMatchSafe: false,
+              ...(spec.private
+                ? { visibility: 'PRIVATE', ownerId, publishable: false }
+                : { visibility: 'PUBLIC' }),
+            },
+            select: { id: true },
+          })
+        ).id;
+      cache.set(key, { id, slug, count: found?._count.cards ?? 0 });
+      return id;
     }
-    const spec = DATASET_PACKS[key];
-    const pack = await this.prisma.pack.create({
-      data: {
-        slug,
-        titleFr: spec.titleFr,
-        titleEn: spec.titleEn,
-        category: spec.category,
-        restricted: true,
-        publicMatchSafe: false,
-        ...(spec.private
-          ? { visibility: 'PRIVATE', ownerId, publishable: false }
-          : { visibility: 'PUBLIC' }),
-      },
-      select: { id: true },
-    });
-    cache.set(key, pack.id);
-    return pack.id;
   }
 
   /** Whether a private pack of the dataset was unlocked or made visible since. */

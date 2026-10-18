@@ -48,7 +48,15 @@ const fakeWikimedia = {
     );
   },
   async itemsForTitles(titles: string[]) {
-    return new Map(titles.filter((t) => t.startsWith('Omar Sy')).map((t) => [t, 'Q998601']));
+    return new Map(
+      titles.flatMap((t) =>
+        t.startsWith('Omar Sy')
+          ? [[t, 'Q998601']]
+          : t.startsWith('Persona')
+            ? [[t, 'Q998701']]
+            : [],
+      ),
+    );
   },
 } as unknown as WikimediaApi;
 
@@ -576,5 +584,90 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('dataset import', () => {
       difficulty: 0,
       off: 0,
     });
+  });
+  it('makes one card per photo of a person, skips a tiny face, and opens a second pack when one is full', async () => {
+    const other = await mkdtemp(join(tmpdir(), 'closeup-dataset-photos-'));
+    const picture = await sharp({
+      create: { width: 1200, height: 900, channels: 3, background: '#a86' },
+    })
+      .jpeg()
+      .toBuffer();
+    await mkdir(join(other, 'images', 'tele'), { recursive: true });
+    for (const name of ['persona', 'persona-2', 'persona-3', 'autre']) {
+      await writeFile(join(other, 'images', 'tele', `${name}.jpg`), picture);
+    }
+    const commons = (name: string) =>
+      `https://upload.wikimedia.org/wikipedia/commons/a/ab/${name}.jpg`;
+    await writeFile(
+      join(other, 'manifest.json'),
+      JSON.stringify([
+        {
+          id: 'persona',
+          name: `Persona ${run}`,
+          category: 'tele',
+          source: 'wikipedia',
+          image: 'images/tele/persona.jpg',
+          source_url: commons('Persona'),
+          page_url: `https://fr.wikipedia.org/wiki/Persona_${run}`,
+          page_title: `Persona ${run}`,
+          face_px: 400,
+          images: [
+            { file: 'images/tele/persona.jpg', face_px: 400, source_url: commons('Persona') },
+            { file: 'images/tele/persona-2.jpg', face_px: 300, source_url: commons('Persona2') },
+            { file: 'images/tele/persona-3.jpg', face_px: 120, source_url: commons('Persona3') },
+          ],
+        },
+        {
+          id: 'autre',
+          name: `Autre ${run}`,
+          category: 'tele',
+          source: 'wikipedia',
+          image: 'images/tele/autre.jpg',
+          source_url: commons('Autre'),
+          page_url: 'https://fr.wikipedia.org/wiki/Autre',
+          page_title: 'Autre',
+          face_px: 350,
+        },
+      ]),
+    );
+    const lines: DatasetLine[] = [];
+    await importer.run({ dir: other, ownerEmail, slugPrefix: prefix, packSize: 2 }, (line) =>
+      lines.push(line),
+    );
+    expect(lines.map((l) => `${l.name.split(' ')[0]}${l.photo ?? ''} ${l.outcome}`)).toEqual([
+      'Persona created',
+      'Persona-p2 created',
+      'Persona-p3 refused:SMALL_FACE',
+      'Autre created',
+    ]);
+    const cards = await prisma.card.findMany({
+      where: { slug: { in: ['wd-Q998701', 'wd-Q998701-p2', `${prefix}-autre`] } },
+      include: { pack: true, answers: true },
+    });
+    const bySlug: Record<string, (typeof cards)[number]> = Object.fromEntries(
+      cards.map((c) => [c.slug!, c]),
+    );
+    expect(bySlug['wd-Q998701-p2']!.answers.find((a) => a.locale === 'fr')?.text).toBe(
+      `Persona ${run}`,
+    );
+    expect(bySlug['wd-Q998701']!.pack.slug).toBe(`${prefix}-tele`);
+    expect(bySlug['wd-Q998701-p2']!.pack.slug).toBe(`${prefix}-tele`);
+    // Two cards fill the first pack: the third goes to "— 2", published and restricted too.
+    expect(bySlug[`${prefix}-autre`]!.pack).toMatchObject({
+      slug: `${prefix}-tele-2`,
+      titleFr: 'Télé & internet — 2',
+      visibility: 'PUBLIC',
+      restricted: true,
+    });
+
+    // A rerun finds every card where it is, whichever pack.
+    const again: DatasetLine[] = [];
+    await importer.run({ dir: other, ownerEmail, slugPrefix: prefix, packSize: 2 }, (l) =>
+      again.push(l),
+    );
+    expect(again.filter((l) => l.outcome === 'created')).toEqual([]);
+    await settled();
+    await prisma.card.deleteMany({ where: { id: { in: cards.map((c) => c.id) } } });
+    await rm(other, { recursive: true, force: true });
   });
 });

@@ -4,7 +4,9 @@ import {
   commonsFileOf,
   type DatasetEntry,
   frwikiTitleOf,
+  isRealPerson,
   parseManifest,
+  photosOf,
   targetsOf,
 } from './manifest.js';
 
@@ -103,5 +105,77 @@ describe('parseManifest', () => {
   it('refuses a malformed manifest and names the entry', () => {
     expect(() => parseManifest([{ id: 'bad' }])).toThrow(/bad/);
     expect(parseManifest([entry({ id: 'ok', wiki: 'w', extra: 1 } as never)])[0]!.id).toBe('ok');
+  });
+});
+
+describe('the 2026-10-18 dataset', () => {
+  it('takes the new categories and the wikipedia source as real people', () => {
+    const [tv, culture] = parseManifest([
+      entry({ id: 'tv', category: 'tele' as never, source: 'wikipedia' as never }),
+      entry({ id: 'cu', category: 'culture' as never }),
+    ]);
+    expect(isRealPerson(tv!)).toBe(true);
+    expect(targetsOf(culture!)).toEqual([{ pack: 'culture', slugSuffix: '', difficulty: 2 }]);
+  });
+
+  it('gives one photo per picture of a person, the main one first, and one for a character', () => {
+    const omar = entry({
+      id: 'omar-sy',
+      image: 'images/acteur/omar-sy.jpg',
+      file: 'Omar_Sy_2019.jpg',
+      face_px: 410,
+      images: [
+        {
+          file: 'images/acteur/omar-sy.jpg',
+          face_px: 410,
+          source_url: 'https://upload.wikimedia.org/wikipedia/commons/a/ab/Omar_Sy_2019.jpg',
+        },
+        {
+          file: 'images/acteur/omar-sy-2.jpg',
+          face_px: 300,
+          source_url: 'https://upload.wikimedia.org/wikipedia/commons/c/cd/Omar_Sy_Cannes.jpg',
+        },
+        {
+          file: 'images/acteur/omar-sy-3.jpg',
+          face_px: 120,
+          source_url: 'https://upload.wikimedia.org/wikipedia/commons/e/ef/Omar_Sy_far.jpg',
+        },
+      ],
+    } as never);
+    expect(photosOf(omar)).toEqual([
+      {
+        suffix: '',
+        path: 'images/acteur/omar-sy.jpg',
+        commonsFile: 'Omar_Sy_2019.jpg',
+        facePx: 410,
+      },
+      {
+        suffix: '-p2',
+        path: 'images/acteur/omar-sy-2.jpg',
+        commonsFile: 'Omar_Sy_Cannes.jpg',
+        facePx: 300,
+      },
+      {
+        suffix: '-p3',
+        path: 'images/acteur/omar-sy-3.jpg',
+        commonsFile: 'Omar_Sy_far.jpg',
+        facePx: 120,
+      },
+    ]);
+    const alone = entry({
+      id: 'x',
+      image: 'images/acteur/x.jpg',
+      source_url: 'https://upload.wikimedia.org/wikipedia/commons/a/ab/X.jpg',
+    });
+    expect(photosOf(alone)).toEqual([
+      { suffix: '', path: 'images/acteur/x.jpg', commonsFile: 'X.jpg', facePx: undefined },
+    ]);
+    const character = entry({
+      id: 'c',
+      category: 'fiction',
+      image: 'images/fiction/c.jpg',
+      images: [{ file: 'images/fiction/c-2.jpg' }],
+    } as never);
+    expect(photosOf(character)).toHaveLength(1);
   });
 });
