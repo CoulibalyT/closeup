@@ -31,8 +31,11 @@ export function assessFaces(faces: DetectedFace[]): FaceDetection {
   return { verdict, faces: faces.length, eyeDistancePx: Math.round(d), proposals };
 }
 
-/** Of the six zones, the right eye goes: two eyes side by side would make the same round. */
-const AUTO_ZONES: readonly string[] = ['leftEye', 'nose', 'mouth', 'chin', 'brow'];
+/**
+ * Of the six zones, the right eye goes (two eyes side by side would make the same round) and so
+ * does the forehead: its first close-up is bare skin, which nobody can recognise.
+ */
+const AUTO_ZONES: readonly string[] = ['leftEye', 'nose', 'mouth', 'chin'];
 
 /**
  * The zoom points of an imported person, when the detector is sure of one clear face; null when
