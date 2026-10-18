@@ -585,6 +585,97 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('dataset import', () => {
       off: 0,
     });
   });
+  it('carries face landmarks placed by hand to another base, and cuts the card again', async () => {
+    await settled();
+    const corrections = app.get(DatasetCorrections);
+    const card = await prisma.card.findFirstOrThrow({
+      where: { slug: `${prefix}-alex` },
+      include: { image: true },
+    });
+    const { width, height } = card.image!;
+    const at = (zone: string, x: number, y: number) => ({
+      zone,
+      x: width * x,
+      y: height * y,
+      baseRadius: width * 0.05,
+      labelFr: '',
+      labelEn: '',
+      weight: 1,
+    });
+    const landmarks = [at('leftEye', 0.4, 0.4), at('rightEye', 0.6, 0.4), at('nose', 0.5, 0.5)];
+    await prisma.card.update({
+      where: { id: card.id },
+      data: { detection: { verdict: 'none', faces: 0, eyeDistancePx: null, proposals: landmarks } },
+    });
+    const file = join(dir, 'corrections-face.json');
+    await corrections.export(file, prefix);
+
+    // Another base, where detection found nothing on this photo.
+    await prisma.card.update({
+      where: { id: card.id },
+      data: { detection: { verdict: 'none', faces: 0, eyeDistancePx: null, proposals: [] } },
+    });
+    const applied = await corrections.apply(file, ownerEmail, prefix);
+    expect(applied.faces).toBe(1);
+    await settled();
+    const after = await prisma.card.findUniqueOrThrow({ where: { id: card.id } });
+    const proposals = (after.detection as { proposals: { zone: string; x: number }[] }).proposals;
+    expect(proposals.map((p) => p.zone).sort()).toEqual(['leftEye', 'nose', 'rightEye']);
+    expect(Math.round(proposals.find((p) => p.zone === 'nose')!.x)).toBe(Math.round(width * 0.5));
+    // Played again, nothing more to do.
+    expect((await corrections.apply(file, ownerEmail, prefix)).faces).toBe(0);
+  });
+
+  it('keeps the labels of the points it plays back, which the room difficulty reads', async () => {
+    await settled();
+    const corrections = app.get(DatasetCorrections);
+    const admin = app.get(AdminContentService);
+    const owner = await prisma.user.findUniqueOrThrow({ where: { email: ownerEmail } });
+    const actor = {
+      id: owner.id,
+      email: ownerEmail,
+      role: 'ADMIN' as const,
+      playerId: null,
+      nickname: null,
+      emailVerified: true,
+    };
+    const card = await prisma.card.findFirstOrThrow({
+      where: { slug: `${prefix}-alex` },
+      include: { image: true },
+    });
+    const { width, height } = card.image!;
+    const point = (x: number, en: string, fr: string) => ({
+      x: width * x,
+      y: height * 0.5,
+      baseRadius: 30,
+      labelFr: fr,
+      labelEn: en,
+      weight: 1,
+      origin: 'MANUAL' as const,
+    });
+    await admin.setZoomPoints(
+      card.id,
+      [point(0.3, 'an eye', 'un œil'), point(0.6, 'the nose', 'le nez')],
+      actor,
+    );
+    await settled();
+    const file = join(dir, 'corrections-labels.json');
+    await corrections.export(file, prefix);
+    await admin.setZoomPoints(card.id, [point(0.1, '', ''), point(0.9, '', '')], actor);
+    await settled();
+
+    await corrections.apply(file, ownerEmail, prefix);
+    await settled();
+    const after = await prisma.zoomPoint.findMany({
+      where: { cardId: card.id },
+      orderBy: { x: 'asc' },
+    });
+    expect(after.map((p) => [p.labelEn, p.labelFr])).toEqual([
+      ['an eye', 'un œil'],
+      ['the nose', 'le nez'],
+    ]);
+  });
+
   it('makes one card per photo of a person, skips a tiny face, and opens a second pack when one is full', async () => {
     const other = await mkdtemp(join(tmpdir(), 'closeup-dataset-photos-'));
     const picture = await sharp({

@@ -1,6 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { Injectable } from '@nestjs/common';
-import type { SessionUser } from '@closeup/shared';
+import { type FaceDetection, faceOf, type SessionUser } from '@closeup/shared';
 import { AdminContentService } from '../../admin/admin-content.service.js';
 import { PrismaService } from '../../prisma/prisma.module.js';
 
@@ -17,10 +17,19 @@ interface CardCorrection {
   difficulty: number;
   /** Taken out of play (READY): the owner switched it off. */
   off: boolean;
-  /** x, y and radius as shares of the width, the height and the shorter side. */
-  points: { x: number; y: number; r: number }[];
+  /**
+   * x, y and radius as shares of the width, the height and the shorter side; the label says what
+   * part of a face the point is on, which the room difficulty reads ("an eye", "the nose"…).
+   */
+  points: { x: number; y: number; r: number; fr?: string; en?: string }[];
+  /** A face's eyes and nose, as shares, when detection gave them or they were placed by hand. */
+  face?: { leftEye: Share; rightEye: Share; nose: Share };
   /** The photo these points were placed on (dataset cards): another photo, they are stale. */
   sourceHash?: string;
+}
+interface Share {
+  x: number;
+  y: number;
 }
 interface CorrectionsFile {
   version: 1;
@@ -36,6 +45,8 @@ export interface CorrectionsResult {
   missing: number;
   /** Reviewed on a photo the dataset has replaced since: left alone, to review again. */
   stale: number;
+  /** Face landmarks written (placed by hand where detection found nothing). */
+  faces: number;
 }
 
 const WAIT_MS = 1_000;
@@ -72,6 +83,11 @@ export class DatasetCorrections {
         .map((card) => {
           const { width, height } = card.image!;
           const side = Math.min(width, height);
+          const face = faceOf(card.detection as FaceDetection | null);
+          const share = (p: { x: number; y: number }) => ({
+            x: round(p.x / width),
+            y: round(p.y / height),
+          });
           return {
             pack: card.pack.slug!,
             slug: card.slug!,
@@ -82,7 +98,18 @@ export class DatasetCorrections {
               x: round(p.x / width),
               y: round(p.y / height),
               r: round(p.baseRadius / side),
+              ...(p.labelEn ? { en: p.labelEn } : {}),
+              ...(p.labelFr ? { fr: p.labelFr } : {}),
             })),
+            ...(face
+              ? {
+                  face: {
+                    leftEye: share(face.leftEye),
+                    rightEye: share(face.rightEye),
+                    nose: share(face.nose),
+                  },
+                }
+              : {}),
           };
         }),
     };
@@ -106,6 +133,7 @@ export class DatasetCorrections {
       on: 0,
       missing: 0,
       stale: 0,
+      faces: 0,
     };
     const relive: string[] = [];
     const offs: string[] = [];
@@ -149,12 +177,23 @@ export class DatasetCorrections {
       }
       const { width, height } = card.image;
       const side = Math.min(width, height);
-      const now = card.zoomPoints.map((p) => ({ x: p.x / width, y: p.y / height }));
-      const same =
+      const faceChanged = wanted.face ? await this.placeFace(card, wanted.face) : false;
+      if (faceChanged) result.faces++;
+      const now = card.zoomPoints.map((p) => ({
+        x: p.x / width,
+        y: p.y / height,
+        en: p.labelEn ?? '',
+      }));
+      const samePoints =
         now.length === wanted.points.length &&
         wanted.points.every((p) =>
-          now.some((q) => Math.abs(q.x - p.x) < SAME && Math.abs(q.y - p.y) < SAME),
+          now.some(
+            (q) =>
+              Math.abs(q.x - p.x) < SAME && Math.abs(q.y - p.y) < SAME && q.en === (p.en ?? ''),
+          ),
         );
+      // New landmarks frame the views anew: the card is cut again, with the same points.
+      const same = samePoints && !faceChanged;
       if (!same && wanted.points.length >= 2) {
         await this.admin.setZoomPoints(
           card.id,
@@ -162,14 +201,14 @@ export class DatasetCorrections {
             x: Math.min(width, Math.round(p.x * width)),
             y: Math.min(height, Math.round(p.y * height)),
             baseRadius: Math.max(4, Math.round(p.r * side)),
-            labelFr: '',
-            labelEn: '',
+            labelFr: p.fr ?? '',
+            labelEn: p.en ?? '',
             weight: 1,
             origin: 'MANUAL' as const,
           })),
           actor,
         );
-        result.points++;
+        if (!samePoints) result.points++;
       }
       // Whether it plays is settled once its crops are cut.
       if (wanted.off && (card.status === 'LIVE' || !same)) offs.push(card.id);
@@ -192,6 +231,55 @@ export class DatasetCorrections {
       }
     }
     return result;
+  }
+
+  /** Writes the face's landmarks into the card's detection; false when they already match. */
+  private async placeFace(
+    card: { id: string; detection: unknown; image: { width: number; height: number } | null },
+    wanted: NonNullable<CardCorrection['face']>,
+  ): Promise<boolean> {
+    const { width, height } = card.image!;
+    const detection = (card.detection as FaceDetection | null) ?? null;
+    const now = faceOf(detection);
+    const px = (p: Share) => ({ x: p.x * width, y: p.y * height });
+    const zones = {
+      leftEye: px(wanted.leftEye),
+      rightEye: px(wanted.rightEye),
+      nose: px(wanted.nose),
+    };
+    const close = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+      Math.abs(a.x - b.x) / width < SAME && Math.abs(a.y - b.y) / height < SAME;
+    if (
+      now &&
+      close(now.leftEye, zones.leftEye) &&
+      close(now.rightEye, zones.rightEye) &&
+      close(now.nose, zones.nose)
+    ) {
+      return false;
+    }
+    const d = Math.hypot(zones.leftEye.x - zones.rightEye.x, zones.leftEye.y - zones.rightEye.y);
+    const kept = (detection?.proposals ?? []).filter((p) => !(p.zone in zones));
+    const placed = Object.entries(zones).map(([zone, p]) => ({
+      zone,
+      x: p.x,
+      y: p.y,
+      baseRadius: d / 2,
+      labelFr: '',
+      labelEn: '',
+      weight: 1,
+    }));
+    await this.prisma.card.update({
+      where: { id: card.id },
+      data: {
+        detection: {
+          verdict: detection?.verdict ?? 'none',
+          faces: detection?.faces ?? 0,
+          eyeDistancePx: detection?.eyeDistancePx ?? Math.round(d),
+          proposals: [...kept, ...placed],
+        } as never,
+      },
+    });
+    return true;
   }
 
   private async waitForCrops(prefix: string): Promise<void> {
