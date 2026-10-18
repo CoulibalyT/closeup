@@ -197,21 +197,47 @@ describe('the length of a round', () => {
   it('lets only the host skip a round, and a solo player give up', () => {
     const party = new Game({ mode: 'private', roundSeconds: null });
     const start = party.toFirstRound();
-    expect(party.send({ type: 'skipRound', playerId: 'p2' }, start + 5_000).reply).toMatchObject({
+    expect(
+      party.send({ type: 'skipRound', playerId: 'p2', roundId: party.roundId }, start + 5_000)
+        .reply,
+    ).toMatchObject({
       ok: false,
       error: { code: 'NOT_HOST' },
     });
-    expect(party.send({ type: 'skipRound', playerId: 'p1' }, start + 5_000).reply.ok).toBe(true);
+    expect(
+      party.send({ type: 'skipRound', playerId: 'p1', roundId: party.roundId }, start + 5_000).reply
+        .ok,
+    ).toBe(true);
     expect(party.state.phase).toBe('reveal');
-    expect(party.send({ type: 'skipRound', playerId: 'p1' }, start + 6_000).reply).toMatchObject({
+    expect(
+      party.send({ type: 'skipRound', playerId: 'p1', roundId: 'old' }, start + 6_000).reply,
+    ).toMatchObject({
       ok: false,
       error: { code: 'BAD_PHASE' },
     });
 
     const solo = new Game({ roundSeconds: null });
     const soloStart = solo.toFirstRound();
-    expect(solo.send({ type: 'skipRound', playerId: 'p1' }, soloStart + 5_000).reply.ok).toBe(true);
+    expect(
+      solo.send({ type: 'skipRound', playerId: 'p1', roundId: solo.roundId }, soloStart + 5_000)
+        .reply.ok,
+    ).toBe(true);
     expect(solo.state.phase).toBe('reveal');
+  });
+
+  it('never lets the host cut a timed round, nor skip another round than the one in play', () => {
+    const game = new Game({ mode: 'private', roundSeconds: 60 });
+    const start = game.toFirstRound();
+    expect(
+      game.send({ type: 'skipRound', playerId: 'p1', roundId: game.roundId }, start + 5_000).reply,
+    ).toMatchObject({ ok: false, error: { code: 'BAD_PHASE' } });
+    expect(game.state.phase).toBe('playing');
+
+    const untimed = new Game({ mode: 'private', roundSeconds: null });
+    const t = untimed.toFirstRound();
+    expect(
+      untimed.send({ type: 'skipRound', playerId: 'p1', roundId: 'another' }, t + 5_000).reply,
+    ).toMatchObject({ ok: false, error: { code: 'BAD_PHASE' } });
   });
 
   it('decays the value over 90 s without a clock, then keeps 200', () => {

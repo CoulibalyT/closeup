@@ -382,10 +382,11 @@ export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
 
   @SubscribeMessage(ClientEvent.roundSkip)
   onRoundSkip(@ConnectedSocket() socket: GameSocket, @MessageBody() body: unknown): Promise<Reply> {
-    return this.inRoom(socket, (playerId) => ({ type: 'skipRound', playerId }), [
-      roundSkipSchema,
-      body,
-    ]);
+    return this.inRoom(
+      socket,
+      (playerId, { roundId }) => ({ type: 'skipRound', playerId, roundId }),
+      [roundSkipSchema, body],
+    );
   }
 
   @SubscribeMessage(ClientEvent.revealSkip)

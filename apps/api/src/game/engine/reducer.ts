@@ -352,7 +352,16 @@ function dispatch(
 
     case 'skipRound': {
       if (command.playerId !== state.hostId) return refuse('NOT_HOST', 'Only the host can skip');
-      if (state.phase !== 'playing' || !state.round) return refuse('BAD_PHASE', 'No round to skip');
+      // Only a round without a clock, and only the one in play: a host must not cut a timed round
+      // short to deny the others their points.
+      if (
+        state.phase !== 'playing' ||
+        !state.round ||
+        state.round.id !== command.roundId ||
+        roundTiming(state.settings).durationMs !== null
+      ) {
+        return refuse('BAD_PHASE', 'No round to skip');
+      }
       endRound(state, ctx.now, emit);
       return OK;
     }

@@ -201,7 +201,7 @@ export type Command =
   | { type: 'pick'; playerId: string; roundId: string; optionId: string }
   | { type: 'skipReveal'; playerId: string }
   /** The host ends the round now (a round without a clock); in solo, the player gives up. */
-  | { type: 'skipRound'; playerId: string }
+  | { type: 'skipRound'; playerId: string; roundId: string }
   | { type: 'useBonus'; playerId: string; roundId: string; itemId: string; targetId?: string };
 
 /** Internal events: they reference crops, the presenter turns those into signed URLs. */
