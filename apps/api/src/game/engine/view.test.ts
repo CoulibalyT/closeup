@@ -173,3 +173,51 @@ describe('a snapshot for someone who reconnects mid-round', () => {
     expect(snapshot.round!.levelAt).toEqual([start + 10_000, start + 20_000]);
   });
 });
+
+describe('the room hint', () => {
+  const room = (card = engineCard(1)) => {
+    let state = createRoom({
+      code: 'AB2CD',
+      mode: 'private',
+      host: { id: 'p1', nickname: 'Awa' },
+      language: 'fr',
+      settings: { rounds: 1, answerMode: 'text', display: 'bigscreen' },
+      lexicon: [],
+    });
+    const at = (now: number) => ({ now, newId: () => 'r1' });
+    const effects: Effect[] = [];
+    const run = (command: Command, now: number) => {
+      const result = reduce(state, command, at(now));
+      state = result.state;
+      effects.push(...result.effects);
+    };
+    run({ type: 'join', playerId: 'p2', nickname: 'Moussa' }, T0);
+    run({ type: 'start', playerId: 'p1' }, T0);
+    run({ type: 'cardReady', card }, T0);
+    const start = state.round!.startsAt;
+    run({ type: 'tick' }, start + 18_000);
+    return { state: () => state, effects };
+  };
+
+  it('goes to everyone, phones and screens, with the written hint', () => {
+    const { state, effects } = room({ ...engineCard(1), hint: { text: 'Agrume' } });
+    const hint = effects.find((e) => e.type === 'emit' && e.event.type === 'roundHint');
+    expect(hint).toBeDefined();
+    if (hint?.type !== 'emit') throw new Error('no hint');
+    expect(hint.to).toBeUndefined();
+    expect(eventToWire(state(), hint.event, sign)).toMatchObject({
+      event: 'round:hint',
+      payload: { text: 'Agrume' },
+    });
+    expect(toSnapshot(state(), 'p2', sign).round!.hint).toEqual({ text: 'Agrume' });
+    expect(toSnapshot(state(), null, sign).round!.hint).toEqual({ text: 'Agrume' });
+    expect(toSnapshot(state(), 'p1', sign).hints).toBe(true);
+  });
+
+  it('falls back on the category and the initials, never the answer', () => {
+    const { state } = room(engineCard(1, { secret: true }));
+    const snapshot = toSnapshot(state(), 'p2', sign);
+    expect(snapshot.round!.hint).toEqual({ category: 'FOOD', initials: expect.any(String) });
+    expect(JSON.stringify(snapshot)).not.toContain(SECRETS.answer);
+  });
+});

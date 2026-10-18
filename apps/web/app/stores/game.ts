@@ -39,6 +39,8 @@ import {
   type RoundEnd,
   roundEndSchema,
   roundLevelSchema,
+  roundHintSchema,
+  type RoundHint,
   roundPlayerAnsweredSchema,
   roundPrepareSchema,
   roundStartSchema,
@@ -59,7 +61,7 @@ export type Role = RoomStateView['role'];
 /** An announcement for the event feed. Ids are player ids; the component resolves names. */
 export interface FeedEntry {
   id: number;
-  kind: 'malus' | 'stealBonus' | 'stealPoints' | 'stolenPoints' | 'blocked' | 'granted';
+  kind: 'malus' | 'stealBonus' | 'stealPoints' | 'stolenPoints' | 'blocked' | 'granted' | 'partial';
   from?: string;
   to?: string;
   bonus?: BonusType;
@@ -111,6 +113,14 @@ export const useGameStore = defineStore('game', () => {
   const scoring = ref<ScoringMode>('decay');
   /** Length of a round in seconds, `null` without a clock. */
   const roundSeconds = ref<RoundSeconds | null>(DEFAULT_ROUND_SECONDS);
+  /** The room setting: a hint for everyone when nobody found late in the round. */
+  const hintsOn = ref(true);
+  /** The room's hint, once shown this round. */
+  const roundHint = ref<RoundHint | null>(null);
+  /** Who answered with a partial answer this round (a film of the person…). */
+  const partialIds = ref<string[]>([]);
+  /** The viewer's own answer was a partial one, worth this many points. */
+  const partialPoints = ref<number | null>(null);
   /** Packs the host picked. Empty: every public pack. */
   const packIds = ref<string[]>([]);
   /** The viewer's own bonuses. Other players only ever show a count. */
@@ -225,6 +235,9 @@ export const useGameStore = defineStore('game', () => {
     lockedUntil.value = null;
     wrongOptionIds.value = [];
     feedback.value = null;
+    roundHint.value = null;
+    partialIds.value = [];
+    partialPoints.value = null;
   }
 
   /**
@@ -259,6 +272,7 @@ export const useGameStore = defineStore('game', () => {
     answerMode.value = view.answerMode;
     scoring.value = view.scoring;
     roundSeconds.value = view.roundSeconds as RoundSeconds | null;
+    hintsOn.value = view.hints;
     inventory.value = view.inventory;
     shielded.value = view.shielded;
     totalRounds.value = view.totalRounds;
@@ -274,6 +288,8 @@ export const useGameStore = defineStore('game', () => {
       effect.value = view.round.effect ?? null;
       seated.value = view.round.seated;
       answered.value = view.round.answered;
+      roundHint.value = view.round.hint ?? null;
+      partialPoints.value = view.round.partial ? (view.round.points ?? 0) : null;
       scoreAtRoundStart = score.value - (view.round.points ?? 0);
       penalty.value = view.round.penalty;
       lockedUntil.value = view.round.lockedUntil ?? null;
@@ -308,6 +324,7 @@ export const useGameStore = defineStore('game', () => {
       answerMode.value = settings.answerMode;
       scoring.value = settings.scoring;
       roundSeconds.value = settings.roundSeconds as RoundSeconds | null;
+      hintsOn.value = settings.hints;
       display.value = settings.display;
       packIds.value = settings.packIds;
       totalRounds.value = settings.rounds;
@@ -352,6 +369,9 @@ export const useGameStore = defineStore('game', () => {
       crops.value = payload.crop ? [payload.crop] : [];
       stage.value = 'playing';
     });
+    io.on(ServerEvent.roundHint, (raw) => {
+      roundHint.value = roundHintSchema.parse(raw);
+    });
     io.on(ServerEvent.roundLevel, (raw) => {
       const payload = roundLevelSchema.parse(raw);
       if (payload.roundId !== round.value?.roundId) return;
@@ -392,7 +412,13 @@ export const useGameStore = defineStore('game', () => {
     io.on(ServerEvent.roundPlayerAnswered, (raw) => {
       const found = roundPlayerAnsweredSchema.parse(raw);
       if (found.roundId !== round.value?.roundId) return;
-      if (!answeredIds.value.includes(found.playerId)) answeredIds.value.push(found.playerId);
+      if (found.partial) {
+        // A partial answer takes no rank: it does not count among those who found.
+        if (!partialIds.value.includes(found.playerId)) partialIds.value.push(found.playerId);
+        announce({ kind: 'partial', from: found.playerId, amount: found.points });
+      } else if (!answeredIds.value.includes(found.playerId)) {
+        answeredIds.value.push(found.playerId);
+      }
       // Shown next to the name. Totals only ever come from the server's ranking.
       roundGains.value = { ...roundGains.value, [found.playerId]: found.points };
     });
@@ -512,7 +538,10 @@ export const useGameStore = defineStore('game', () => {
     });
     if (!ack?.ok) return;
     if (ack.data.verdict === 'correct') won(ack.data.points ?? 0);
-    else feedback.value = ack.data.verdict;
+    else if (ack.data.verdict === 'partial') {
+      won(ack.data.points ?? 0, false);
+      partialPoints.value = ack.data.points ?? 0;
+    } else feedback.value = ack.data.verdict;
   }
 
   async function pick(optionId: string): Promise<void> {
@@ -533,11 +562,11 @@ export const useGameStore = defineStore('game', () => {
    * Set, never add: the server broadcasts `round:end` (with the official ranking) *before* it
    * acknowledges the answer, so an increment here would count the points twice.
    */
-  function won(points: number): void {
+  function won(points: number, found = true): void {
     answered.value = true;
     feedback.value = null;
     score.value = scoreAtRoundStart + points;
-    foundCount.value += 1;
+    if (found) foundCount.value += 1;
   }
 
   /** `null` on success, otherwise the error code (TARGET_BUSY, TARGET_INVALID, BAD_PHASE…). */
@@ -611,6 +640,10 @@ export const useGameStore = defineStore('game', () => {
     scoring,
     roundSeconds,
     skipRound,
+    hintsOn,
+    roundHint,
+    partialIds,
+    partialPoints,
     packIds,
     playablePacks,
     inventory,

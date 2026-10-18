@@ -6,13 +6,14 @@ import {
   MULTIPLE_CHOICE,
   ROOM,
   ROUND,
+  partialValue,
   roundValue,
   roundTiming,
   SELF_BONUSES,
   ZOOM,
 } from '@closeup/shared';
 import { attack, grant, grantCatchUp, isFrozen, selfBonus } from './bonuses.js';
-import { matchAnswer } from './matching.js';
+import { matchAnswer, matchSecondary } from './matching.js';
 import type {
   Command,
   Context,
@@ -126,7 +127,11 @@ function advance(state: RoomState, ctx: Context, effects: Effect[]): void {
           ? round.startsAt + nextLevelAt
           : Infinity;
 
-      if (levelDue < endAt) {
+      const hintDue = hintTime(state, round);
+      if (hintDue <= ctx.now && hintDue < endAt && hintDue <= levelDue) {
+        round.hintAt = hintDue;
+        emit({ type: 'roundHint' });
+      } else if (levelDue < endAt) {
         round.level += 1;
         emit({ type: 'roundLevel', level: round.level });
         // Whoever zoomed out with a bonus stays that many levels ahead of the room.
@@ -165,6 +170,13 @@ function nextWake(state: RoomState): number | null {
   return Number.isFinite(next) ? next : null;
 }
 
+/** When the room's hint is due: never if hints are off, already shown, or someone found. */
+function hintTime(state: RoomState, round: RoundState): number {
+  if (state.settings.hints === false || round.hintAt !== undefined) return Infinity;
+  if (round.answerOrder.length > 0) return Infinity;
+  return round.startsAt + roundTiming(state.settings).hintAtMs;
+}
+
 /** When the round ends by itself: its clock, its safety without a clock, or the early end. */
 function endOf(round: RoundState): number {
   return Math.min(round.endsAt ?? round.safetyAt ?? Infinity, round.endsEarlyAt ?? Infinity);
@@ -178,6 +190,7 @@ function nextGameWake(state: RoomState): number | null {
     const next = Math.min(
       endOf(round),
       nextLevelAt === undefined ? Infinity : round.startsAt + nextLevelAt,
+      hintTime(state, round),
     );
     return Number.isFinite(next) ? next : null;
   }
@@ -412,6 +425,10 @@ function dispatch(
 
       const verdict = matchAnswer(command.text, round.card.answers, new Set(state.lexicon));
       if (verdict !== 'correct') {
+        if (matchSecondary(command.text, round.card.secondary ?? [])) {
+          const points = scorePartial(state, round, command.playerId, ctx.now, emit);
+          return { ok: true, data: { verdict: 'partial', points } };
+        }
         return { ok: true, data: { verdict: verdict === 'close' ? 'close' : 'wrong' } };
       }
       const points = score(state, round, command.playerId, ctx, effects, emit);
@@ -481,6 +498,7 @@ function score(
     foundBefore: round.answerOrder.length,
     penalty: mine.penalty,
     decayMs: roundTiming(state.settings).decayMs,
+    afterHint: round.hintAt !== undefined && now >= round.hintAt,
   });
 
   // A thief set up earlier in the round takes their share of what was just earned.
@@ -518,7 +536,41 @@ function score(
   return points;
 }
 
-/** The round ends early once every connected player *of this round* has found. */
+/**
+ * A secondary answer: 30 % of what the full answer is worth now. The player is done with the
+ * round, takes no rank (no "fastest", no rank in fixed scoring, the hint may still come) and
+ * loses their streak: it is not a find.
+ */
+function scorePartial(
+  state: RoomState,
+  round: RoundState,
+  playerId: string,
+  now: number,
+  emit: (event: EngineEvent) => void,
+): number {
+  const mine = round.perPlayer[playerId]!;
+  const player = state.players[playerId]!;
+  const full = roundValue({
+    scoring: state.settings.scoring ?? 'decay',
+    elapsedMs: now - round.startsAt,
+    foundBefore: round.answerOrder.length,
+    penalty: mine.penalty,
+    decayMs: roundTiming(state.settings).decayMs,
+    afterHint: round.hintAt !== undefined && now >= round.hintAt,
+  });
+  const points = partialValue(full);
+  mine.answeredAt = now;
+  mine.points = points;
+  mine.partial = true;
+  player.score += points;
+  player.streak = 0;
+  emit({ type: 'playerAnswered', playerId, points, partial: true });
+  emit({ type: 'playerUpdated', playerId });
+  checkEarlyEnd(state, round, now, emit);
+  return points;
+}
+
+/** The round ends early once every connected player *of this round* has answered. */
 function checkEarlyEnd(
   state: RoomState,
   round: RoundState,
@@ -529,8 +581,9 @@ function checkEarlyEnd(
   const waitingFor = Object.values(state.players).filter(
     (p) => p.connected && round.perPlayer[p.id] && round.perPlayer[p.id]!.answeredAt === undefined,
   );
-  const someoneFound = round.answerOrder.length > 0;
-  if (waitingFor.length > 0 || !someoneFound) return;
+  // Fully or partially: a round where everyone named a film of the person is over too.
+  const someoneAnswered = Object.values(round.perPlayer).some((m) => m.answeredAt !== undefined);
+  if (waitingFor.length > 0 || !someoneAnswered) return;
   if (state.mode === 'solo') endRound(state, now, emit);
   else round.endsEarlyAt = now + ROUND.earlyEndGraceMs;
 }
@@ -626,13 +679,15 @@ function endRound(state: RoomState, now: number, emit: (event: EngineEvent) => v
     if (round.perPlayer[player.id]?.answeredAt === undefined) player.streak = 0;
   }
   const found = Object.values(round.perPlayer).flatMap((mine) =>
-    mine.answeredAt === undefined ? [] : [mine.answeredAt - round.startsAt],
+    mine.answeredAt === undefined || mine.partial ? [] : [mine.answeredAt - round.startsAt],
   );
+  const partial = Object.values(round.perPlayer).filter((mine) => mine.partial).length;
   (state.history ??= []).push({
     cardId: round.card.cardId,
     seated: Object.keys(round.perPlayer).length,
     found: found.length,
     foundMsTotal: found.reduce((sum, ms) => sum + ms, 0),
+    ...(partial ? { partial } : {}),
   });
   state.phase = 'reveal';
   state.revealUntil = state.mode === 'solo' ? null : now + ROUND.revealMs;

@@ -13,6 +13,8 @@ const props = defineProps<{
   endsAt: number | null;
   /** The room's round length, for the value's decay. */
   roundSeconds: number | null;
+  /** The room's hint is showing: the value is 150 lower. */
+  afterHint: boolean;
   penalty: number;
   scoring: ScoringMode;
   /** How many players already found: what "fixed points" rooms pay depends on it. */
@@ -49,6 +51,7 @@ function tick(): void {
         foundBefore: props.foundBefore,
         penalty: props.penalty,
         decayMs: timing.decayMs,
+        afterHint: props.afterHint,
       }),
     );
   }

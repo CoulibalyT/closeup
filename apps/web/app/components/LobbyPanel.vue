@@ -56,12 +56,21 @@ const draft = reactive({
   scoring: game.scoring,
   display: game.display,
   roundSeconds: game.roundSeconds,
+  hints: game.hintsOn,
   packIds: [...game.packIds],
 });
 watch(
-  () => [game.totalRounds, game.answerMode, game.scoring, game.display, game.roundSeconds] as const,
-  ([rounds, answerMode, scoring, display, roundSeconds]) =>
-    Object.assign(draft, { rounds, answerMode, scoring, display, roundSeconds }),
+  () =>
+    [
+      game.totalRounds,
+      game.answerMode,
+      game.scoring,
+      game.display,
+      game.roundSeconds,
+      game.hintsOn,
+    ] as const,
+  ([rounds, answerMode, scoring, display, roundSeconds, hints]) =>
+    Object.assign(draft, { rounds, answerMode, scoring, display, roundSeconds, hints }),
 );
 watch(
   () => game.packIds,
@@ -92,6 +101,10 @@ function setScoring(scoring: ScoringMode): void {
 }
 function setRoundSeconds(roundSeconds: RoundSeconds | null): void {
   draft.roundSeconds = roundSeconds;
+  void game.updateSettings({ ...draft });
+}
+function setHints(hints: boolean): void {
+  draft.hints = hints;
   void game.updateSettings({ ...draft });
 }
 function setRounds(rounds: number): void {
@@ -284,6 +297,15 @@ const screenMissing = computed(() => bigScreen.value && game.screens === 0);
           </label>
           <p v-if="draft.roundSeconds === null" class="muted hint">{{ t('lobby.untimedHint') }}</p>
         </fieldset>
+        <label class="switch">
+          <input
+            type="checkbox"
+            :checked="draft.hints"
+            @change="setHints(($event.target as HTMLInputElement).checked)"
+          />
+          <span>{{ t('lobby.hints') }}</span>
+        </label>
+        <p class="muted hint">{{ t('lobby.hintsHint') }}</p>
       </template>
       <p v-else class="muted">
         {{
@@ -298,6 +320,7 @@ const screenMissing = computed(() => bigScreen.value && game.screens === 0);
             ? t('lobby.untimed')
             : t('lobby.secondsSummary', { n: game.roundSeconds })
         }}
+        {{ game.hintsOn ? t('lobby.hintsOn') : '' }}
         <template v-if="bigScreen">{{ t('home.displayHint.bigscreen') }}</template>
       </p>
 

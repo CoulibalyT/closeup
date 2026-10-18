@@ -251,6 +251,10 @@ model CardAnswer {
   locale  String
   text    String
   aliases String[]
+  /// Shown to the room when nobody found. Never contains the answer.
+  hint      String?
+  /// Films, clubs, songs… of the person: a partial answer, worth 30 %.
+  secondary String[] @default([])
 
   @@unique([cardId, locale])
 }

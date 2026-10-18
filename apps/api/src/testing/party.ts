@@ -12,6 +12,8 @@ export interface PartyOptions {
   fixed?: boolean;
   bigscreen?: boolean;
   secret?: boolean;
+  /** The room hint at 60 %; off where a test is about something else late in the round. */
+  hints?: boolean;
 }
 
 /** Three players by default, first round live, with whatever bonuses the test hands out. */
@@ -35,6 +37,7 @@ export class Party {
         answerMode: options.mcq ? 'mcq' : 'text',
         scoring: options.fixed ? 'fixed' : 'decay',
         display: options.bigscreen ? 'bigscreen' : 'phones',
+        ...(options.hints === false ? { hints: false } : {}),
       },
       lexicon: [],
       now: PARTY_T0,

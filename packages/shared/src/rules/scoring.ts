@@ -1,4 +1,4 @@
-import { ROUND, SCORING, type ScoringMode } from '../constants/game.js';
+import { HINT, PARTIAL, ROUND, SCORING, type ScoringMode } from '../constants/game.js';
 
 /** In a "fixed points" room: what the next player to find gets, given how many found before. */
 export function fixedRoundValue(foundBefore: number, penalty = 0): number {
@@ -15,10 +15,19 @@ export function roundValue(input: {
   penalty?: number;
   /** The room's decay length (`roundTiming(settings).decayMs`). */
   decayMs: number;
+  /** The room's hint is showing: the answer is worth `HINT.cost` less. */
+  afterHint?: boolean;
 }): number {
+  const penalty = Math.max(0, input.penalty ?? 0) + (input.afterHint ? HINT.cost : 0);
   return input.scoring === 'fixed'
-    ? fixedRoundValue(input.foundBefore, input.penalty)
-    : roundValueAt(input.elapsedMs, input.penalty, input.decayMs);
+    ? fixedRoundValue(input.foundBefore, penalty)
+    : roundValueAt(input.elapsedMs, penalty, input.decayMs);
+}
+
+/** What a partial answer earns, given what the full answer would be worth at that moment. */
+export function partialValue(full: number): number {
+  const { step, floorValue } = SCORING;
+  return Math.max(floorValue, Math.round((full * PARTIAL.share) / step) * step);
 }
 
 /**

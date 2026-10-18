@@ -38,13 +38,15 @@ const form = reactive({
   category: 'OBJECT' as Category,
   difficulty: 2,
   isPerson: false,
-  fr: { text: '', aliases: '' },
-  en: { text: '', aliases: '' },
+  fr: { text: '', aliases: '', hint: '', secondary: '' },
+  en: { text: '', aliases: '', hint: '', secondary: '' },
   credit: { author: '', licence: '', sourceUrl: '' },
 });
 const saving = ref(false);
 const saved = ref(false);
 const formError = ref(false);
+/** The server refused the hint: it names the answer. */
+const hintError = ref(false);
 
 const listOf = (text: string) =>
   text
@@ -52,13 +54,26 @@ const listOf = (text: string) =>
     .map((alias) => alias.trim())
     .filter(Boolean);
 
+const answerForm = (answer: AdminCard['answers']['fr']) => ({
+  text: answer.text,
+  aliases: answer.aliases.join(', '),
+  hint: answer.hint,
+  secondary: answer.secondary.join(', '),
+});
+const answerInput = (answer: typeof form.fr) => ({
+  text: answer.text,
+  aliases: listOf(answer.aliases),
+  hint: answer.hint,
+  secondary: listOf(answer.secondary),
+});
+
 function fillForm(next: AdminCard): void {
   Object.assign(form, {
     category: next.category,
     difficulty: next.difficulty,
     isPerson: next.isPerson,
-    fr: { text: next.answers.fr.text, aliases: next.answers.fr.aliases.join(', ') },
-    en: { text: next.answers.en.text, aliases: next.answers.en.aliases.join(', ') },
+    fr: answerForm(next.answers.fr),
+    en: answerForm(next.answers.en),
     credit: { ...next.credit },
   });
 }
@@ -67,20 +82,22 @@ async function saveDetails(): Promise<void> {
   saving.value = true;
   saved.value = false;
   formError.value = false;
+  hintError.value = false;
   try {
     card.value = await admin.request<AdminCard>('PUT', `${props.basePath}/cards/${id}`, {
       category: form.category,
       difficulty: form.difficulty,
       isPerson: form.isPerson,
       answers: {
-        fr: { text: form.fr.text, aliases: listOf(form.fr.aliases) },
-        en: { text: form.en.text, aliases: listOf(form.en.aliases) },
+        fr: answerInput(form.fr),
+        en: answerInput(form.en),
       },
       credit: form.credit,
     });
     saved.value = true;
-  } catch {
-    formError.value = true;
+  } catch (failure) {
+    if ((failure as { code?: string }).code === 'HINT_GIVES_ANSWER') hintError.value = true;
+    else formError.value = true;
   } finally {
     saving.value = false;
   }
@@ -515,6 +532,27 @@ onBeforeUnmount(() => {
           <label for="aliases-en">{{ t('admin.aliasesEn') }}</label>
           <input id="aliases-en" v-model="form.en.aliases" type="text" />
           <small class="muted">{{ t('admin.aliasesHint') }}</small>
+        </div>
+
+        <h2>{{ t('admin.hintTitle') }}</h2>
+        <p class="muted">{{ t('admin.hintHelp') }}</p>
+        <div class="field">
+          <label for="hint-fr">{{ t('admin.hintFr') }}</label>
+          <input id="hint-fr" v-model="form.fr.hint" type="text" maxlength="80" />
+        </div>
+        <div class="field">
+          <label for="hint-en">{{ t('admin.hintEn') }}</label>
+          <input id="hint-en" v-model="form.en.hint" type="text" maxlength="80" />
+        </div>
+        <p v-if="hintError" class="error" role="alert">{{ t('admin.hintGivesAnswer') }}</p>
+        <div class="field">
+          <label for="secondary-fr">{{ t('admin.secondaryFr') }}</label>
+          <input id="secondary-fr" v-model="form.fr.secondary" type="text" />
+        </div>
+        <div class="field">
+          <label for="secondary-en">{{ t('admin.secondaryEn') }}</label>
+          <input id="secondary-en" v-model="form.en.secondary" type="text" />
+          <small class="muted">{{ t('admin.secondaryHelp') }}</small>
         </div>
 
         <h2>{{ t('admin.credit') }}</h2>

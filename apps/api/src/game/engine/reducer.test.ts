@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { engineCard } from '../../testing/cards.js';
 import { Party, PARTY_T0 } from '../../testing/party.js';
+import { HINT, partialValue, roundValueAt } from '@closeup/shared';
 import { createRoom, reduce } from './reducer.js';
 import type { Command, Effect, EngineCard, Reduced, RoomState } from './types.js';
 
@@ -20,6 +21,8 @@ class Game {
     answerMode?: 'text' | 'mcq';
     rounds?: number;
     roundSeconds?: 30 | 45 | 60 | 90 | null;
+    hints?: boolean;
+    scoring?: 'decay' | 'fixed';
   }) {
     this.state = createRoom({
       code: 'AB2CD',
@@ -30,6 +33,8 @@ class Game {
         rounds: options.rounds ?? 2,
         answerMode: options.answerMode ?? 'text',
         ...(options.roundSeconds !== undefined ? { roundSeconds: options.roundSeconds } : {}),
+        ...(options.hints !== undefined ? { hints: options.hints } : {}),
+        ...(options.scoring ? { scoring: options.scoring } : {}),
       },
       lexicon: [],
     });
@@ -55,9 +60,9 @@ class Game {
   }
 
   /** start + first card + countdown elapsed: the round is live at the returned time. */
-  toFirstRound(mcq = false): number {
+  toFirstRound(mcq = false, extra: Partial<EngineCard> = {}): number {
     this.send({ type: 'start', playerId: 'p1' }, T0);
-    this.send({ type: 'cardReady', card: card(1, mcq) }, T0);
+    this.send({ type: 'cardReady', card: { ...card(1, mcq), ...extra } }, T0);
     const startsAt = this.state.round!.startsAt;
     this.send({ type: 'tick' }, startsAt);
     return startsAt;
@@ -105,7 +110,8 @@ describe('starting a game', () => {
 
 describe('the clock of a round', () => {
   it('starts, zooms out at 10 s and 20 s, and ends at 30 s', () => {
-    const game = new Game({ mode: 'private' });
+    // The room hint has its own tests: the clock alone here.
+    const game = new Game({ mode: 'private', hints: false });
     const start = game.toFirstRound();
     expect(game.state.phase).toBe('playing');
     expect(game.state.wakeAt).toBe(start + 10_000);
@@ -241,7 +247,7 @@ describe('the length of a round', () => {
   });
 
   it('decays the value over 90 s without a clock, then keeps 200', () => {
-    const game = new Game({ roundSeconds: null });
+    const game = new Game({ roundSeconds: null, hints: false });
     const start = game.toFirstRound();
     const { reply } = game.send(
       { type: 'guess', playerId: 'p1', roundId: game.roundId, text: 'orange' },
@@ -543,5 +549,120 @@ describe('what a game leaves behind for the history', () => {
     party.finishRound();
     expect(party.state.players.late!.roundsSeated).toBe(1);
     expect(party.state.players.p1!.roundsSeated).toBe(2);
+  });
+});
+
+describe('the room hint and partial answers', () => {
+  const films = { secondary: [{ text: 'Pirates des Caraïbes', aliases: [] }] };
+  const twoPlayers = (options: ConstructorParameters<typeof Game>[0] = {}) => {
+    const game = new Game({ mode: 'private', ...options });
+    game.send({ type: 'join', playerId: 'p2', nickname: 'Moussa' }, T0);
+    return game;
+  };
+  const hints = (game: Game) => game.events().filter((e) => e === 'roundHint').length;
+  const guess = (game: Game, playerId: string, text: string, at: number) =>
+    game.send({ type: 'guess', playerId, roundId: game.roundId, text }, at).reply;
+
+  it('shows the hint at 60 % when nobody found', () => {
+    const game = twoPlayers({ roundSeconds: 30 });
+    const start = game.toFirstRound();
+    game.send({ type: 'tick' }, start + 17_999);
+    expect(hints(game)).toBe(0);
+    expect(game.state.wakeAt).toBe(start + 18_000);
+    game.send({ type: 'tick' }, start + 18_000);
+    expect(hints(game)).toBe(1);
+    expect(game.state.round!.hintAt).toBe(start + 18_000);
+  });
+
+  it('shows no hint when the room turned hints off', () => {
+    const game = twoPlayers({ roundSeconds: 30, hints: false });
+    const start = game.toFirstRound();
+    game.send({ type: 'tick' }, start + 25_000);
+    expect(hints(game)).toBe(0);
+  });
+
+  it('shows no hint once someone found', () => {
+    const game = twoPlayers({ roundSeconds: 30 });
+    const start = game.toFirstRound();
+    guess(game, 'p1', 'orange', start + 17_000);
+    game.send({ type: 'tick' }, start + 18_000);
+    expect(hints(game)).toBe(0);
+  });
+
+  it('treats a room saved without the setting as hints on', () => {
+    const game = twoPlayers();
+    const start = game.toFirstRound();
+    game.send({ type: 'tick' }, start + 18_000);
+    expect(hints(game)).toBe(1);
+  });
+
+  it('makes an answer after the hint worth 150 less', () => {
+    const game = twoPlayers({ roundSeconds: 30 });
+    const start = game.toFirstRound();
+    game.send({ type: 'tick' }, start + 18_000);
+    expect(guess(game, 'p1', 'orange', start + 19_000)).toMatchObject({
+      ok: true,
+      data: { verdict: 'correct', points: roundValueAt(19_000, HINT.cost) },
+    });
+  });
+
+  it("scores a partial answer at 30 %, ends that player's round, keeps them out of the ranking", () => {
+    const game = twoPlayers({ roundSeconds: 30 });
+    const start = game.toFirstRound(false, films);
+    game.state.players.p1!.streak = 3;
+    expect(guess(game, 'p1', 'pirates des caraibes', start + 3_000)).toMatchObject({
+      ok: true,
+      data: { verdict: 'partial', points: partialValue(roundValueAt(3_000)) },
+    });
+    expect(game.state.round!.answerOrder).toEqual([]);
+    expect(game.state.round!.perPlayer.p1).toMatchObject({ partial: true });
+    expect(game.state.players.p1!.streak).toBe(0);
+    expect(guess(game, 'p1', 'orange', start + 4_000)).toMatchObject({ ok: false });
+  });
+
+  it('gives a partial answer 30 % of the next rank in fixed scoring', () => {
+    const game = twoPlayers({ roundSeconds: 30, scoring: 'fixed' });
+    const start = game.toFirstRound(false, films);
+    guess(game, 'p2', 'orange', start + 1_000);
+    expect(guess(game, 'p1', 'Pirates des Caraïbes', start + 2_000)).toMatchObject({
+      ok: true,
+      data: { verdict: 'partial', points: partialValue(800) },
+    });
+    expect(game.state.round!.answerOrder).toEqual(['p2']);
+  });
+
+  it('lets the hint fire after a partial answer', () => {
+    const game = new Game({ mode: 'private', roundSeconds: 30 });
+    game.send({ type: 'join', playerId: 'p2', nickname: 'Moussa' }, T0);
+    game.send({ type: 'join', playerId: 'p3', nickname: 'Lina' }, T0);
+    const start = game.toFirstRound(false, films);
+    guess(game, 'p1', 'Pirates des Caraïbes', start + 2_000);
+    game.send({ type: 'tick' }, start + 18_000);
+    expect(hints(game)).toBe(1);
+  });
+
+  it('ends the round early when everyone answered partially, and breaks every streak', () => {
+    const game = twoPlayers({ roundSeconds: null });
+    const start = game.toFirstRound(false, films);
+    for (const id of ['p1', 'p2']) game.state.players[id]!.streak = 2;
+    guess(game, 'p1', 'Pirates des Caraïbes', start + 2_000);
+    guess(game, 'p2', 'Pirates des Caraibes', start + 3_000);
+    game.send({ type: 'tick' }, start + 3_000 + 1_500);
+    expect(game.state.phase).toBe('reveal');
+    expect(game.state.players.p1!.streak).toBe(0);
+    expect(game.state.players.p2!.streak).toBe(0);
+  });
+
+  it('ignores secondary answers in multiple-choice rooms', () => {
+    const game = new Game({ answerMode: 'mcq' });
+    const start = game.toFirstRound(true, films);
+    expect(guess(game, 'p1', 'Pirates des Caraïbes', start + 2_000)).toMatchObject({ ok: false });
+  });
+
+  it('records partial answers apart in the round history', () => {
+    const game = new Game({ roundSeconds: 30 });
+    const start = game.toFirstRound(false, films);
+    guess(game, 'p1', 'Pirates des Caraïbes', start + 2_000);
+    expect(game.state.history?.at(-1)).toMatchObject({ found: 0, partial: 1 });
   });
 });

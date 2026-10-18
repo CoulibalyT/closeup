@@ -307,3 +307,21 @@ describe('stealing', () => {
     expect(shielded.state.players.p1!.score).toBe(0);
   });
 });
+
+describe('bonuses and the room hint', () => {
+  it('refuses the initials and category bonuses once the room hint is shown, and stops drawing them', () => {
+    const party = new Party();
+    const [initials, category] = party.give('p1', 'initials', 'category');
+    party.send({ type: 'tick' }, party.start + 18_000);
+    expect(party.state.round!.hintAt).toBeDefined();
+    expect(party.use('p1', initials!, 19_000)).toMatchObject({
+      ok: false,
+      error: { code: 'ALREADY_SHOWN' },
+    });
+    expect(party.use('p1', category!, 19_000)).toMatchObject({
+      ok: false,
+      error: { code: 'ALREADY_SHOWN' },
+    });
+    expect(party.inventory('p1')).toEqual(['initials', 'category']);
+  });
+});

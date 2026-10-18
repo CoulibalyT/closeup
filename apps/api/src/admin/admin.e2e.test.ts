@@ -283,6 +283,56 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('back-office', () => {
     await send('PUT', `/admin/cards/${card.id}/live`, { live: true });
   });
 
+  it('keeps a hint and partial answers per language, and refuses a hint that gives the answer', async () => {
+    const base = {
+      category: 'OBJECT',
+      difficulty: 2,
+      isPerson: false,
+      credit: { author: 'Awa Diop', licence: 'CC BY 4.0', sourceUrl: 'https://example.org/t' },
+    };
+    const leaking = await send('PUT', `/admin/cards/${card.id}`, {
+      ...base,
+      answers: {
+        fr: { text: 'grille-pain', aliases: ['toaster'], hint: 'Un grille-pain chromé' },
+        en: { text: 'toaster', aliases: [] },
+      },
+    });
+    expect(leaking.status).toBe(400);
+    expect(await leaking.json()).toMatchObject({ code: 'HINT_GIVES_ANSWER' });
+
+    const saved = await send('PUT', `/admin/cards/${card.id}`, {
+      ...base,
+      answers: {
+        fr: {
+          text: 'grille-pain',
+          aliases: ['toaster'],
+          hint: 'Électroménager du petit-déjeuner',
+          secondary: ['tartine'],
+        },
+        en: { text: 'toaster', aliases: [], hint: 'Breakfast appliance' },
+      },
+    });
+    expect(await saved.json()).toMatchObject({
+      answers: {
+        fr: { hint: 'Électroménager du petit-déjeuner', secondary: ['tartine'] },
+        en: { hint: 'Breakfast appliance', secondary: [] },
+      },
+    });
+
+    const decks = app.get(DeckService);
+    await send('PUT', `/admin/packs/${pack.id}/visibility`, { visibility: 'PUBLIC' });
+    await send('PUT', `/admin/cards/${card.id}/live`, { live: true });
+    const fr = await decks.load(card.id, 'fr', 'text');
+    expect(fr).toMatchObject({
+      hint: { text: 'Électroménager du petit-déjeuner' },
+      secondary: [{ text: 'tartine', aliases: [] }],
+    });
+    expect((await decks.load(card.id, 'en', 'text'))?.hint).toEqual({
+      text: 'Breakfast appliance',
+    });
+    await send('PUT', `/admin/packs/${pack.id}/visibility`, { visibility: 'PRIVATE' });
+  });
+
   it('takes a disabled pack out of the game at the next round, without a deploy', async () => {
     const decks = app.get(DeckService);
     expect(await decks.load(card.id, 'fr', 'text')).toBeNull();

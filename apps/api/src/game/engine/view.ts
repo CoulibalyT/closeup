@@ -1,4 +1,6 @@
 import {
+  type RoundHint,
+  roundHintSchema,
   bonusGrantedSchema,
   type BonusUseReply,
   bonusUseReplySchema,
@@ -81,6 +83,20 @@ export const maskInitials = (answer: string): string =>
 /** Zoom level a player sees: the room's, plus what their bonuses unlocked. */
 const levelOf = (round: RoundState, playerId: string): number =>
   Math.min(ZOOM.maxLevel, round.level + (round.perPlayer[playerId]?.bonusLevels ?? 0));
+
+/**
+ * The room's hint, the same for everyone: the card's written hint, or its category and the
+ * masked initials of the answer. Only once it was shown.
+ */
+export function roundHintOf(round: RoundState): RoundHint | undefined {
+  if (round.hintAt === undefined) return undefined;
+  const text = round.card.hint?.text?.trim();
+  return roundHintSchema.parse(
+    text
+      ? { text }
+      : { category: round.card.category, initials: maskInitials(round.card.reveal.answer) },
+  );
+}
 
 /** What a player's self bonuses revealed. Derived here, from secrets that stay on the server. */
 function hintsOf(round: RoundState, playerId: string, sign: Sign): Hints {
@@ -229,6 +245,7 @@ export function eventToWire(
           scoring: state.settings.scoring ?? 'decay',
           display: displayOf(state),
           roundSeconds: roundSecondsOf(state),
+          hints: state.settings.hints ?? true,
           packIds: state.settings.packIds ?? [],
         }),
       };
@@ -300,8 +317,11 @@ export function eventToWire(
           playerId: event.playerId,
           points: event.points,
           order: event.order,
+          partial: event.partial,
         }),
       };
+    case 'roundHint':
+      return { event: ServerEvent.roundHint, payload: roundHintOf(round) };
     case 'roundEnd':
       return { event: ServerEvent.roundEnd, payload: roundEnd(state, round, sign) };
     case 'personalLevel':
@@ -386,6 +406,7 @@ export function toSnapshot(
     scoring: state.settings.scoring ?? 'decay',
     display: displayOf(state),
     roundSeconds: roundSecondsOf(state),
+    hints: state.settings.hints ?? true,
     inventory: me?.inventory ?? [],
     shielded: me?.shielded ?? false,
     round: showRound
@@ -405,6 +426,8 @@ export function toSnapshot(
           seated: mine !== undefined,
           answered: mine?.answeredAt !== undefined,
           points: mine?.points,
+          hint: roundHintOf(round),
+          partial: mine?.partial,
           penalty: mine?.penalty ?? 0,
           lockedUntil: mine?.lockedUntil,
         }

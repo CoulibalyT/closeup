@@ -138,3 +138,32 @@ describe('bulk contract', () => {
     );
   });
 });
+
+describe('hints and partial answers', () => {
+  it('turns hints on by default, and accepts a partial verdict', async () => {
+    const { roomSettingsSchema } = await import('./rest.js');
+    const { guessReplySchema, roundHintSchema } = await import('./events.js');
+    expect(roomSettingsSchema.parse({ rounds: 10, answerMode: 'text' }).hints).toBe(true);
+    expect(guessReplySchema.parse({ verdict: 'partial', points: 90 }).verdict).toBe('partial');
+    expect(roundHintSchema.parse({ text: 'Actrice — Barbie' }).text).toBe('Actrice — Barbie');
+    expect(() => roundHintSchema.parse({ text: 'x', extra: 1 })).toThrow();
+  });
+
+  it('takes a hint and secondary answers per language in the card editor', async () => {
+    const { cardInputSchema } = await import('./admin.js');
+    const card = cardInputSchema.parse({
+      category: 'CELEBRITY',
+      difficulty: 2,
+      isPerson: true,
+      answers: { fr: { text: 'Johnny Depp' }, en: { text: 'Johnny Depp' } },
+      credit: { author: 'Ann', licence: 'CC BY 4.0', sourceUrl: '' },
+    });
+    expect(card.answers.fr).toMatchObject({ hint: '', secondary: [] });
+    expect(() =>
+      cardInputSchema.parse({
+        ...card,
+        answers: { ...card.answers, fr: { text: 'x', secondary: Array(13).fill('y') } },
+      }),
+    ).toThrow();
+  });
+});

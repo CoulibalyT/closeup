@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { editDistance, matchAnswer, normalise } from './matching.js';
+import { editDistance, matchAnswer, matchSecondary, normalise } from './matching.js';
 
 const orange = { primary: { text: 'orange', aliases: [] } };
 const chat = {
@@ -126,5 +126,24 @@ describe('matchAnswer', () => {
     it('never blocks the right answer', () => {
       expect(matchAnswer('poule', poule, new Set(['poule']))).toBe('correct');
     });
+  });
+});
+
+describe('matchSecondary', () => {
+  const films = [{ text: 'Pirates des Caraïbes', aliases: ['Pirates of the Caribbean'] }];
+
+  it('accepts a secondary answer with the same tolerance as the full one', () => {
+    expect(matchSecondary('pirates des caraibes', films)).toBe(true);
+    expect(matchSecondary('pirates des caraïbe', films)).toBe(true);
+    expect(matchSecondary('Pirates of the Caribbean', films)).toBe(true);
+    expect(matchSecondary('johnny', films)).toBe(false);
+    expect(matchSecondary('pirates', [])).toBe(false);
+  });
+
+  it("never makes a secondary answer a full one, even when it is another card's answer", () => {
+    const answers = { primary: { text: 'Johnny Depp', aliases: [] } };
+    const lexicon = new Set(['pirates des caraibes']);
+    expect(matchAnswer('Pirates des Caraïbes', answers, lexicon)).toBe('wrong');
+    expect(matchSecondary('Pirates des Caraïbes', films)).toBe(true);
   });
 });

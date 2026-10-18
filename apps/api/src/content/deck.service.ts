@@ -82,6 +82,10 @@ export class DeckService {
       },
       crops,
       category: card.category,
+      ...(primary.hint ? { hint: { text: primary.hint } } : {}),
+      ...(primary.secondary.length
+        ? { secondary: primary.secondary.map((text) => ({ text, aliases: [] })) }
+        : {}),
       secondZone: second && {
         cropId: second.id,
         focus: { x: second.focusX, y: second.focusY },

@@ -116,7 +116,7 @@ describe('a malus in a snapshot', () => {
 
 describe('fixed points', () => {
   it('pays by order of arrival, whatever the clock says', () => {
-    const party = new Party({ fixed: true });
+    const party = new Party({ fixed: true, hints: false });
     expect(party.guess('p2', 25_000)).toMatchObject({ data: { points: 1000 } });
     expect(party.guess('p3', 26_000)).toMatchObject({ data: { points: 800 } });
     expect(party.guess('p1', 29_000)).toMatchObject({ data: { points: 600 } });

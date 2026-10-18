@@ -119,6 +119,10 @@ export interface AdminPack extends PackInput {
 const answerSchema = z.strictObject({
   text: z.string().trim().max(80),
   aliases: z.array(z.string().trim().min(1).max(80)).max(12).default([]),
+  /** Shown to the room when nobody found. Must not contain the answer (checked by the server). */
+  hint: z.string().trim().max(80).default(''),
+  /** Films, clubs, songs… of the person: worth 30 % of the points. */
+  secondary: z.array(z.string().trim().min(1).max(80)).max(12).default([]),
 });
 
 export const cardInputSchema = z.strictObject({

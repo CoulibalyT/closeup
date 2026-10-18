@@ -92,7 +92,10 @@
     "seconds": "{n} s",
     "secondsSummary": "{n}-second rounds.",
     "untimed": "No clock",
-    "untimedHint": "No countdown: the round lasts until everyone has answered, or the host skips. Points still go down with time."
+    "untimedHint": "No countdown: the round lasts until everyone has answered, or the host skips. Points still go down with time.",
+    "hints": "Automatic hints",
+    "hintsHint": "If nobody has found at 60 % of the time, a hint shows for everyone (the answer is then worth 150 points less).",
+    "hintsOn": "Automatic hints."
   },
   "ranking": {
     "found": "found it",
@@ -119,7 +122,8 @@
       "TARGET_BUSY": "Someone is already on that player. You keep your bonus.",
       "TARGET_INVALID": "That player cannot be targeted. You keep your bonus.",
       "BAD_PHASE": "This bonus would be of no use right now. You keep it.",
-      "other": "The bonus could not be played."
+      "other": "The bonus could not be played.",
+      "ALREADY_SHOWN": "The hint is already showing for everyone. You keep your bonus."
     }
   },
   "feed": {
@@ -136,7 +140,8 @@
       "streak": "Bonus earned: {bonus} (3 correct answers in a row)",
       "fastest": "Bonus earned: {bonus} (fastest of the round)",
       "catchup": "Bonus earned: {bonus} (a hand for whoever is last)"
-    }
+    },
+    "partial": "{name} found a clue to the answer (+{points})"
   },
   "category": {
     "CELEBRITY": "celebrity",
@@ -167,7 +172,8 @@
     "feedback": {
       "close": "Almost. Check the spelling or give the full name.",
       "wrong": "That's not it.",
-      "rate_limited": "Easy, one answer at a time."
+      "rate_limited": "Easy, one answer at a time.",
+      "partial": "A clue to the answer"
     },
     "nextRound": "You play from the next round.",
     "full": "This game is full.",
@@ -179,7 +185,9 @@
     "lookUp": "The picture is on the big screen",
     "screenGone": "The big screen is disconnected. Open it again to see the picture.",
     "skip": "Skip",
-    "giveUp": "I give up"
+    "giveUp": "I give up",
+    "hint": "Hint",
+    "partial": "Good one, that is a clue to the answer: +{points}. Waiting for the others."
   },
   "reveal": {
     "found": "Found +{points}",
@@ -609,7 +617,15 @@
     "locked": "not publishable",
     "lockedHint": "This pack cannot be made public: its images are not yours. It plays in its owner’s games.",
     "unlockRights": "I confirm I hold the rights to every image in this pack, and I know their authors and licences.",
-    "unlock": "Make publishable"
+    "unlock": "Make publishable",
+    "hintTitle": "Hint and partial answers",
+    "hintHelp": "The hint shows to everyone if nobody has found at 60 % of the time. It must not contain the answer. Partial answers (films, clubs, songs…) earn 30 % of the points.",
+    "hintFr": "Hint (French)",
+    "hintEn": "Hint (English)",
+    "hintGivesAnswer": "The hint contains the answer: rephrase it.",
+    "secondaryFr": "Partial answers (French)",
+    "secondaryEn": "Partial answers (English)",
+    "secondaryHelp": "Comma-separated: “Pirates of the Caribbean, Edward Scissorhands”."
   },
   "status": {
     "title": "{appName} status",

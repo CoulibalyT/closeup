@@ -92,7 +92,10 @@
     "seconds": "{n} s",
     "secondsSummary": "Manches de {n} secondes.",
     "untimed": "Sans chrono",
-    "untimedHint": "Pas de compte à rebours : la manche dure jusqu’à ce que tout le monde ait répondu, ou que l’hôte passe. Les points baissent quand même avec le temps."
+    "untimedHint": "Pas de compte à rebours : la manche dure jusqu’à ce que tout le monde ait répondu, ou que l’hôte passe. Les points baissent quand même avec le temps.",
+    "hints": "Indices automatiques",
+    "hintsHint": "Si personne n’a trouvé à 60 % du temps, un indice s’affiche pour tous (la réponse vaut alors 150 points de moins).",
+    "hintsOn": "Indices automatiques."
   },
   "ranking": {
     "found": "a trouvé",
@@ -119,7 +122,8 @@
       "TARGET_BUSY": "Quelqu'un s'occupe déjà de ce joueur. Tu gardes ton bonus.",
       "TARGET_INVALID": "Ce joueur ne peut pas être visé. Tu gardes ton bonus.",
       "BAD_PHASE": "Ce bonus ne servirait à rien maintenant. Tu le gardes.",
-      "other": "Le bonus n'a pas pu être joué."
+      "other": "Le bonus n'a pas pu être joué.",
+      "ALREADY_SHOWN": "L’indice est déjà affiché pour tout le monde. Tu gardes ton bonus."
     }
   },
   "feed": {
@@ -136,7 +140,8 @@
       "streak": "Bonus gagné : {bonus} (3 bonnes réponses d'affilée)",
       "fastest": "Bonus gagné : {bonus} (le plus rapide)",
       "catchup": "Bonus gagné : {bonus} (coup de pouce au dernier)"
-    }
+    },
+    "partial": "{name} a trouvé un indice de la réponse (+{points})"
   },
   "category": {
     "CELEBRITY": "célébrité",
@@ -167,7 +172,8 @@
     "feedback": {
       "close": "Presque. Vérifie l'orthographe ou donne le nom complet.",
       "wrong": "Ce n'est pas ça.",
-      "rate_limited": "Doucement, une réponse à la fois."
+      "rate_limited": "Doucement, une réponse à la fois.",
+      "partial": "Indice de la réponse"
     },
     "nextRound": "Tu joues à la prochaine manche.",
     "full": "Cette partie est complète.",
@@ -179,7 +185,9 @@
     "lookUp": "L'image est sur le grand écran",
     "screenGone": "Le grand écran est déconnecté. Rouvre-le pour voir l'image.",
     "skip": "Passer",
-    "giveUp": "Je donne ma langue"
+    "giveUp": "Je donne ma langue",
+    "hint": "Indice",
+    "partial": "Bien vu, c’est un indice de la réponse : +{points}. On attend les autres."
   },
   "reveal": {
     "found": "Trouvé +{points}",
@@ -609,7 +617,15 @@
     "locked": "non publiable",
     "lockedHint": "Ce pack ne peut pas être rendu public : ses images ne sont pas à toi. Il se joue dans les parties de son propriétaire.",
     "unlockRights": "Je confirme détenir les droits sur toutes les images de ce pack, et je connais leurs auteurs et licences.",
-    "unlock": "Rendre publiable"
+    "unlock": "Rendre publiable",
+    "hintTitle": "Indice et réponses partielles",
+    "hintHelp": "L’indice est montré à tous si personne n’a trouvé à 60 % du temps. Il ne doit pas contenir la réponse. Les réponses partielles (films, clubs, chansons…) rapportent 30 % des points.",
+    "hintFr": "Indice (français)",
+    "hintEn": "Indice (anglais)",
+    "hintGivesAnswer": "L’indice contient la réponse : reformule-le.",
+    "secondaryFr": "Réponses partielles (français)",
+    "secondaryEn": "Réponses partielles (anglais)",
+    "secondaryHelp": "Séparées par des virgules : « Pirates des Caraïbes, Edward aux mains d’argent »."
   },
   "status": {
     "title": "État de {appName}",

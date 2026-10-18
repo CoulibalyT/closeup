@@ -34,6 +34,8 @@ const line = computed(() => {
       return t('feed.stolenPoints', { ...names, amount: entry.amount });
     case 'blocked':
       return t('feed.blocked', names);
+    case 'partial':
+      return t('feed.partial', { name: names.from, points: entry.amount });
     default:
       return '';
   }

@@ -7,7 +7,7 @@ import type {
   Malus,
   ScoringMode,
 } from '@closeup/shared';
-import type { CardAnswers, Verdict } from './matching.js';
+import type { AnswerSet, CardAnswers, Verdict } from './matching.js';
 
 /**
  * Server-side state of a room. It holds secrets (answers, card ids, the correct option) and must
@@ -30,6 +30,8 @@ export interface RoomSettings {
   display?: DisplayMode;
   /** Packs the host picked. The reducer never reads it either: the deck is built outside. */
   packIds?: string[];
+  /** A hint for everyone when nobody found at 60 % of the round. Absent in old rooms: on. */
+  hints?: boolean;
   /** Length of a round in seconds, `null` without a clock. Absent in rooms saved before: 30. */
   roundSeconds?: number | null;
 }
@@ -70,6 +72,10 @@ export interface EngineCard {
   category?: string;
   /** Closest crop of *another* zoom point of the same image, for the "second zone" bonus. */
   secondZone?: CropInfo;
+  /** The written hint in the room's language. Without one, the view shows category and initials. */
+  hint?: { text?: string };
+  /** Partial answers (films, clubs, songs of the person), worth 30 %. Typed-answer rooms only. */
+  secondary?: AnswerSet[];
 }
 
 export interface PlayerState {
@@ -102,6 +108,8 @@ export interface RoundSummary {
   found: number;
   /** Sum of the times to find, over those who found. */
   foundMsTotal: number;
+  /** Players who answered with a secondary answer: kept apart from `found`. */
+  partial?: number;
 }
 
 export interface ActiveMalus {
@@ -119,6 +127,8 @@ export interface RoundPlayerState {
   lastGuessAt?: number;
   /** Zoom levels unlocked with a bonus, on top of the automatic schedule. */
   bonusLevels?: number;
+  /** Answered with a secondary answer: out of the round, out of the ranking. */
+  partial?: true;
   /** One malus per target at a time. */
   effect?: ActiveMalus;
   /** Who takes a share of what this player scores this round. */
@@ -146,6 +156,8 @@ export interface RoundState {
   answerOrder: string[];
   /** Set once every connected player has answered. */
   endsEarlyAt?: number;
+  /** When the room's hint was shown; absent while it was not. */
+  hintAt?: number;
 }
 
 export interface RoomState {
@@ -216,7 +228,8 @@ export type EngineEvent =
   | { type: 'roundPrepare' }
   | { type: 'roundStart' }
   | { type: 'roundLevel'; level: number }
-  | { type: 'playerAnswered'; playerId: string; points: number; order: number }
+  | { type: 'playerAnswered'; playerId: string; points: number; order?: number; partial?: true }
+  | { type: 'roundHint' }
   | { type: 'roundEnd' }
   | { type: 'gameEnd' }
   /** Sent to one player: their zoom level moved without the rest of the room (zoom-out bonus). */
@@ -254,7 +267,7 @@ export type Reply =
   | { ok: false; error: { code: ErrorCode; message: string } };
 
 export interface GuessReply {
-  verdict: Exclude<Verdict, 'empty'> | 'rate_limited';
+  verdict: Exclude<Verdict, 'empty'> | 'rate_limited' | 'partial';
   points?: number;
 }
 

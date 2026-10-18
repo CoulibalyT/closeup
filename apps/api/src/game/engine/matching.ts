@@ -79,6 +79,20 @@ function closeBound(length: number): number {
 }
 
 /**
+ * Whether a guess names one of the card's secondary answers (a film, a club…), with the same
+ * tolerance as the full answer. No lexicon here: a film may well be another card's answer, and
+ * on this card it is only ever a partial answer.
+ */
+export function matchSecondary(guess: string, sets: readonly AnswerSet[]): boolean {
+  if (!sets.length) return false;
+  return (
+    matchAnswer(guess, {
+      primary: { text: '', aliases: sets.flatMap((s) => [s.text, ...s.aliases]) },
+    }) === 'correct'
+  );
+}
+
+/**
  * @param lexicon normalised answers of the *other* cards in play. A guess that is exactly one of
  *   them is a different word, not a typo: "boule" must not pass for "poule".
  */

@@ -42,6 +42,8 @@ export const ServerEvent = {
   roundPrepare: 'round:prepare',
   roundStart: 'round:start',
   roundLevel: 'round:level',
+  /** The room's hint, to everyone, when nobody found late in the round. */
+  roundHint: 'round:hint',
   roundPlayerAnswered: 'round:player:answered',
   roundEffect: 'round:effect',
   roundSteal: 'round:steal',
@@ -186,7 +188,10 @@ export const roundPlayerAnsweredSchema = z.strictObject({
   roundId: idSchema,
   playerId: idSchema,
   points: z.int(),
-  order: z.int().positive(),
+  /** Rank among full answers; absent for a partial answer, which takes no rank. */
+  order: z.int().positive().optional(),
+  /** Found one of the card's secondary answers (a film of the person…): 30 % of the points. */
+  partial: z.boolean().optional(),
 });
 export type RoundPlayerAnswered = z.infer<typeof roundPlayerAnsweredSchema>;
 
@@ -247,6 +252,17 @@ export const bonusGrantedSchema = z.strictObject({
   reason: z.enum(['streak', 'fastest', 'catchup', 'stolen']),
 });
 export type BonusGranted = z.infer<typeof bonusGrantedSchema>;
+
+/**
+ * The room's hint, to everyone at once. The card's written hint, or, when it has none, its
+ * category and the masked initials of the answer (the client translates the category).
+ */
+export const roundHintSchema = z.strictObject({
+  text: z.string().max(80).optional(),
+  category: z.string().optional(),
+  initials: z.string().optional(),
+});
+export type RoundHint = z.infer<typeof roundHintSchema>;
 
 /** What a self bonus revealed, kept in the snapshot so that a reconnection does not lose it. */
 export const hintsSchema = z.strictObject({
@@ -311,6 +327,7 @@ export const roomStateSchema = z.strictObject({
   display: displayModeSchema,
   /** Length of a round in seconds, `null` without a clock (no countdown is shown). */
   roundSeconds: z.int().positive().nullable(),
+  hints: z.boolean(),
   phase: phaseSchema,
   /** `null` while a room opened from a big screen waits for its first player. */
   hostId: idSchema.nullable(),
@@ -343,6 +360,10 @@ export const roomStateSchema = z.strictObject({
       penalty: z.int(),
       lockedUntil: z.number().optional(),
       hints: hintsSchema,
+      /** The room's hint, once shown. */
+      hint: roundHintSchema.optional(),
+      /** The viewer answered with a secondary answer. */
+      partial: z.boolean().optional(),
       /** The malus currently hitting the viewer, if any. */
       effect: z.strictObject({ type: malusSchema, from: idSchema, until: z.number() }).optional(),
     })
@@ -352,7 +373,8 @@ export const roomStateSchema = z.strictObject({
 export type RoomStateView = z.infer<typeof roomStateSchema>;
 
 export const guessReplySchema = z.strictObject({
-  verdict: z.enum(['correct', 'close', 'wrong', 'rate_limited']),
+  /** `partial`: one of the card's secondary answers (a film of the person…), worth 30 %. */
+  verdict: z.enum(['correct', 'partial', 'close', 'wrong', 'rate_limited']),
   points: z.int().optional(),
 });
 export type GuessReply = z.infer<typeof guessReplySchema>;
@@ -392,6 +414,7 @@ export const roomSettingsEventSchema = z.strictObject({
   scoring: scoringModeSchema,
   display: displayModeSchema,
   roundSeconds: z.int().positive().nullable(),
+  hints: z.boolean(),
   packIds: z.array(idSchema),
 });
 export type RoomSettingsEvent = z.infer<typeof roomSettingsEventSchema>;

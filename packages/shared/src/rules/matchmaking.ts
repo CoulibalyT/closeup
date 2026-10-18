@@ -52,6 +52,7 @@ export const PUBLIC_SETTINGS = {
   display: 'phones',
   // Strangers play the short classic round.
   roundSeconds: 30,
+  hints: true,
 } as const;
 
 export const queueKey = (language: Locale): string => `closeup:mm:${language}`;

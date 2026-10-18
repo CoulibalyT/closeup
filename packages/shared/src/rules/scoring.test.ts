@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fixedRoundValue, roundValue, roundValueAt } from './scoring.js';
+import { fixedRoundValue, roundValue, partialValue, roundValueAt } from './scoring.js';
 
 describe('fixedRoundValue', () => {
   it('pays by order of arrival, not by the clock', () => {
@@ -52,5 +52,20 @@ describe('roundValueAt', () => {
 
   it('ignores negative penalties', () => {
     expect(roundValueAt(0, -300)).toBe(1000);
+  });
+});
+
+describe('hints and partial answers', () => {
+  it('lowers the value after the hint, in both modes, never below the floor', () => {
+    const at = { elapsedMs: 0, foundBefore: 0, decayMs: 30_000, afterHint: true };
+    expect(roundValue({ scoring: 'decay', ...at })).toBe(850);
+    expect(roundValue({ scoring: 'fixed', ...at, foundBefore: 1 })).toBe(650);
+    expect(roundValue({ scoring: 'fixed', ...at, foundBefore: 9, penalty: 400 })).toBe(100);
+  });
+
+  it('gives 30 % for a partial answer, on the step, never below the floor', () => {
+    expect(partialValue(1000)).toBe(300);
+    expect(partialValue(570)).toBe(170);
+    expect(partialValue(200)).toBe(100);
   });
 });

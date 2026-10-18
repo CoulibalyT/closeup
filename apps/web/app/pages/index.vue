@@ -94,6 +94,7 @@ const createParty = () =>
         scoring: 'decay',
         display: 'phones',
         roundSeconds: DEFAULT_ROUND_SECONDS,
+        hints: true,
         packIds: [],
       },
       locale.value as 'fr' | 'en',
@@ -113,6 +114,7 @@ const openScreen = () =>
         scoring: 'decay',
         display: 'bigscreen',
         roundSeconds: DEFAULT_ROUND_SECONDS,
+        hints: true,
         packIds: [],
       },
       locale.value as 'fr' | 'en',
@@ -133,6 +135,7 @@ const playSolo = () =>
       scoring: scoring.value,
       display: 'phones' as const,
       roundSeconds: DEFAULT_ROUND_SECONDS,
+      hints: true,
       packIds: [],
     };
     return `/play/${await game.createRoom('solo', settings, locale.value as 'fr' | 'en')}`;

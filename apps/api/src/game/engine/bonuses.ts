@@ -45,8 +45,11 @@ export const isFrozen = (mine: RoundPlayerState, now: number): boolean =>
 /** Types that can be drawn in this room: no attacks alone, no "remove two" on typed answers. */
 function drawable(state: RoomState): BonusType[] {
   const attacks = state.mode !== 'solo';
+  // Once the room's hint is out, initials and category would show what everyone already sees.
+  const hintShown = state.round?.hintAt !== undefined;
   return BONUS_TYPES.filter((type) => {
     if (type === 'removeTwo') return state.settings.answerMode === 'mcq';
+    if (hintShown && (type === 'initials' || type === 'category')) return false;
     return attacks || (SELF_BONUSES as readonly string[]).includes(type);
   });
 }
@@ -138,6 +141,7 @@ export function selfBonus(
       };
     case 'initials':
     case 'category':
+      if (round.hintAt !== undefined) return refuse('ALREADY_SHOWN', 'The room hint is showing');
       if (revealed[type] || (type === 'category' && !round.card.category)) {
         return refuse('BAD_PHASE', 'Nothing more to reveal');
       }

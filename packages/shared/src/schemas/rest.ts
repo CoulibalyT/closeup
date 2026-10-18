@@ -35,6 +35,8 @@ export const roomSettingsSchema = z.strictObject({
   scoring: z.enum(SCORING_MODES).default('decay'),
   /** The host may still change it in the lobby, like the rest. */
   display: z.enum(DISPLAY_MODES).default('phones'),
+  /** A hint for everyone when nobody found at 60 % of the round. */
+  hints: z.boolean().default(true),
   /** Length of a round in seconds; `null` is "Sans chrono". */
   roundSeconds: z
     .union([z.literal(30), z.literal(45), z.literal(60), z.literal(90), z.null()])

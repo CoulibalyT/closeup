@@ -54,6 +54,11 @@ export const SCORING = {
   fixedByRank: [1000, 800, 600, 500],
 } as const;
 
+/** The hint shown to the room when nobody found: an answer after it is worth `cost` less. */
+export const HINT = { cost: 150 } as const;
+/** A partial answer (a film, a club, a song of the person) is worth this share of a full one. */
+export const PARTIAL = { share: 0.3 } as const;
+
 export const SCORING_MODES = ['decay', 'fixed'] as const;
 export type ScoringMode = (typeof SCORING_MODES)[number];
 

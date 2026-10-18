@@ -23,6 +23,8 @@ export const ERROR_CODES = [
   'NO_SCREEN',
   'NOT_HOST',
   'BAD_PHASE',
+  // A self bonus that would show what the room hint already shows.
+  'ALREADY_SHOWN',
   'RATE_LIMITED',
   'LOCKED',
   'FROZEN',

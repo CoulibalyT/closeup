@@ -28,6 +28,7 @@ import type { Prisma } from '../generated/prisma/client.js';
 import { MediaTokens } from '../media/media-tokens.js';
 import { STORAGE, type StorageDriver, storageKeys } from '../media/storage.js';
 import { MEDIA_QUEUE, MediaJob } from '../pipeline/media-queue.js';
+import { givesAnswer } from '../content/hint-guard.js';
 import { PrismaService } from '../prisma/prisma.module.js';
 
 const cardInclude = {
@@ -190,7 +191,17 @@ export class AdminContentService {
 
   async updateCard(id: string, input: CardInput, actor: SessionUser): Promise<AdminCard> {
     await this.requireCard(id);
-    const answers = (['fr', 'en'] as const).map((locale) => ({ locale, ...input.answers[locale] }));
+    for (const locale of ['fr', 'en'] as const) {
+      const { hint } = input.answers[locale];
+      // Checked against both languages: an English hint must not name the French answer either.
+      if (hint && (['fr', 'en'] as const).some((l) => givesAnswer(hint, input.answers[l]))) {
+        throw new BadRequestException({ code: 'HINT_GIVES_ANSWER' });
+      }
+    }
+    const answers = (['fr', 'en'] as const).map((locale) => {
+      const { hint, ...rest } = input.answers[locale];
+      return { locale, ...rest, hint: hint || null };
+    });
 
     await this.prisma.$transaction([
       this.prisma.cardAnswer.deleteMany({ where: { cardId: id } }),
@@ -349,7 +360,12 @@ export class AdminContentService {
   private cardView(card: CardRow): AdminCard {
     const answer = (locale: string) => {
       const row = card.answers.find((a) => a.locale === locale);
-      return { text: row?.text ?? '', aliases: row?.aliases ?? [] };
+      return {
+        text: row?.text ?? '',
+        aliases: row?.aliases ?? [],
+        hint: row?.hint ?? '',
+        secondary: row?.secondary ?? [],
+      };
     };
     return {
       id: card.id,
