@@ -40,9 +40,9 @@ const LABELS: Record<string, { fr?: string; en?: string }> = {
   Q9999: { fr: 'éléphant', en: 'elephant' },
   Q7378: { fr: 'éléphant', en: 'elephant' },
   Q997601: { fr: 'Persona Testa', en: 'Persona Testa' },
-  Q998001: { fr: 'tournevis', en: 'screwdriver' },
+  Q998001: { fr: 'zorglouf', en: 'screwdriver' },
   Q998002: { fr: 'Elephant', en: 'elephant' },
-  Q998003: { fr: 'pince', en: 'pliers' },
+  Q998003: { fr: 'plimpe', en: 'pliers' },
 };
 
 function fakeWikimedia(picture: Buffer): WikimediaApi {
@@ -462,7 +462,7 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('mass import', () => {
             category: 'OBJECT',
             source: 'UPLOAD',
             status: 'LIVE',
-            answers: { create: [{ locale: 'fr', text: 'tournevis', aliases: [] }] },
+            answers: { create: [{ locale: 'fr', text: 'zorglouf', aliases: [] }] },
           },
         },
       },
@@ -479,7 +479,7 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('mass import', () => {
             category: 'OBJECT',
             source: 'UPLOAD',
             status: 'PROCESSING',
-            answers: { create: [{ locale: 'fr', text: 'pince', aliases: [] }] },
+            answers: { create: [{ locale: 'fr', text: 'plimpe', aliases: [] }] },
           },
         },
       },
@@ -498,9 +498,9 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('mass import', () => {
       include: { answers: true },
     });
     expect(made.map((card) => card.answers.find((a) => a.locale === 'fr')?.text)).toEqual([
-      'tournevis',
+      'zorglouf',
     ]);
-    // "Elephant" is the hand pack's "éléphant"; "pince" is in flight in the house pack.
+    // "Elephant" is the hand pack's "éléphant"; "plimpe" is in flight in the house pack.
     expect((await current()).skipReasons).toMatchObject({ DUPLICATE_ANSWER: 2 });
     await settled(runId);
     await prisma.pack.deleteMany({ where: { id: { in: [mine.id, house.id] } } });
