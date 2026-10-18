@@ -5,6 +5,7 @@ import { normalise } from '../game/engine/matching.js';
 import type { AnswerMode, EngineCard } from '../game/engine/types.js';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { chooseDistractors, pickWeighted, shuffle } from './distractors.js';
+import { oneCardPerSubject } from './subjects.js';
 import { type DeckScope, playableWhere } from './playable.js';
 
 /** Phones get the small crops; the big screen (phase 4) will ask for the large ones. */
@@ -23,9 +24,10 @@ export class DeckService {
   async build(rounds: number, scope: DeckScope): Promise<Deck> {
     const cards = await this.prisma.card.findMany({
       where: playableWhere(scope),
-      select: { id: true, answers: { select: { text: true, aliases: true } } },
+      select: { id: true, slug: true, answers: { select: { text: true, aliases: true } } },
     });
-    const picked = shuffle(cards, Math.random).slice(0, rounds);
+    // Never two photos of the same person in one game.
+    const picked = oneCardPerSubject(shuffle(cards, Math.random)).slice(0, rounds);
     const lexicon = picked.flatMap((card) =>
       card.answers.flatMap((answer) => [answer.text, ...answer.aliases].map(normalise)),
     );
