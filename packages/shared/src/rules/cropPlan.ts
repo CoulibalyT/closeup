@@ -1,4 +1,4 @@
-import { ZOOM } from '../constants/game.js';
+import { type Difficulty, ZOOM } from '../constants/game.js';
 import type { FaceDetection } from '../schemas/admin.js';
 import type { Point } from './face.js';
 import { cropSidePx } from './zoom.js';
@@ -38,9 +38,14 @@ export interface FaceLandmarks {
 
 /**
  * Views of a face, in eye distances, after the opening detail: an eye (or the detail) with the
- * nose, then both eyes, then the eyes and the nose. Each view shows something the last did not.
+ * nose, then both eyes, then the eyes and the nose. Tight on purpose (wider ones gave the answer
+ * away), and tighter as the room gets harder.
  */
-const FACE_SIDES = [1.6, 2.1, 2.7];
+export const FACE_SIDES: Record<Difficulty, readonly [number, number, number]> = {
+  easy: [1.15, 1.5, 2.0],
+  normal: [1.0, 1.3, 1.7],
+  hard: [0.9, 1.15, 1.5],
+};
 /** A view at least this much wider than the previous one, or it would not read as a zoom-out. */
 const MIN_GROWTH = 1.15;
 
@@ -61,6 +66,7 @@ export function faceOf(detection: FaceDetection | null | undefined): FaceLandmar
 function views(
   point: ZoomPointGeometry,
   face: FaceLandmarks | null,
+  difficulty: Difficulty,
 ): { at: Point; side: number }[] {
   const first = { at: point, side: cropSidePx(point.baseRadius, 0) };
   const d = face ? distance(face.leftEye, face.rightEye) : 0;
@@ -82,7 +88,7 @@ function views(
   const centres = [mid(point, partner), eyes, mid(eyes, face.nose)];
   const out: { at: Point; side: number }[] = [first];
   for (const [i, at] of centres.entries()) {
-    out.push({ at, side: Math.max(FACE_SIDES[i]! * d, out[i]!.side * MIN_GROWTH) });
+    out.push({ at, side: Math.max(FACE_SIDES[difficulty][i]! * d, out[i]!.side * MIN_GROWTH) });
   }
   return out;
 }
@@ -98,9 +104,10 @@ export function cropPlan(
   image: ImageSize,
   point: ZoomPointGeometry,
   face: FaceLandmarks | null = null,
+  difficulty: Difficulty = 'normal',
 ): PlannedCrop[] {
   const plan: PlannedCrop[] = [];
-  for (const [level, view] of views(point, face)
+  for (const [level, view] of views(point, face, difficulty)
     .slice(0, ZOOM.maxLevel + 1)
     .entries()) {
     const side = Math.round(Math.min(view.side, image.width, image.height));

@@ -1,5 +1,13 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { cropPlan, type FaceDetection, faceOf, publishBlockers, ZOOM } from '@closeup/shared';
+import {
+  cropPlan,
+  DIFFICULTIES,
+  type Difficulty,
+  type FaceDetection,
+  faceOf,
+  publishBlockers,
+  ZOOM,
+} from '@closeup/shared';
 import sharp from 'sharp';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.module.js';
@@ -77,39 +85,48 @@ export class CropService {
     // A face's wider views are framed on its eyes and nose, whatever point the round opens on.
     const face = faceOf(card.detection as FaceDetection | null);
     let crops = 0;
+    // A face is framed once per room difficulty; anything else once, as `normal`.
+    const variants: Difficulty[] = face ? [...DIFFICULTIES] : ['normal'];
     for (const point of card.zoomPoints) {
-      for (const planned of cropPlan(image, point, face)) {
-        // A size larger than its source would only store blur.
-        const sizes = ZOOM.cropSizesPx.filter((px, i) => i === 0 || planned.side >= px);
-        for (const sizePx of sizes) {
-          const data = await sharp(original)
-            .extract({
-              left: planned.left,
-              top: planned.top,
-              width: planned.side,
-              height: planned.side,
-            })
-            .resize(sizePx, sizePx)
-            .webp({ quality: 82 })
-            .toBuffer();
-          const storageKey = storageKeys.crop(point.id, planned.level, sizePx);
-          await this.storage.put(storageKey, data);
+      for (const variant of variants) {
+        for (const planned of cropPlan(image, point, face, variant)) {
+          // A size larger than its source would only store blur.
+          const sizes = ZOOM.cropSizesPx.filter((px, i) => i === 0 || planned.side >= px);
+          for (const sizePx of sizes) {
+            const data = await sharp(original)
+              .extract({
+                left: planned.left,
+                top: planned.top,
+                width: planned.side,
+                height: planned.side,
+              })
+              .resize(sizePx, sizePx)
+              .webp({ quality: 82 })
+              .toBuffer();
+            const storageKey = storageKeys.crop(point.id, planned.level, sizePx, variant);
+            await this.storage.put(storageKey, data);
 
-          const row = {
-            storageKey,
-            focusX: planned.focusX,
-            focusY: planned.focusY,
-            scaleFromPrev: planned.scaleFromPrev,
-            bytes: data.length,
-          };
-          await this.prisma.crop.upsert({
-            where: {
-              zoomPointId_level_sizePx: { zoomPointId: point.id, level: planned.level, sizePx },
-            },
-            create: { zoomPointId: point.id, level: planned.level, sizePx, ...row },
-            update: row,
-          });
-          crops++;
+            const row = {
+              storageKey,
+              focusX: planned.focusX,
+              focusY: planned.focusY,
+              scaleFromPrev: planned.scaleFromPrev,
+              bytes: data.length,
+            };
+            await this.prisma.crop.upsert({
+              where: {
+                zoomPointId_level_sizePx_variant: {
+                  zoomPointId: point.id,
+                  level: planned.level,
+                  sizePx,
+                  variant,
+                },
+              },
+              create: { zoomPointId: point.id, level: planned.level, sizePx, variant, ...row },
+              update: row,
+            });
+            crops++;
+          }
         }
       }
     }

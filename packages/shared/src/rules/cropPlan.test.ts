@@ -64,16 +64,23 @@ describe('cropPlan on a face', () => {
 
   it('opens on the detail, then an eye and the nose, then both eyes, then the eyes and the nose', () => {
     const plan = cropPlan(big, eye, face);
-    expect(plan.map((c) => c.side)).toEqual([75, 160, 210, 270]);
+    // Normal: 1, 1.3 and 1.7 eye distances after the opening detail.
+    expect(plan.map((c) => c.side)).toEqual([75, 100, 130, 170]);
     expect(Math.abs(centre(plan[0]!).x - 950)).toBeLessThanOrEqual(1);
     expect(Math.abs(centre(plan[0]!).y - 900)).toBeLessThanOrEqual(1);
-    expect(Math.abs(centre(plan[1]!).x - 975)).toBeLessThanOrEqual(1);
-    expect(Math.abs(centre(plan[1]!).y - 931)).toBeLessThanOrEqual(1);
-    expect(Math.abs(centre(plan[2]!).x - 1000)).toBeLessThanOrEqual(1);
-    // Nudged down a little: the eye-and-nose view before it stays whole inside.
-    expect(Math.abs(centre(plan[2]!).y - 900)).toBeLessThanOrEqual(10);
-    expect(Math.abs(centre(plan[3]!).x - 1000)).toBeLessThanOrEqual(1);
-    expect(Math.abs(centre(plan[3]!).y - 931)).toBeLessThanOrEqual(1);
+    // Each wider view moves towards its landmarks as far as keeping the last one whole allows.
+    expect(centre(plan[1]!).x).toBeGreaterThan(950);
+    expect(centre(plan[1]!).y).toBeGreaterThan(900);
+    expect(centre(plan[2]!).x).toBeGreaterThan(centre(plan[1]!).x);
+    expect(Math.abs(centre(plan[3]!).x - 1000)).toBeLessThanOrEqual(15);
+    expect(Math.abs(centre(plan[3]!).y - 931)).toBeLessThanOrEqual(15);
+  });
+
+  it('frames easy wider and hard tighter, from the same opening detail', () => {
+    const sides = (difficulty: 'easy' | 'normal' | 'hard') =>
+      cropPlan(big, eye, face, difficulty).map((c) => c.side);
+    expect(sides('easy')).toEqual([75, 115, 150, 200]);
+    expect(sides('hard')).toEqual([75, 90, 115, 150]);
   });
 
   it('pairs the nose with an eye, and keeps every view inside the next one', () => {
@@ -105,6 +112,7 @@ describe('cropPlan on a face', () => {
   it('frames a point that is not on this face the usual way', () => {
     const elsewhere = { x: 300, y: 300, baseRadius: 50 };
     expect(cropPlan(big, elsewhere, face)).toEqual(cropPlan(big, elsewhere));
+    expect(cropPlan(big, elsewhere, face, 'hard')).toEqual(cropPlan(big, elsewhere));
   });
 
   it('reads the eyes and the nose from a detection, and nothing from no detection', () => {

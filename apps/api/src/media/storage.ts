@@ -19,8 +19,11 @@ export const storageKeys = {
   incoming: (uploadId: string) => `incoming/${uploadId}`,
   original: (imageId: string, extension: string) => `originals/${imageId}.${extension}`,
   reveal: (imageId: string) => `reveal/${imageId}.webp`,
-  crop: (zoomPointId: string, level: number, sizePx: number) =>
-    `crops/${zoomPointId}/${level}-${sizePx}.webp`,
+  /** `normal` keeps the path crops always had; a face's other difficulties get a folder each. */
+  crop: (zoomPointId: string, level: number, sizePx: number, variant = 'normal') =>
+    variant === 'normal'
+      ? `crops/${zoomPointId}/${level}-${sizePx}.webp`
+      : `crops/${zoomPointId}/${variant}/${level}-${sizePx}.webp`,
 };
 
 export class LocalStorage implements StorageDriver {

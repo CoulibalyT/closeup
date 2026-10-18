@@ -307,8 +307,11 @@ model Crop {
   focusY        Float
   scaleFromPrev Float?
   bytes         Int
+  /// The room difficulty these views are framed for (a face is cut once per difficulty).
+  /// Anything else is cut once, as `normal`, and served whatever the difficulty.
+  variant       String    @default("normal")
 
-  @@unique([zoomPointId, level, sizePx])
+  @@unique([zoomPointId, level, sizePx, variant])
 }
 
 /// Personal best in solo training, per configuration (answer mode and number of rounds).

@@ -12,6 +12,7 @@ import {
 } from '@closeup/shared';
 import { normalise } from '../game/engine/matching.js';
 import type { AnswerMode, EngineCard } from '../game/engine/types.js';
+import { viewsFor } from './views.js';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { chooseDistractors, pickWeighted, shuffle } from './distractors.js';
 import { oneCardPerSubject } from './subjects.js';
@@ -64,7 +65,11 @@ export class DeckService {
     });
     if (!card?.image?.revealKey) return null;
 
-    const playable = card.zoomPoints.filter((point) => point.crops.length > ZOOM.maxLevel);
+    // Each point with the views framed for this difficulty (a face is cut once per difficulty).
+    const playable = card.zoomPoints.flatMap((point) => {
+      const views = viewsFor(point.crops, difficulty);
+      return views ? [{ ...point, crops: views }] : [];
+    });
     // The room's difficulty decides where a face may open; the second zone may be anywhere.
     const face = faceOf(card.detection as FaceDetection | null);
     const point = pickWeighted(startPoints(playable, difficulty, face), Math.random);
@@ -79,13 +84,11 @@ export class DeckService {
     );
     const second = elsewhere?.crops.find((crop) => crop.level === 0);
 
-    const crops = [...point.crops]
-      .sort((a, b) => a.level - b.level)
-      .map((crop) => ({
-        cropId: crop.id,
-        focus: { x: crop.focusX, y: crop.focusY },
-        scaleFromPrev: crop.scaleFromPrev,
-      }));
+    const crops = point.crops.map((crop) => ({
+      cropId: crop.id,
+      focus: { x: crop.focusX, y: crop.focusY },
+      scaleFromPrev: crop.scaleFromPrev,
+    }));
 
     return {
       cardId: card.id,
