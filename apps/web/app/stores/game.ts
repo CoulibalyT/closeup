@@ -43,6 +43,8 @@ import {
   roundPrepareSchema,
   roundStartSchema,
   ServerEvent,
+  DEFAULT_ROUND_SECONDS,
+  type RoundSeconds,
 } from '@closeup/shared';
 import { defineStore } from 'pinia';
 import type { Socket } from 'socket.io-client';
@@ -69,7 +71,8 @@ interface LiveRound {
   roundId: string;
   index: number;
   startsAt: number;
-  endsAt: number;
+  /** `null` without a clock. */
+  endsAt: number | null;
   options?: McqOption[];
 }
 
@@ -106,6 +109,8 @@ export const useGameStore = defineStore('game', () => {
   /** Points each of them scored this round, as announced by the server. */
   const roundGains = ref<Record<string, number>>({});
   const scoring = ref<ScoringMode>('decay');
+  /** Length of a round in seconds, `null` without a clock. */
+  const roundSeconds = ref<RoundSeconds | null>(DEFAULT_ROUND_SECONDS);
   /** Packs the host picked. Empty: every public pack. */
   const packIds = ref<string[]>([]);
   /** The viewer's own bonuses. Other players only ever show a count. */
@@ -253,6 +258,7 @@ export const useGameStore = defineStore('game', () => {
     players.value = view.players;
     answerMode.value = view.answerMode;
     scoring.value = view.scoring;
+    roundSeconds.value = view.roundSeconds as RoundSeconds | null;
     inventory.value = view.inventory;
     shielded.value = view.shielded;
     totalRounds.value = view.totalRounds;
@@ -301,6 +307,7 @@ export const useGameStore = defineStore('game', () => {
       const settings = roomSettingsEventSchema.parse(raw);
       answerMode.value = settings.answerMode;
       scoring.value = settings.scoring;
+      roundSeconds.value = settings.roundSeconds as RoundSeconds | null;
       display.value = settings.display;
       packIds.value = settings.packIds;
       totalRounds.value = settings.rounds;
@@ -550,6 +557,11 @@ export const useGameStore = defineStore('game', () => {
     return null;
   }
 
+  /** A round without a clock ends when the host says so (solo: when the player gives up). */
+  async function skipRound(): Promise<void> {
+    if (round.value) await send(ClientEvent.roundSkip, { roundId: round.value.roundId });
+  }
+
   async function next(): Promise<void> {
     if (round.value) await send(ClientEvent.revealSkip, { roundId: round.value.roundId });
   }
@@ -597,6 +609,8 @@ export const useGameStore = defineStore('game', () => {
     answeredIds,
     roundGains,
     scoring,
+    roundSeconds,
+    skipRound,
     packIds,
     playablePacks,
     inventory,

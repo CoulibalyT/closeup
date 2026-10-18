@@ -12,6 +12,21 @@ export const ROUND = {
   earlyEndGraceMs: 1_500,
 } as const;
 
+/** The lengths a host can choose for a round, in seconds; or none (`null`, "Sans chrono"). */
+export const ROUND_SECONDS = [30, 45, 60, 90] as const;
+export type RoundSeconds = (typeof ROUND_SECONDS)[number];
+/** Rooms a host makes: long enough for a table to think. Public matchmaking keeps 30. */
+export const DEFAULT_ROUND_SECONDS: RoundSeconds = 60;
+
+/** A round without a clock: zoom and hint on a fixed schedule, points still reward speed. */
+export const UNTIMED = {
+  levelAtMs: [0, 15_000, 30_000],
+  hintAtMs: 30_000,
+  /** The value goes from 1000 to 200 over this, then stays at 200. */
+  decayMs: 90_000,
+  safetyMs: 600_000,
+} as const;
+
 export const ZOOM = {
   /**
    * Crop side = 2 × baseRadius × multiplier. For people baseRadius is half the distance between

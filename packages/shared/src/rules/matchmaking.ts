@@ -50,6 +50,8 @@ export const PUBLIC_SETTINGS = {
   answerMode: 'text',
   scoring: 'decay',
   display: 'phones',
+  // Strangers play the short classic round.
+  roundSeconds: 30,
 } as const;
 
 export const queueKey = (language: Locale): string => `closeup:mm:${language}`;

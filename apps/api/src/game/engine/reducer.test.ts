@@ -19,13 +19,18 @@ class Game {
     mode?: 'solo' | 'private';
     answerMode?: 'text' | 'mcq';
     rounds?: number;
+    roundSeconds?: 30 | 45 | 60 | 90 | null;
   }) {
     this.state = createRoom({
       code: 'AB2CD',
       mode: options.mode ?? 'solo',
       host: { id: 'p1', nickname: 'Awa' },
       language: 'fr',
-      settings: { rounds: options.rounds ?? 2, answerMode: options.answerMode ?? 'text' },
+      settings: {
+        rounds: options.rounds ?? 2,
+        answerMode: options.answerMode ?? 'text',
+        ...(options.roundSeconds !== undefined ? { roundSeconds: options.roundSeconds } : {}),
+      },
       lexicon: [],
     });
     // A private room needs two players to start; the second one never answers on its own.
@@ -134,6 +139,89 @@ describe('the clock of a round', () => {
     game.send({ type: 'tick' }, start + 4_000);
     expect(game.state.round!.level).toBe(0);
     expect(game.state.wakeAt).toBe(start + 10_000);
+  });
+});
+
+describe('the length of a round', () => {
+  it("zooms out and ends on the room's own schedule", () => {
+    const game = new Game({ mode: 'private', roundSeconds: 60 });
+    const start = game.toFirstRound();
+    expect(game.state.wakeAt).toBe(start + 20_000);
+    game.send({ type: 'tick' }, start + 20_000);
+    expect(game.state.round!.level).toBe(1);
+    game.send({ type: 'tick' }, start + 40_000);
+    expect(game.state.round!.level).toBe(2);
+    expect(game.state.wakeAt).toBe(start + 60_000);
+    game.send({ type: 'tick' }, start + 59_999);
+    expect(game.state.phase).toBe('playing');
+    game.send({ type: 'tick' }, start + 60_000);
+    expect(game.state.phase).toBe('reveal');
+  });
+
+  it("scores over the room's length", () => {
+    const game = new Game({ roundSeconds: 60 });
+    const start = game.toFirstRound();
+    const { reply } = game.send(
+      { type: 'guess', playerId: 'p1', roundId: game.roundId, text: 'orange' },
+      start + 30_000,
+    );
+    expect(reply).toMatchObject({ ok: true, data: { verdict: 'correct', points: 600 } });
+  });
+
+  it('plays a room saved before the setting as 30 seconds', () => {
+    const game = new Game({ mode: 'private' });
+    const start = game.toFirstRound();
+    expect(game.state.round!.endsAt).toBe(start + 30_000);
+  });
+
+  it('never ends a round without a clock on time, and zooms out at 15 and 30 s', () => {
+    const game = new Game({ mode: 'private', roundSeconds: null });
+    const start = game.toFirstRound();
+    expect(game.state.round!.endsAt).toBeNull();
+    game.send({ type: 'tick' }, start + 30_000);
+    expect(game.state.round!.level).toBe(2);
+    game.send({ type: 'tick' }, start + 9 * 60_000);
+    expect(game.state.phase).toBe('playing');
+  });
+
+  it('ends a round without a clock after the 10-minute safety', () => {
+    const game = new Game({ mode: 'private', roundSeconds: null });
+    const start = game.toFirstRound();
+    expect(game.state.wakeAt).toBe(start + 15_000);
+    game.send({ type: 'tick' }, start + 30_000);
+    expect(game.state.wakeAt).toBe(start + 600_000);
+    game.send({ type: 'tick' }, start + 600_000);
+    expect(game.state.phase).toBe('reveal');
+  });
+
+  it('lets only the host skip a round, and a solo player give up', () => {
+    const party = new Game({ mode: 'private', roundSeconds: null });
+    const start = party.toFirstRound();
+    expect(party.send({ type: 'skipRound', playerId: 'p2' }, start + 5_000).reply).toMatchObject({
+      ok: false,
+      error: { code: 'NOT_HOST' },
+    });
+    expect(party.send({ type: 'skipRound', playerId: 'p1' }, start + 5_000).reply.ok).toBe(true);
+    expect(party.state.phase).toBe('reveal');
+    expect(party.send({ type: 'skipRound', playerId: 'p1' }, start + 6_000).reply).toMatchObject({
+      ok: false,
+      error: { code: 'BAD_PHASE' },
+    });
+
+    const solo = new Game({ roundSeconds: null });
+    const soloStart = solo.toFirstRound();
+    expect(solo.send({ type: 'skipRound', playerId: 'p1' }, soloStart + 5_000).reply.ok).toBe(true);
+    expect(solo.state.phase).toBe('reveal');
+  });
+
+  it('decays the value over 90 s without a clock, then keeps 200', () => {
+    const game = new Game({ roundSeconds: null });
+    const start = game.toFirstRound();
+    const { reply } = game.send(
+      { type: 'guess', playerId: 'p1', roundId: game.roundId, text: 'orange' },
+      start + 120_000,
+    );
+    expect(reply).toMatchObject({ ok: true, data: { verdict: 'correct', points: 200 } });
   });
 });
 

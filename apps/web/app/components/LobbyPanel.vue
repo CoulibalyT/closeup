@@ -7,6 +7,8 @@ import {
   ROOM,
   SCORING_MODES,
   type ScoringMode,
+  ROUND_SECONDS,
+  type RoundSeconds,
 } from '@closeup/shared';
 import { renderSVG } from 'uqr';
 
@@ -53,12 +55,13 @@ const draft = reactive({
   answerMode: game.answerMode,
   scoring: game.scoring,
   display: game.display,
+  roundSeconds: game.roundSeconds,
   packIds: [...game.packIds],
 });
 watch(
-  () => [game.totalRounds, game.answerMode, game.scoring, game.display] as const,
-  ([rounds, answerMode, scoring, display]) =>
-    Object.assign(draft, { rounds, answerMode, scoring, display }),
+  () => [game.totalRounds, game.answerMode, game.scoring, game.display, game.roundSeconds] as const,
+  ([rounds, answerMode, scoring, display, roundSeconds]) =>
+    Object.assign(draft, { rounds, answerMode, scoring, display, roundSeconds }),
 );
 watch(
   () => game.packIds,
@@ -85,6 +88,10 @@ function setDisplay(display: DisplayMode): void {
 }
 function setScoring(scoring: ScoringMode): void {
   draft.scoring = scoring;
+  void game.updateSettings({ ...draft });
+}
+function setRoundSeconds(roundSeconds: RoundSeconds | null): void {
+  draft.roundSeconds = roundSeconds;
   void game.updateSettings({ ...draft });
 }
 function setRounds(rounds: number): void {
@@ -262,6 +269,21 @@ const screenMissing = computed(() => bigScreen.value && game.screens === 0);
           </label>
           <p class="muted hint">{{ t(`home.scoringHint.${draft.scoring}`) }}</p>
         </fieldset>
+        <fieldset>
+          <legend>{{ t('lobby.roundSeconds') }}</legend>
+          <label v-for="seconds in [...ROUND_SECONDS, null]" :key="String(seconds)">
+            <input
+              type="radio"
+              name="lobby-seconds"
+              :checked="draft.roundSeconds === seconds"
+              @change="setRoundSeconds(seconds)"
+            />
+            <span>{{
+              seconds === null ? t('lobby.untimed') : t('lobby.seconds', { n: seconds })
+            }}</span>
+          </label>
+          <p v-if="draft.roundSeconds === null" class="muted hint">{{ t('lobby.untimedHint') }}</p>
+        </fieldset>
       </template>
       <p v-else class="muted">
         {{
@@ -271,6 +293,11 @@ const screenMissing = computed(() => bigScreen.value && game.screens === 0);
           })
         }}
         {{ t(`home.scoringHint.${game.scoring}`) }}
+        {{
+          game.roundSeconds === null
+            ? t('lobby.untimed')
+            : t('lobby.secondsSummary', { n: game.roundSeconds })
+        }}
         <template v-if="bigScreen">{{ t('home.displayHint.bigscreen') }}</template>
       </p>
 

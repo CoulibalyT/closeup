@@ -30,6 +30,8 @@ export interface RoomSettings {
   display?: DisplayMode;
   /** Packs the host picked. The reducer never reads it either: the deck is built outside. */
   packIds?: string[];
+  /** Length of a round in seconds, `null` without a clock. Absent in rooms saved before: 30. */
+  roundSeconds?: number | null;
 }
 
 export interface McqOption {
@@ -133,7 +135,10 @@ export interface RoundState {
   index: number;
   card: EngineCard;
   startsAt: number;
-  endsAt: number;
+  /** `null` without a clock: the round ends when all answered, on a skip, or at `safetyAt`. */
+  endsAt: number | null;
+  /** Without a clock, the latest a round may last. */
+  safetyAt?: number;
   /** Highest automatic zoom level announced so far. */
   level: number;
   perPlayer: Record<string, RoundPlayerState>;
@@ -195,6 +200,8 @@ export type Command =
   | { type: 'guess'; playerId: string; roundId: string; text: string }
   | { type: 'pick'; playerId: string; roundId: string; optionId: string }
   | { type: 'skipReveal'; playerId: string }
+  /** The host ends the round now (a round without a clock); in solo, the player gives up. */
+  | { type: 'skipRound'; playerId: string }
   | { type: 'useBonus'; playerId: string; roundId: string; itemId: string; targetId?: string };
 
 /** Internal events: they reference crops, the presenter turns those into signed URLs. */

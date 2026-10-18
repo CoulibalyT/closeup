@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ROOM, roomCodeSchema } from '@closeup/shared';
+import { ROOM, roomCodeSchema, DEFAULT_ROUND_SECONDS } from '@closeup/shared';
 import { renderSVG } from 'uqr';
 
 /**
@@ -100,6 +100,7 @@ async function reopen(): Promise<void> {
         answerMode: 'text',
         scoring: 'decay',
         display: 'bigscreen',
+        roundSeconds: DEFAULT_ROUND_SECONDS,
         packIds: [],
       },
       locale.value as 'fr' | 'en',
@@ -189,6 +190,7 @@ async function reopen(): Promise<void> {
           :crops="game.crops"
           :starts-at="game.round.startsAt"
           :ends-at="game.round.endsAt"
+          :round-seconds="game.roundSeconds"
           :penalty="0"
           :scoring="game.scoring"
           :found-before="game.answeredIds.length"

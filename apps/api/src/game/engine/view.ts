@@ -26,6 +26,7 @@ import {
   roundStartSchema,
   roundStealSchema,
   ServerEvent,
+  roundTiming,
   ZOOM,
 } from '@closeup/shared';
 import type { EngineEvent, RoomState, RoundState } from './types.js';
@@ -114,8 +115,13 @@ export function bonusReply(state: RoomState, playerId: string, sign: Sign): Bonu
   });
 }
 
-const levelTimes = (round: RoundState): number[] =>
-  ZOOM.autoLevelAtMs.slice(1).map((ms) => round.startsAt + ms);
+const levelTimes = (state: RoomState, round: RoundState): number[] =>
+  roundTiming(state.settings)
+    .levelAtMs.slice(1)
+    .map((ms) => round.startsAt + ms);
+/** A room saved before the setting played 30-second rounds. */
+const roundSecondsOf = (state: RoomState): number | null =>
+  state.settings.roundSeconds === undefined ? 30 : state.settings.roundSeconds;
 
 function cropAt(round: RoundState, level: number, sign: Sign): Crop {
   const info = round.card.crops[level];
@@ -222,6 +228,7 @@ export function eventToWire(
           ...state.settings,
           scoring: state.settings.scoring ?? 'decay',
           display: displayOf(state),
+          roundSeconds: roundSecondsOf(state),
           packIds: state.settings.packIds ?? [],
         }),
       };
@@ -269,7 +276,7 @@ export function eventToWire(
           total: state.totalRounds,
           startsAt: round.startsAt,
           endsAt: round.endsAt,
-          levelAt: levelTimes(round),
+          levelAt: levelTimes(state, round),
           answerMode: state.settings.answerMode,
           crop: withImage ? cropAt(round, 0, sign) : undefined,
           options: round.card.options,
@@ -282,7 +289,7 @@ export function eventToWire(
           roundId: round.id,
           level: event.level,
           crop: withImage ? cropAt(round, event.level, sign) : undefined,
-          at: round.startsAt + (ZOOM.autoLevelAtMs[event.level] ?? 0),
+          at: round.startsAt + (roundTiming(state.settings).levelAtMs[event.level] ?? 0),
         }),
       };
     case 'playerAnswered':
@@ -378,6 +385,7 @@ export function toSnapshot(
     totalRounds: state.totalRounds,
     scoring: state.settings.scoring ?? 'decay',
     display: displayOf(state),
+    roundSeconds: roundSecondsOf(state),
     inventory: me?.inventory ?? [],
     shielded: me?.shielded ?? false,
     round: showRound
@@ -386,7 +394,7 @@ export function toSnapshot(
           index: round.index,
           startsAt: round.startsAt,
           endsAt: round.endsAt,
-          levelAt: levelTimes(round),
+          levelAt: levelTimes(state, round),
           // Nothing of the card before the countdown is over.
           crop: live && seesImage ? cropAt(round, levelOf(round, viewerId ?? ''), sign) : undefined,
           hints: hintsOf(round, viewerId ?? '', sign),

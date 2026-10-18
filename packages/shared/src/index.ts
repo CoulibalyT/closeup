@@ -22,3 +22,4 @@ export * from './rules/parallel.js';
 export * from './rules/publication.js';
 export * from './rules/upload.js';
 export * from './rules/licence.js';
+export * from './rules/timing.js';

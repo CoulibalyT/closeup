@@ -20,6 +20,8 @@ export const ClientEvent = {
   roundPick: 'round:pick',
   bonusUse: 'bonus:use',
   revealSkip: 'reveal:skip',
+  /** The host ends a round without a clock; in solo, the player gives up. */
+  roundSkip: 'round:skip',
   matchmakingJoin: 'mm:join',
   matchmakingLeave: 'mm:leave',
 } as const;
@@ -90,6 +92,7 @@ export const bonusUseSchema = z.object({
 export type BonusUse = z.infer<typeof bonusUseSchema>;
 
 export const revealSkipSchema = z.object({ roundId: idSchema });
+export const roundSkipSchema = z.object({ roundId: idSchema });
 
 /** The queue is per language: matched strangers must be able to read the same answers. */
 export const matchmakingJoinSchema = z.object({
@@ -159,7 +162,8 @@ export const roundStartSchema = z.strictObject({
   index: z.int().min(0),
   total: z.int().positive(),
   startsAt: z.number(),
-  endsAt: z.number(),
+  /** `null` in a round without a clock. */
+  endsAt: z.number().nullable(),
   /** Server times of the automatic zoom-outs. */
   levelAt: z.array(z.number()),
   answerMode: answerModeSchema,
@@ -305,6 +309,8 @@ export const roomStateSchema = z.strictObject({
   answerMode: answerModeSchema,
   scoring: scoringModeSchema,
   display: displayModeSchema,
+  /** Length of a round in seconds, `null` without a clock (no countdown is shown). */
+  roundSeconds: z.int().positive().nullable(),
   phase: phaseSchema,
   /** `null` while a room opened from a big screen waits for its first player. */
   hostId: idSchema.nullable(),
@@ -323,7 +329,8 @@ export const roomStateSchema = z.strictObject({
       roundId: idSchema,
       index: z.int().min(0),
       startsAt: z.number(),
-      endsAt: z.number(),
+      /** `null` in a round without a clock. */
+      endsAt: z.number().nullable(),
       levelAt: z.array(z.number()),
       crop: cropSchema.optional(),
       options: z.array(mcqOptionSchema).optional(),
@@ -384,6 +391,7 @@ export const roomSettingsEventSchema = z.strictObject({
   answerMode: answerModeSchema,
   scoring: scoringModeSchema,
   display: displayModeSchema,
+  roundSeconds: z.int().positive().nullable(),
   packIds: z.array(idSchema),
 });
 export type RoomSettingsEvent = z.infer<typeof roomSettingsEventSchema>;

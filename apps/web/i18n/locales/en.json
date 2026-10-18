@@ -87,7 +87,12 @@
     "packsChoose": "Choose the packs",
     "packsClose": "Done",
     "packCards": "{n} card(s)",
-    "packMine": "yours"
+    "packMine": "yours",
+    "roundSeconds": "Round length",
+    "seconds": "{n} s",
+    "secondsSummary": "{n}-second rounds.",
+    "untimed": "No clock",
+    "untimedHint": "No countdown: the round lasts until everyone has answered, or the host skips. Points still go down with time."
   },
   "ranking": {
     "found": "found it",
@@ -172,7 +177,9 @@
     "secondZoneAlt": "Another part of the same picture",
     "categoryHint": "Category: {category}",
     "lookUp": "The picture is on the big screen",
-    "screenGone": "The big screen is disconnected. Open it again to see the picture."
+    "screenGone": "The big screen is disconnected. Open it again to see the picture.",
+    "skip": "Skip",
+    "giveUp": "I give up"
   },
   "reveal": {
     "found": "Found +{points}",

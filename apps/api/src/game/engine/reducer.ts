@@ -7,6 +7,7 @@ import {
   ROOM,
   ROUND,
   roundValue,
+  roundTiming,
   SELF_BONUSES,
   ZOOM,
 } from '@closeup/shared';
@@ -118,8 +119,8 @@ function advance(state: RoomState, ctx: Context, effects: Effect[]): void {
       state.phase = 'playing';
       emit({ type: 'roundStart' });
     } else if (state.phase === 'playing' && round) {
-      const nextLevelAt = ZOOM.autoLevelAtMs[round.level + 1];
-      const endAt = Math.min(round.endsAt, round.endsEarlyAt ?? Infinity);
+      const nextLevelAt = roundTiming(state.settings).levelAtMs[round.level + 1];
+      const endAt = endOf(round);
       const levelDue =
         nextLevelAt !== undefined && ctx.now >= round.startsAt + nextLevelAt
           ? round.startsAt + nextLevelAt
@@ -164,16 +165,21 @@ function nextWake(state: RoomState): number | null {
   return Number.isFinite(next) ? next : null;
 }
 
+/** When the round ends by itself: its clock, its safety without a clock, or the early end. */
+function endOf(round: RoundState): number {
+  return Math.min(round.endsAt ?? round.safetyAt ?? Infinity, round.endsEarlyAt ?? Infinity);
+}
+
 function nextGameWake(state: RoomState): number | null {
   const round = state.round;
   if (state.phase === 'countdown' && round) return round.startsAt;
   if (state.phase === 'playing' && round) {
-    const nextLevelAt = ZOOM.autoLevelAtMs[round.level + 1];
-    return Math.min(
-      round.endsAt,
-      round.endsEarlyAt ?? Infinity,
+    const nextLevelAt = roundTiming(state.settings).levelAtMs[round.level + 1];
+    const next = Math.min(
+      endOf(round),
       nextLevelAt === undefined ? Infinity : round.startsAt + nextLevelAt,
     );
+    return Number.isFinite(next) ? next : null;
   }
   if (state.phase === 'reveal') return state.revealUntil ?? null;
   return null;
@@ -316,12 +322,14 @@ function dispatch(
       if (!state.awaitingCard) return refuse('BAD_PHASE', 'No card was requested');
       state.awaitingCard = false;
       const startsAt = ctx.now + ROUND.countdownMs;
+      const timing = roundTiming(state.settings);
       state.round = {
         id: ctx.newId(),
         index: state.roundIndex,
         card: command.card,
         startsAt,
-        endsAt: startsAt + ROUND.durationMs,
+        endsAt: timing.durationMs === null ? null : startsAt + timing.durationMs,
+        ...(timing.safetyMs === null ? {} : { safetyAt: startsAt + timing.safetyMs }),
         level: 0,
         perPlayer: Object.fromEntries(Object.keys(state.players).map((id) => [id, { penalty: 0 }])),
         answerOrder: [],
@@ -339,6 +347,13 @@ function dispatch(
     case 'noCardLeft': {
       state.awaitingCard = false;
       endGame(state, effects, emit);
+      return OK;
+    }
+
+    case 'skipRound': {
+      if (command.playerId !== state.hostId) return refuse('NOT_HOST', 'Only the host can skip');
+      if (state.phase !== 'playing' || !state.round) return refuse('BAD_PHASE', 'No round to skip');
+      endRound(state, ctx.now, emit);
       return OK;
     }
 
@@ -456,6 +471,7 @@ function score(
     elapsedMs: now - round.startsAt,
     foundBefore: round.answerOrder.length,
     penalty: mine.penalty,
+    decayMs: roundTiming(state.settings).decayMs,
   });
 
   // A thief set up earlier in the round takes their share of what was just earned.

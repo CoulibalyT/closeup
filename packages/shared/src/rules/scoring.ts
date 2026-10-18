@@ -13,10 +13,12 @@ export function roundValue(input: {
   elapsedMs: number;
   foundBefore: number;
   penalty?: number;
+  /** The room's decay length (`roundTiming(settings).decayMs`). */
+  decayMs: number;
 }): number {
   return input.scoring === 'fixed'
     ? fixedRoundValue(input.foundBefore, input.penalty)
-    : roundValueAt(input.elapsedMs, input.penalty);
+    : roundValueAt(input.elapsedMs, input.penalty, input.decayMs);
 }
 
 /**
@@ -24,9 +26,13 @@ export function roundValue(input: {
  * `penalty` (bonus costs, wrong multiple-choice picks). The API calls this with the time it
  * received the answer; the web app calls it only to display the live value.
  */
-export function roundValueAt(elapsedMs: number, penalty = 0): number {
+export function roundValueAt(
+  elapsedMs: number,
+  penalty = 0,
+  decayMs: number = ROUND.durationMs,
+): number {
   const { startValue, endValue, step, floorValue } = SCORING;
-  const progress = Math.min(1, Math.max(0, elapsedMs / ROUND.durationMs));
+  const progress = Math.min(1, Math.max(0, elapsedMs / decayMs));
   const raw = startValue - (startValue - endValue) * progress - Math.max(0, penalty);
   return Math.max(floorValue, Math.round(raw / step) * step);
 }

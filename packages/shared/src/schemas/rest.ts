@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DISPLAY_MODES, SCORING_MODES } from '../constants/game.js';
+import { DEFAULT_ROUND_SECONDS, DISPLAY_MODES, SCORING_MODES } from '../constants/game.js';
 import { packChoiceSchema } from './packs.js';
 import { idSchema, localeSchema, nicknameSchema, roomCodeSchema } from './common.js';
 import { answerModeSchema, phaseSchema } from './events.js';
@@ -35,6 +35,10 @@ export const roomSettingsSchema = z.strictObject({
   scoring: z.enum(SCORING_MODES).default('decay'),
   /** The host may still change it in the lobby, like the rest. */
   display: z.enum(DISPLAY_MODES).default('phones'),
+  /** Length of a round in seconds; `null` is "Sans chrono". */
+  roundSeconds: z
+    .union([z.literal(30), z.literal(45), z.literal(60), z.literal(90), z.null()])
+    .default(DEFAULT_ROUND_SECONDS),
   /**
    * Which packs to draw from. Empty: every public pack, as before. A host may also pick their
    * own packs, published or not; the server checks that they are theirs.

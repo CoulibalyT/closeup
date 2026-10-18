@@ -17,7 +17,7 @@ describe('fixedRoundValue', () => {
 
 describe('roundValue', () => {
   it('follows the scoring mode of the room', () => {
-    const late = { elapsedMs: 29_000, foundBefore: 0, penalty: 100 };
+    const late = { elapsedMs: 29_000, foundBefore: 0, penalty: 100, decayMs: 30_000 };
     expect(roundValue({ scoring: 'fixed', ...late })).toBe(900);
     expect(roundValue({ scoring: 'decay', ...late })).toBe(130);
   });

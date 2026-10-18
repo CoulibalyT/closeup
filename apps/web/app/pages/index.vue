@@ -6,6 +6,7 @@ import {
   roomCodeSchema,
   SCORING_MODES,
   type ScoringMode,
+  DEFAULT_ROUND_SECONDS,
 } from '@closeup/shared';
 
 const { t, locale, locales } = useI18n();
@@ -92,6 +93,7 @@ const createParty = () =>
         answerMode: 'text',
         scoring: 'decay',
         display: 'phones',
+        roundSeconds: DEFAULT_ROUND_SECONDS,
         packIds: [],
       },
       locale.value as 'fr' | 'en',
@@ -110,6 +112,7 @@ const openScreen = () =>
         answerMode: 'text',
         scoring: 'decay',
         display: 'bigscreen',
+        roundSeconds: DEFAULT_ROUND_SECONDS,
         packIds: [],
       },
       locale.value as 'fr' | 'en',
@@ -129,6 +132,7 @@ const playSolo = () =>
       answerMode: answerMode.value,
       scoring: scoring.value,
       display: 'phones' as const,
+      roundSeconds: DEFAULT_ROUND_SECONDS,
       packIds: [],
     };
     return `/play/${await game.createRoom('solo', settings, locale.value as 'fr' | 'en')}`;

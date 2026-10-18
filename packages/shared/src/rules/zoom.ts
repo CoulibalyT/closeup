@@ -1,9 +1,13 @@
 import { ZOOM } from '../constants/game.js';
 
 /** Zoom level a player sees: the automatic schedule plus the levels they unlocked with bonuses. */
-export function zoomLevelAt(elapsedMs: number, bonusLevels = 0): number {
+export function zoomLevelAt(
+  elapsedMs: number,
+  bonusLevels = 0,
+  levelAtMs: readonly number[] = ZOOM.autoLevelAtMs,
+): number {
   let auto = 0;
-  ZOOM.autoLevelAtMs.forEach((startsAt, level) => {
+  levelAtMs.forEach((startsAt, level) => {
     if (elapsedMs >= startsAt) auto = level;
   });
   return Math.min(ZOOM.maxLevel, auto + Math.max(0, bonusLevels));

@@ -87,7 +87,12 @@
     "packsChoose": "Choisir les packs",
     "packsClose": "Terminer",
     "packCards": "{n} carte(s)",
-    "packMine": "à toi"
+    "packMine": "à toi",
+    "roundSeconds": "Durée d’une manche",
+    "seconds": "{n} s",
+    "secondsSummary": "Manches de {n} secondes.",
+    "untimed": "Sans chrono",
+    "untimedHint": "Pas de compte à rebours : la manche dure jusqu’à ce que tout le monde ait répondu, ou que l’hôte passe. Les points baissent quand même avec le temps."
   },
   "ranking": {
     "found": "a trouvé",
@@ -172,7 +177,9 @@
     "secondZoneAlt": "Une autre zone de la même image",
     "categoryHint": "Catégorie : {category}",
     "lookUp": "L'image est sur le grand écran",
-    "screenGone": "Le grand écran est déconnecté. Rouvre-le pour voir l'image."
+    "screenGone": "Le grand écran est déconnecté. Rouvre-le pour voir l'image.",
+    "skip": "Passer",
+    "giveUp": "Je donne ma langue"
   },
   "reveal": {
     "found": "Trouvé +{points}",

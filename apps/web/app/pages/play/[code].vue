@@ -79,6 +79,7 @@ async function replaySolo(): Promise<void> {
         answerMode: game.answerMode,
         scoring: game.scoring,
         display: 'phones',
+        roundSeconds: game.roundSeconds,
         packIds: [],
       },
       locale.value as 'fr' | 'en',
@@ -138,6 +139,7 @@ async function quit(): Promise<void> {
             :crops="game.crops"
             :starts-at="game.round.startsAt"
             :ends-at="game.round.endsAt"
+            :round-seconds="game.roundSeconds"
             :penalty="game.penalty"
             :scoring="game.scoring"
             :found-before="game.answeredIds.length"
@@ -168,6 +170,14 @@ async function quit(): Promise<void> {
               <template v-else-if="game.scoring === 'fixed'">{{ t('play.worthFixed') }}</template>
               <template v-else>{{ t('play.worthNote') }}</template>
             </p>
+            <button
+              v-if="game.roundSeconds === null && (game.isHost || solo)"
+              type="button"
+              class="button quiet skip"
+              @click="game.skipRound()"
+            >
+              {{ t(solo ? 'play.giveUp' : 'play.skip') }}
+            </button>
             <p v-if="game.hints.initials" class="display initials">{{ game.hints.initials }}</p>
             <p v-if="game.hints.category" class="note">
               {{ t('play.categoryHint', { category: t(`category.${game.hints.category}`) }) }}

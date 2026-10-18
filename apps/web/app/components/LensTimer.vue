@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type Crop, type Malus, ROUND, roundValue, type ScoringMode } from '@closeup/shared';
+import { type Crop, type Malus, roundTiming, roundValue, type ScoringMode } from '@closeup/shared';
 
 /**
  * The one bold element of the interface: a round lens whose ring is the timer. The server sends
@@ -9,7 +9,10 @@ import { type Crop, type Malus, ROUND, roundValue, type ScoringMode } from '@clo
 const props = defineProps<{
   crops: Crop[];
   startsAt: number;
-  endsAt: number;
+  /** `null` without a clock: the ring stays full and never turns red. */
+  endsAt: number | null;
+  /** The room's round length, for the value's decay. */
+  roundSeconds: number | null;
   penalty: number;
   scoring: ScoringMode;
   /** How many players already found: what "fixed points" rooms pay depends on it. */
@@ -33,9 +36,10 @@ let frame = 0;
 
 function tick(): void {
   const now = props.serverNow();
-  const left = Math.max(0, props.endsAt - now);
+  const timing = roundTiming({ roundSeconds: props.roundSeconds });
+  const left = props.endsAt === null ? Infinity : Math.max(0, props.endsAt - now);
   if (!props.frozen) {
-    progress.value = Math.min(1, left / ROUND.durationMs);
+    progress.value = timing.durationMs === null ? 1 : Math.min(1, left / timing.durationMs);
     hot.value = left < HOT_MS;
     emit(
       'value',
@@ -44,6 +48,7 @@ function tick(): void {
         elapsedMs: now - props.startsAt,
         foundBefore: props.foundBefore,
         penalty: props.penalty,
+        decayMs: timing.decayMs,
       }),
     );
   }

@@ -20,6 +20,7 @@ import {
   ok,
   PROTOCOL_VERSION,
   revealSkipSchema,
+  roundSkipSchema,
   ROOM,
   roomJoinSchema,
   roomKickSchema,
@@ -377,6 +378,14 @@ export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
       socket.data.queue = undefined;
     }
     return { ok: true, data: {} };
+  }
+
+  @SubscribeMessage(ClientEvent.roundSkip)
+  onRoundSkip(@ConnectedSocket() socket: GameSocket, @MessageBody() body: unknown): Promise<Reply> {
+    return this.inRoom(socket, (playerId) => ({ type: 'skipRound', playerId }), [
+      roundSkipSchema,
+      body,
+    ]);
   }
 
   @SubscribeMessage(ClientEvent.revealSkip)
