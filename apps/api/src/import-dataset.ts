@@ -1,5 +1,6 @@
 import './config/load-env.js';
 import 'reflect-metadata';
+import { existsSync } from 'node:fs';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 import { DatasetCorrections } from './importer/dataset/corrections.js';
@@ -65,9 +66,21 @@ try {
   const corrections = `${process.env.DATASET_DIR ?? 'data/celebrities'}/corrections.json`;
   if (flag('export-corrections')) {
     const { cards } = await app.get(DatasetCorrections).export(corrections);
-    console.log(`${cards} cartes écrites dans ${corrections}`);
+    // The catalogue's review travels too, in its own file next to it.
+    const bulkFile = corrections.replace(/corrections\.json$/, 'corrections-catalogue.json');
+    const bulk = await app.get(DatasetCorrections).export(bulkFile, 'bulk');
+    console.log(`${cards} cartes écrites dans ${corrections}, ${bulk.cards} dans ${bulkFile}`);
   } else if (flag('apply-corrections')) {
     const r = await app.get(DatasetCorrections).apply(corrections, process.env.OWNER_EMAIL);
+    const bulkFile = corrections.replace(/corrections\.json$/, 'corrections-catalogue.json');
+    const b = existsSync(bulkFile)
+      ? await app.get(DatasetCorrections).apply(bulkFile, process.env.OWNER_EMAIL, 'bulk')
+      : null;
+    if (b) {
+      console.log(
+        `Catalogue : ${b.cards} cartes trouvées · points ${b.points} · niveaux ${b.difficulty} · retirées ${b.off} · absentes de cette base ${b.missing}`,
+      );
+    }
     console.log(
       `${r.cards} cartes lues · points replacés ${r.points} · niveaux changés ${r.difficulty} · retirées ${r.off} · remises en jeu ${r.on} · introuvables ${r.missing}`,
     );

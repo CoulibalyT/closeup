@@ -93,13 +93,27 @@ export const BULK_CLASSES: Record<BulkFamily, BulkClass[]> = {
       where: P31('Q55983715'),
       pack: packs.nature,
     },
-    { key: 'dog-breeds', labelFr: 'Races de chiens', where: P31('Q39367'), pack: packs.nature },
-    { key: 'cat-breeds', labelFr: 'Races de chats', where: P31('Q43577'), pack: packs.nature },
+    // Breeds: the review found most below 80 sitelinks unknown to players (Akbash, Broholmer…).
+    {
+      key: 'dog-breeds',
+      labelFr: 'Races de chiens',
+      where: P31('Q39367'),
+      pack: packs.nature,
+      lastBand: 1,
+    },
+    {
+      key: 'cat-breeds',
+      labelFr: 'Races de chats',
+      where: P31('Q43577'),
+      pack: packs.nature,
+      lastBand: 1,
+    },
     {
       key: 'horse-breeds',
       labelFr: 'Races de chevaux',
       where: P31('Q1160573'),
       pack: packs.nature,
+      lastBand: 1,
     },
     { key: 'fruits', labelFr: 'Fruits', where: P279('Q3314483'), pack: packs.nature },
     { key: 'vegetables', labelFr: 'Légumes', where: P279('Q11004'), pack: packs.nature },
@@ -151,6 +165,8 @@ export const BULK_CLASSES: Record<BulkFamily, BulkClass[]> = {
       labelFr: 'Patrimoine mondial',
       where: '?item wdt:P1435 wd:Q9259 .',
       pack: packs.places,
+      // Heritage sites below 80 sitelinks were mostly fields and ruins nobody names.
+      lastBand: 1,
     },
     { key: 'towers', labelFr: 'Tours', where: P31('Q12518'), pack: packs.places },
     { key: 'castles', labelFr: 'Châteaux', where: P31('Q23413'), pack: packs.places },
@@ -166,7 +182,14 @@ export const BULK_CLASSES: Record<BulkFamily, BulkClass[]> = {
     { key: 'waterfalls', labelFr: 'Cascades', where: P31('Q34038'), pack: packs.places },
     { key: 'volcanoes', labelFr: 'Volcans', where: P31('Q8072'), pack: packs.places },
     { key: 'lakes', labelFr: 'Lacs', where: P31('Q23397'), pack: packs.places },
-    { key: 'national-parks', labelFr: 'Parcs nationaux', where: P31('Q46169'), pack: packs.places },
+    // A park is a forest or a lake on a picture: only the famous ones can be told apart.
+    {
+      key: 'national-parks',
+      labelFr: 'Parcs nationaux',
+      where: P31('Q46169'),
+      pack: packs.places,
+      lastBand: 0,
+    },
     {
       key: 'cities',
       labelFr: 'Grandes villes',

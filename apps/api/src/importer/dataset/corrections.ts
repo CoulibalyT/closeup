@@ -106,8 +106,14 @@ export class DatasetCorrections {
 
     for (const wanted of data.cards) {
       const pack = wanted.pack.replace(/^ds-/, `${prefix}-`);
+      // A catalogue pack is numbered by its run ("bulk-objects-2" here, "-1" there): any pack of
+      // the same family will do, the subject's slug is what identifies the card.
+      const family = /^bulk-(.+)-\d+$/.exec(pack)?.[1];
       const card = await this.prisma.card.findFirst({
-        where: { slug: wanted.slug.replace(/^ds-/, `${prefix}-`), pack: { slug: pack } },
+        where: {
+          slug: wanted.slug.replace(/^ds-/, `${prefix}-`),
+          pack: family ? { slug: { startsWith: `bulk-${family}-` } } : { slug: pack },
+        },
         include: { image: true, zoomPoints: { orderBy: { id: 'asc' } } },
       });
       if (!card?.image || card.status === 'PROCESSING') {
