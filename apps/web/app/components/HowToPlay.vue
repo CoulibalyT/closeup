@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BONUS, MALUSES, SCORING, SELF_BONUSES, STEALS } from '@closeup/shared';
+import { BONUS, type DealingRoom, dealableBonuses, SCORING, SELF_BONUSES } from '@closeup/shared';
 
 /**
  * How a game goes, and what the bonuses do, before a first game. `steps`: three screens a phone
@@ -11,14 +11,22 @@ const props = withDefaults(
     layout?: 'steps' | 'board';
     /** The board without its paragraph, when a full room needs the height. */
     compact?: boolean;
+    /** The room it explains: only the bonuses it deals are shown. */
+    mode?: DealingRoom['mode'];
+    answerMode?: DealingRoom['answerMode'];
+    display?: DealingRoom['display'];
   }>(),
-  { layout: 'steps', compact: false },
+  { layout: 'steps', compact: false, mode: 'private', answerMode: 'mcq', display: 'phones' },
 );
 const emit = defineEmits<{ done: [] }>();
 const { t } = useI18n();
 
-const helpers = SELF_BONUSES;
-const attacks = [...MALUSES, ...STEALS];
+const dealt = computed(() =>
+  dealableBonuses({ mode: props.mode, answerMode: props.answerMode, display: props.display }),
+);
+const isHelper = (type: string) => (SELF_BONUSES as readonly string[]).includes(type);
+const helpers = computed(() => dealt.value.filter(isHelper));
+const attacks = computed(() => dealt.value.filter((type) => !isHelper(type)));
 const rules = {
   start: SCORING.startValue,
   end: SCORING.endValue,
@@ -110,8 +118,8 @@ onMounted(() => props.layout === 'steps' && heading.value?.focus());
           {{ t(`bonus.name.${type}`) }}
         </li>
       </ul>
-      <p class="family attack">{{ t('howto.use.attack') }}</p>
-      <ul class="plain bonuses">
+      <p v-if="attacks.length" class="family attack">{{ t('howto.use.attack') }}</p>
+      <ul v-if="attacks.length" class="plain bonuses">
         <li v-for="type in attacks" :key="type" class="attack">
           <BonusIcon :type="type" />
           {{ t(`bonus.name.${type}`) }}
@@ -147,8 +155,8 @@ onMounted(() => props.layout === 'steps' && heading.value?.focus());
         {{ t(`bonus.name.${type}`) }}
       </li>
     </ul>
-    <p class="family attack">{{ t('howto.use.attack') }}</p>
-    <ul class="plain bonuses">
+    <p v-if="attacks.length" class="family attack">{{ t('howto.use.attack') }}</p>
+    <ul v-if="attacks.length" class="plain bonuses">
       <li v-for="type in attacks" :key="type" class="attack">
         <BonusIcon :type="type" />
         {{ t(`bonus.name.${type}`) }}

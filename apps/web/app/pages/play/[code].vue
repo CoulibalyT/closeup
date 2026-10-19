@@ -399,7 +399,13 @@ async function quit(): Promise<void> {
       :aria-label="t('howto.board.title')"
       @close="howTo.close()"
     >
-      <HowToPlay v-if="howTo.open.value" @done="howTo.close()" />
+      <HowToPlay
+        v-if="howTo.open.value"
+        :mode="game.mode"
+        :answer-mode="game.answerMode"
+        :display="game.display"
+        @done="howTo.close()"
+      />
     </dialog>
   </main>
 </template>

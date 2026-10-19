@@ -220,6 +220,8 @@ async function reopen(): Promise<void> {
           layout="board"
           class="howto-board"
           :compact="game.players.length > 4"
+          :answer-mode="game.answerMode"
+          :display="game.display"
         />
       </aside>
     </section>
