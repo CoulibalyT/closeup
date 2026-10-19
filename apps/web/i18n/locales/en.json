@@ -202,7 +202,13 @@
     "skip": "Skip",
     "giveUp": "I give up",
     "hint": "Hint",
-    "partial": "Good one, that is a clue to the answer: +{points}. Waiting for the others."
+    "partial": "Good one, that is a clue to the answer: +{points}. Waiting for the others.",
+    "privateTitle": "Just for you",
+    "privateViewAlt": "What your bonus shows you of the picture",
+    "controllerPick": "Watch the TV, then choose",
+    "controllerType": "Watch the TV and type your answer",
+    "controllerWait": "The rest happens on the TV.",
+    "foundPoints": "Found it! +{points}"
   },
   "reveal": {
     "found": "Found +{points}",

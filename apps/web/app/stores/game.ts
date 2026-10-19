@@ -139,6 +139,9 @@ export const useGameStore = defineStore('game', () => {
   const penalty = ref(0);
   const lockedUntil = ref<number | null>(null);
   const wrongOptionIds = ref<string[]>([]);
+  /** The option this phone picked and got right, and what its answer earned this round. */
+  const pickedOptionId = ref<string | null>(null);
+  const myRoundPoints = ref<number | null>(null);
   const feedback = ref<Feedback>(null);
   const reveal = ref<RoundEnd | null>(null);
   const end = ref<GameEnd | null>(null);
@@ -238,6 +241,8 @@ export const useGameStore = defineStore('game', () => {
     penalty.value = 0;
     lockedUntil.value = null;
     wrongOptionIds.value = [];
+    pickedOptionId.value = null;
+    myRoundPoints.value = null;
     feedback.value = null;
     roundHint.value = null;
     partialIds.value = [];
@@ -571,7 +576,10 @@ export const useGameStore = defineStore('game', () => {
       optionId,
     });
     if (!ack?.ok) return;
-    if (ack.data.verdict === 'correct') return won(ack.data.points ?? 0);
+    if (ack.data.verdict === 'correct') {
+      pickedOptionId.value = optionId;
+      return won(ack.data.points ?? 0);
+    }
     wrongOptionIds.value.push(optionId);
     penalty.value = ack.data.penalty ?? penalty.value;
     lockedUntil.value = ack.data.lockedUntil ?? null;
@@ -585,6 +593,7 @@ export const useGameStore = defineStore('game', () => {
   function won(points: number, found = true): void {
     answered.value = true;
     feedback.value = null;
+    myRoundPoints.value = points;
     score.value = scoreAtRoundStart + points;
     if (found) foundCount.value += 1;
   }
@@ -684,6 +693,8 @@ export const useGameStore = defineStore('game', () => {
     penalty,
     lockedUntil,
     wrongOptionIds,
+    pickedOptionId,
+    myRoundPoints,
     feedback,
     reveal,
     end,

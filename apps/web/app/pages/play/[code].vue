@@ -35,6 +35,10 @@ const malus = computed(() =>
   game.effect && game.effect.until > clock.value ? game.effect.type : null,
 );
 const frozen = computed(() => malus.value === 'freeze');
+// The option a controller picked right, shown big until the next round.
+const pickedIndex = computed(
+  () => game.round?.options?.findIndex((option) => option.id === game.pickedOptionId) ?? -1,
+);
 const canAnswer = computed(
   () => game.stage === 'playing' && game.seated && !game.answered && !frozen.value,
 );
@@ -153,7 +157,71 @@ async function quit(): Promise<void> {
       <p v-if="controller && !game.screens" class="no-screen" role="status">
         {{ t('play.screenGone') }}
       </p>
-      <section class="stage" :class="{ controller }">
+      <!-- Big-screen mode: the phone is a controller. The image, the room's hint and the ranking
+           are on the TV; here, the time left, what your own bonuses showed you, and big controls. -->
+      <section v-if="controller" class="pad">
+        <TimeBar
+          v-if="game.stage === 'playing' && game.round.endsAt !== null"
+          :starts-at="game.round.startsAt"
+          :ends-at="game.round.endsAt ?? 0"
+          :server-now="game.serverNow"
+        />
+        <p v-if="game.stage === 'countdown'" class="display count">{{ countdown || '' }}</p>
+        <template v-else>
+          <PrivateHints />
+          <p v-if="!game.seated" class="muted prompt">{{ t('play.nextRound') }}</p>
+          <div v-else-if="game.answered" class="done">
+            <template v-if="pickedIndex >= 0">
+              <span class="picked" :style="{ background: `var(--option-${pickedIndex % 4})` }">
+                <OptionMark :index="pickedIndex" />
+              </span>
+              <p class="display">{{ game.round.options?.[pickedIndex]?.label }}</p>
+            </template>
+            <span v-else-if="game.partialPoints === null" class="sign found" aria-hidden="true"
+              >✓</span
+            >
+            <span v-else class="sign partial" aria-hidden="true">≈</span>
+            <p class="display gain">
+              {{
+                game.partialPoints === null
+                  ? t('play.foundPoints', { points: game.myRoundPoints ?? 0 })
+                  : t('play.partial', { points: game.partialPoints })
+              }}
+            </p>
+            <p class="muted">{{ t('play.controllerWait') }}</p>
+          </div>
+          <template v-else>
+            <p class="muted prompt">
+              {{
+                frozen
+                  ? t('play.frozen')
+                  : t(game.answerMode === 'text' ? 'play.controllerType' : 'play.controllerPick')
+              }}
+            </p>
+            <AnswerForm
+              v-if="game.answerMode === 'text'"
+              big
+              :feedback="game.feedback"
+              :disabled="!canAnswer"
+              @guess="game.guess"
+            />
+            <ChoiceGrid
+              v-else
+              big
+              :options="game.round.options ?? []"
+              :wrong-ids="game.wrongOptionIds"
+              :removed-ids="game.hints.removedOptionIds"
+              :locked-until="game.lockedUntil"
+              :disabled="!canAnswer"
+              :server-now="game.serverNow"
+              @pick="game.pick"
+            />
+          </template>
+          <EventFeed />
+          <BonusBar />
+        </template>
+      </section>
+      <section v-else class="stage">
         <ZoomStrip v-if="!controller" :crops="game.crops" :media-url="game.mediaUrl" />
         <div class="view">
           <div v-if="game.stage === 'countdown'" class="lens-box waiting">
@@ -218,40 +286,39 @@ async function quit(): Promise<void> {
         </div>
       </section>
 
-      <EventFeed />
-      <BonusBar />
+      <template v-if="!controller">
+        <EventFeed />
+        <BonusBar />
 
-      <!-- On a controller the ranking is on the shared screen: the phone keeps to the controls. -->
-      <RankingList
-        v-if="!solo && !controller"
-        class="live"
-        :players="game.players"
-        :you="game.you"
-        :found-ids="game.answeredIds"
-        :gains="game.roundGains"
-        :limit="wide ? undefined : 3"
-      />
+        <RankingList
+          v-if="!solo"
+          class="live"
+          :players="game.players"
+          :you="game.you"
+          :found-ids="game.answeredIds"
+          :gains="game.roundGains"
+          :limit="wide ? undefined : 3"
+        />
 
-      <!-- In big-screen mode a blur or a flip cannot touch the shared image: it hits the
-           target's own controls instead. -->
-      <div class="controls" :class="controller ? malus : null">
-        <AnswerForm
-          v-if="game.answerMode === 'text'"
-          :feedback="game.feedback"
-          :disabled="!canAnswer"
-          @guess="game.guess"
-        />
-        <ChoiceGrid
-          v-else
-          :options="game.round.options ?? []"
-          :wrong-ids="game.wrongOptionIds"
-          :removed-ids="game.hints.removedOptionIds"
-          :locked-until="game.lockedUntil"
-          :disabled="!canAnswer"
-          :server-now="game.serverNow"
-          @pick="game.pick"
-        />
-      </div>
+        <div class="controls">
+          <AnswerForm
+            v-if="game.answerMode === 'text'"
+            :feedback="game.feedback"
+            :disabled="!canAnswer"
+            @guess="game.guess"
+          />
+          <ChoiceGrid
+            v-else
+            :options="game.round.options ?? []"
+            :wrong-ids="game.wrongOptionIds"
+            :removed-ids="game.hints.removedOptionIds"
+            :locked-until="game.lockedUntil"
+            :disabled="!canAnswer"
+            :server-now="game.serverNow"
+            @pick="game.pick"
+          />
+        </div>
+      </template>
     </template>
 
     <RevealPanel
@@ -338,6 +405,59 @@ async function quit(): Promise<void> {
 </template>
 
 <style scoped>
+/* ---- a controller's round ---- */
+.pad {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: calc(100dvh - 48px);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.pad .count {
+  margin: auto;
+  font-size: 96px;
+}
+.pad .prompt {
+  margin: 0 var(--space-3);
+  text-align: center;
+}
+.pad .done {
+  display: grid;
+  flex: 1;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  text-align: center;
+}
+.pad .done p {
+  margin: 0;
+}
+.picked,
+.pad .sign {
+  --mark-size: 56px;
+  display: grid;
+  place-items: center;
+  width: 112px;
+  height: 112px;
+  border-radius: 28px;
+  color: #ffffff;
+  font-size: 60px;
+  font-weight: 800;
+}
+.pad .sign.found {
+  border-radius: 50%;
+  background: var(--good);
+}
+.pad .sign.partial {
+  border-radius: 50%;
+  background: var(--option-2);
+}
+.pad .gain {
+  font-size: 26px;
+}
+
 .howto-open {
   display: block;
   min-height: var(--tap);

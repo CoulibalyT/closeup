@@ -2,7 +2,12 @@
 import { FREE_TEXT } from '@closeup/shared';
 import type { Feedback } from '~/stores/game';
 
-const props = defineProps<{ feedback: Feedback; disabled: boolean }>();
+const props = defineProps<{
+  feedback: Feedback;
+  disabled: boolean;
+  /** A controller's form: a big field and a big button, the phone's only job. */
+  big?: boolean;
+}>();
 const emit = defineEmits<{ guess: [text: string] }>();
 const { t } = useI18n();
 
@@ -29,7 +34,11 @@ watch(
 </script>
 
 <template>
-  <form class="answer" :class="{ shaking }" @submit.prevent="submit">
+  <form
+    class="answer"
+    :class="{ shaking, big, wrong: feedback === 'wrong' }"
+    @submit.prevent="submit"
+  >
     <p class="hint" role="status">
       <template v-if="feedback">{{ t(`play.feedback.${feedback}`) }}</template>
     </p>
@@ -94,6 +103,25 @@ input::placeholder {
   75% {
     transform: translateX(6px);
   }
+}
+
+/* A controller: field above button, both big, the field red after a wrong guess. */
+.big .row {
+  flex-direction: column;
+}
+.big input,
+.big .row .button {
+  min-height: 64px;
+  font-size: 22px;
+  font-weight: 700;
+}
+.big input {
+  border: 3px solid var(--accent);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.big.wrong input {
+  border-color: var(--danger);
 }
 
 /* Computer: the field stands on its own in the column beside the lens. */

@@ -202,7 +202,13 @@
     "skip": "Passer",
     "giveUp": "Je donne ma langue",
     "hint": "Indice",
-    "partial": "Bien vu, c’est un indice de la réponse : +{points}. On attend les autres."
+    "partial": "Bien vu, c’est un indice de la réponse : +{points}. On attend les autres.",
+    "privateTitle": "Rien que pour toi",
+    "privateViewAlt": "Ce que ton bonus te montre de l’image",
+    "controllerPick": "Regarde la télé, puis choisis",
+    "controllerType": "Regarde la télé et tape ta réponse",
+    "controllerWait": "La suite se passe sur la télé.",
+    "foundPoints": "Trouvé ! +{points}"
   },
   "reveal": {
     "found": "Trouvé +{points}",

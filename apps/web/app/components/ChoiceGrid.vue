@@ -9,6 +9,8 @@ const props = defineProps<{
   lockedUntil: number | null;
   disabled: boolean;
   serverNow: () => number;
+  /** A controller's grid: four big buttons with the colour and shape the TV shows. */
+  big?: boolean;
 }>();
 const emit = defineEmits<{ pick: [optionId: string] }>();
 const { t } = useI18n();
@@ -27,7 +29,7 @@ watch(() => props.lockedUntil, refresh);
 </script>
 
 <template>
-  <div class="choices">
+  <div class="choices" :class="{ big }">
     <p class="hint" role="status">
       <template v-if="lockLeft > 0">
         {{ t('play.locked', { seconds: Math.ceil(lockLeft / 1000) }) }}
@@ -35,9 +37,10 @@ watch(() => props.lockedUntil, refresh);
     </p>
     <div class="grid">
       <button
-        v-for="option in options"
+        v-for="(option, i) in options"
         :key="option.id"
         type="button"
+        :style="big ? { background: `var(--option-${i % 4})` } : undefined"
         :class="{
           wrong: wrongIds.includes(option.id),
           removed: removedIds.includes(option.id),
@@ -47,7 +50,8 @@ watch(() => props.lockedUntil, refresh);
         "
         @click="emit('pick', option.id)"
       >
-        {{ option.label }}
+        <OptionMark v-if="big" :index="i" />
+        <span>{{ option.label }}</span>
       </button>
     </div>
   </div>
@@ -94,17 +98,55 @@ button.wrong {
   opacity: 1;
 }
 
+/* A controller: the grid fills the phone, each answer in its colour, its shape above its name. */
+.big {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  background: none;
+}
+.big .grid {
+  flex: 1;
+  grid-template-rows: 1fr 1fr;
+}
+.big button {
+  --mark-size: 34px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 120px;
+  border: 0;
+  border-radius: 16px;
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 800;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.big button.wrong,
+.big button.removed {
+  background: var(--line) !important;
+  color: var(--muted);
+  opacity: 1;
+}
+.big button.wrong :deep(.mark),
+.big button.removed :deep(.mark) {
+  background: var(--muted);
+}
+
 /* Computer: one answer per line, lettered A to D, in the column beside the lens. */
 @media (min-width: 1080px) {
-  .choices {
+  .choices:not(.big) {
     padding: 0;
     background: none;
   }
-  .grid {
+  .choices:not(.big) .grid {
     grid-template-columns: minmax(0, 1fr);
     counter-reset: choice;
   }
-  button {
+  .choices:not(.big) button {
     display: flex;
     align-items: center;
     gap: var(--space-4);
@@ -115,7 +157,7 @@ button.wrong {
     text-align: left;
     counter-increment: choice;
   }
-  button::before {
+  .choices:not(.big) button::before {
     /* Seen, not read: the letter only helps the eye find an answer. */
     content: counter(choice, upper-alpha) / '';
     color: var(--accent);
