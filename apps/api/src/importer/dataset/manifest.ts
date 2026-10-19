@@ -20,6 +20,13 @@ const PEOPLE: readonly DatasetCategory[] = ['acteur', 'chanteur', 'sportif', 'te
 export const MIN_FACE_PX = 150;
 export type DatasetCategory = (typeof DATASET_CATEGORIES)[number];
 
+/** A face width; null (the dataset could not measure it) reads as unknown, never as tiny. */
+const unmeasured = z
+  .number()
+  .nullish()
+  .transform((value) => value ?? undefined)
+  .optional();
+
 const entrySchema = z.looseObject({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -46,13 +53,13 @@ const entrySchema = z.looseObject({
   /** A character's universe, in French ("La Pat' Patrouille"): its hint. */
   universe: z.string().nullish(),
   /** Width of the largest face on the picture, real people only. */
-  face_px: z.number().optional(),
+  face_px: unmeasured,
   /** Several photos of a person, the main one first: one card each. */
   images: z
     .array(
       z.looseObject({
         file: z.string().min(1),
-        face_px: z.number().optional(),
+        face_px: unmeasured,
         source_url: z.string().optional(),
         page_url: z.string().optional(),
         commons_file: z.string().optional(),
@@ -169,7 +176,10 @@ export function photosOf(entry: DatasetEntry): DatasetPhoto[] {
     facePx: entry.face_px,
   };
   if (!isRealPerson(entry) || !entry.images?.length) return [main];
-  return entry.images.map((photo, index) =>
+  // A file listed twice is one photo: the dataset sometimes repeats its main one.
+  const seen = new Set<string>();
+  const images = entry.images.filter((photo) => !seen.has(photo.file) && seen.add(photo.file));
+  return images.map((photo, index) =>
     index === 0 && photo.file === entry.image
       ? { ...main, facePx: photo.face_px ?? main.facePx }
       : {

@@ -273,9 +273,12 @@ export class DatasetImporter {
         const orphan = here.status === 'PROCESSING' && (await this.isOrphan(here));
         const changed =
           options.replaceChanged &&
-          (here.sourceHash !== null
-            ? here.sourceHash !== sourceHash
-            : await this.changedSinceImport(here, image, person ? credit.sourceUrl : null));
+          // A card whose picture was refused (too small, unreadable) is tried again: the dataset
+          // may have brought a better file under the same name.
+          (here.status === 'DRAFT' ||
+            (here.sourceHash !== null
+              ? here.sourceHash !== sourceHash
+              : await this.changedSinceImport(here, image, person ? credit.sourceUrl : null)));
         if (
           options.replaceChanged &&
           !changed &&
@@ -294,7 +297,7 @@ export class DatasetImporter {
           line('exists');
           continue;
         }
-        if (here.status === 'DRAFT' && !RETRYABLE.has(here.processingError)) {
+        if (!replaced && here.status === 'DRAFT' && !RETRYABLE.has(here.processingError)) {
           line(`refused:${here.processingError}`);
           continue;
         }

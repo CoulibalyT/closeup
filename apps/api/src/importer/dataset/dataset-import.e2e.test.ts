@@ -442,6 +442,14 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('dataset import', () => {
     expect(outcome(lines, 'Alex', 'enfants')).toBe('refused:TOO_SMALL');
     expect((await prisma.card.findUniqueOrThrow({ where: { id: kids.id } })).status).toBe('DRAFT');
 
+    // Unless the dataset may have brought a larger file since: --replace-changed tries again.
+    const retried = await runOnce({ replaceChanged: true });
+    expect(outcome(retried, 'Alex', 'enfants')).toBe('replaced');
+    await settled();
+    expect(
+      (await prisma.card.findFirstOrThrow({ where: { slug: `${prefix}-alex-kids` } })).status,
+    ).not.toBe('DRAFT');
+
     // An image path that is a folder, then a sound one: the first is a line, the second goes in.
     const other = await mkdtemp(join(tmpdir(), 'closeup-dataset-bad-'));
     await mkdir(join(other, 'images', 'fiction', 'folder.jpg'), { recursive: true });

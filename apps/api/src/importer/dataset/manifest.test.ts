@@ -236,3 +236,39 @@ describe('expectedSlugs', () => {
     );
   });
 });
+
+describe('a face size the dataset could not measure', () => {
+  it('reads face_px: null as unknown, not as a tiny face', () => {
+    const [e] = parseManifest([
+      {
+        id: 'x',
+        name: 'X',
+        category: 'acteur',
+        image: 'images/acteur/x.jpg',
+        source_url: '',
+        page_url: '',
+        page_title: 'X',
+        face_px: null,
+        images: [{ file: 'images/acteur/x.jpg', face_px: null }],
+      },
+    ]);
+    expect(photosOf(e!).map((p) => p.facePx)).toEqual([undefined]);
+  });
+});
+
+describe('a photo listed twice', () => {
+  it('makes one card of it, numbering the others in order', () => {
+    const e = entry({
+      image: 'images/acteur/x-2.jpg',
+      images: [
+        { file: 'images/acteur/x-2.jpg' },
+        { file: 'images/acteur/x-2.jpg' },
+        { file: 'images/acteur/x-3.jpg' },
+      ],
+    });
+    expect(photosOf(e).map((p) => [p.suffix, p.path])).toEqual([
+      ['', 'images/acteur/x-2.jpg'],
+      ['-p2', 'images/acteur/x-3.jpg'],
+    ]);
+  });
+});
