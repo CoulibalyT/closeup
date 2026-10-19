@@ -3,6 +3,7 @@ export * from './protocol.js';
 export * from './constants/game.js';
 export * from './rules/scoring.js';
 export * from './rules/zoom.js';
+export * from './rules/bonuses.js';
 export * from './rules/cropPlan.js';
 export * from './rules/startPoint.js';
 export * from './rules/face.js';

@@ -1,11 +1,10 @@
 import {
   BONUS,
-  BONUS_TYPES,
   type BonusType,
+  dealableBonuses,
   type ErrorCode,
   type Malus,
   MALUSES,
-  SELF_BONUSES,
   ZOOM,
 } from '@closeup/shared';
 import type {
@@ -44,14 +43,13 @@ export const isFrozen = (mine: RoundPlayerState, now: number): boolean =>
 
 /** Types that can be drawn in this room: no attacks alone, no "remove two" on typed answers. */
 function drawable(state: RoomState): BonusType[] {
-  const attacks = state.mode !== 'solo';
   // Once the room's hint is out, initials and category would show what everyone already sees.
   const hintShown = state.round?.hintAt !== undefined;
-  return BONUS_TYPES.filter((type) => {
-    if (type === 'removeTwo') return state.settings.answerMode === 'mcq';
-    if (hintShown && (type === 'initials' || type === 'category')) return false;
-    return attacks || (SELF_BONUSES as readonly string[]).includes(type);
-  });
+  return dealableBonuses({
+    mode: state.mode,
+    answerMode: state.settings.answerMode,
+    display: state.settings.display ?? 'phones',
+  }).filter((type) => !(hintShown && (type === 'initials' || type === 'category')));
 }
 
 export function grant(

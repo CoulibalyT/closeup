@@ -87,6 +87,10 @@ describe('earning bonuses', () => {
     expect(drawn({ players: 2 }).has('blur')).toBe(true);
     expect(drawn({ players: 2 }).has('removeTwo')).toBe(false);
     expect(drawn({ players: 2, mcq: true }).has('removeTwo')).toBe(true);
+    const big = drawn({ players: 2, bigscreen: true });
+    expect(big.has('blur')).toBe(false);
+    expect(big.has('flip')).toBe(false);
+    expect(big.has('freeze')).toBe(true);
   });
 });
 
