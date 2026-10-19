@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { INestApplication } from '@nestjs/common';
@@ -786,6 +786,48 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('dataset import', () => {
     } finally {
       await writeFile(join(dir, 'manifest.json'), JSON.stringify(entries));
       await runOnce();
+      await settled();
+    }
+  });
+
+  it('tells, for a card imported before fingerprints, whether its photo changed', async () => {
+    await settled();
+    const alex = await prisma.card.findFirstOrThrow({ where: { slug: `${prefix}-alex` } });
+    const omar = await prisma.card.findFirstOrThrow({ where: { slug: 'wd-Q998601' } });
+    await prisma.card.updateMany({
+      where: { id: { in: [alex.id, omar.id] } },
+      data: { sourceHash: null },
+    });
+    // Same photo for Alex, only re-saved: same proportions, it stays and gets its fingerprint.
+    const alexFile = join(dir, entries.find((e) => e.id === 'alex')!.image);
+    const before = await readFile(alexFile);
+    await writeFile(alexFile, await sharp(before).jpeg({ quality: 70 }).toBuffer());
+    // Omar was imported from another Commons file than the manifest now names.
+    await prisma.card.update({
+      where: { id: omar.id },
+      data: { creditSourceUrl: 'https://commons.wikimedia.org/w/index.php?curid=1' },
+    });
+    try {
+      const lines = await runOnce({ replaceChanged: true });
+      expect(outcome(lines, 'Alex', 'fiction')).toBe('exists');
+      expect(outcome(lines, 'Omar Sy', 'acteur')).toBe('replaced');
+      const kept = await prisma.card.findUniqueOrThrow({ where: { id: alex.id } });
+      expect(kept.sourceHash).toMatch(/^[0-9a-f]{64}$/);
+
+      // A new drawing, with other proportions, is a new photo.
+      await writeFile(
+        alexFile,
+        await sharp({ create: { width: 900, height: 1400, channels: 3, background: '#a33' } })
+          .jpeg()
+          .toBuffer(),
+      );
+      await prisma.card.update({ where: { id: alex.id }, data: { sourceHash: null } });
+      await settled();
+      const again = await runOnce({ replaceChanged: true });
+      expect(outcome(again, 'Alex', 'fiction')).toBe('replaced');
+    } finally {
+      await writeFile(alexFile, before);
+      await runOnce({ replaceChanged: true });
       await settled();
     }
   });

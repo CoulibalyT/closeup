@@ -92,6 +92,27 @@ export class DatasetImporter {
     @InjectQueue(MEDIA_QUEUE) private readonly queue: Queue,
   ) {}
 
+  /**
+   * For a card imported before fingerprints existed: a person's photo changed when it comes from
+   * another Commons file; a character's when its proportions differ from the stored picture's
+   * (the stored original is re-encoded, so its bytes cannot be compared).
+   */
+  private async changedSinceImport(
+    card: { creditSourceUrl: string | null; image: { width: number; height: number } | null },
+    file: Buffer,
+    commonsSource: string | null,
+  ): Promise<boolean> {
+    if (commonsSource !== null) return card.creditSourceUrl !== commonsSource;
+    if (!card.image) return false;
+    const { default: sharp } = await import('sharp');
+    const meta = await sharp(file).metadata();
+    if (!meta.width || !meta.height) return false;
+    // Upright EXIF orientations swap the sides the ingest stores.
+    const [w, h] =
+      (meta.orientation ?? 1) >= 5 ? [meta.height, meta.width] : [meta.width, meta.height];
+    return Math.abs(w / h - card.image.width / card.image.height) > 0.01;
+  }
+
   /** A card and its files: the picture, its reveal and every crop. */
   private async dropCard(id: string): Promise<void> {
     const card = await this.prisma.card.findUniqueOrThrow({
@@ -241,6 +262,8 @@ export class DatasetImporter {
               processingError: true,
               updatedAt: true,
               sourceHash: true,
+              creditSourceUrl: true,
+              image: { select: { width: true, height: true } },
             },
           })
         : null;
@@ -249,7 +272,20 @@ export class DatasetImporter {
       if (here) {
         const orphan = here.status === 'PROCESSING' && (await this.isOrphan(here));
         const changed =
-          options.replaceChanged && here.sourceHash !== null && here.sourceHash !== sourceHash;
+          options.replaceChanged &&
+          (here.sourceHash !== null
+            ? here.sourceHash !== sourceHash
+            : await this.changedSinceImport(here, image, person ? credit.sourceUrl : null));
+        if (
+          options.replaceChanged &&
+          !changed &&
+          here.sourceHash === null &&
+          here.status !== 'PROCESSING' &&
+          !options.dryRun
+        ) {
+          // The same photo: from now on its fingerprint answers exactly.
+          await this.prisma.card.update({ where: { id: here.id }, data: { sourceHash } });
+        }
         if (changed && here.status !== 'PROCESSING') {
           // A new photo: the card goes and is made again, its old points and review with it.
           if (!options.dryRun) await this.dropCard(here.id);
