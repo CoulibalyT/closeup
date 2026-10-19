@@ -12,7 +12,7 @@ import {
   SELF_BONUSES,
   ZOOM,
 } from '@closeup/shared';
-import { attack, grant, grantCatchUp, isFrozen, selfBonus } from './bonuses.js';
+import { attack, grant, grantCatchUp, isFrozen, selfBonus, swapUndealable } from './bonuses.js';
 import { matchAnswer, matchSecondary } from './matching.js';
 import type {
   Command,
@@ -338,6 +338,7 @@ function dispatch(
       );
       state.startedAt = ctx.now;
       state.history = [];
+      swapUndealable(state, ctx, effects);
       emit({ type: 'gameStarted' });
       requestCard(state, effects);
       return OK;

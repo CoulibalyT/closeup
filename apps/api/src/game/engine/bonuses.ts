@@ -52,6 +52,36 @@ function drawable(state: RoomState): BonusType[] {
   }).filter((type) => !(hintShown && (type === 'initials' || type === 'category')));
 }
 
+/** One type among those the room deals, by their weights. */
+function draw(state: RoomState, ctx: Context): BonusType | undefined {
+  const types = drawable(state);
+  const total = types.reduce((sum, t) => sum + BONUS.drawWeights[t], 0);
+  let roll = (ctx.random ?? Math.random)() * total;
+  return types.find((t) => (roll -= BONUS.drawWeights[t]) < 0) ?? types[types.length - 1];
+}
+
+/**
+ * At the start of a game, a bonus the room does not deal (a Blur kept from a phone game, now on a
+ * big screen) becomes another one, in its place. Only its owner is told.
+ */
+export function swapUndealable(state: RoomState, ctx: Context, effects: Effect[]): void {
+  const dealt = new Set(drawable(state));
+  for (const player of Object.values(state.players)) {
+    player.inventory = (player.inventory ?? []).map((held) => {
+      if (dealt.has(held.type)) return held;
+      const type = draw(state, ctx);
+      if (!type) return held;
+      const item = { id: ctx.newId(), type };
+      emitTo(
+        effects,
+        { type: 'bonusGranted', playerId: player.id, item, reason: 'swap' },
+        player.id,
+      );
+      return item;
+    });
+  }
+}
+
 export function grant(
   state: RoomState,
   playerId: string,
@@ -65,13 +95,7 @@ export function grant(
   const inventory = (player.inventory ??= []);
   if (inventory.length >= BONUS.inventoryCap) return;
 
-  let type = forced;
-  if (!type) {
-    const types = drawable(state);
-    const total = types.reduce((sum, t) => sum + BONUS.drawWeights[t], 0);
-    let roll = (ctx.random ?? Math.random)() * total;
-    type = types.find((t) => (roll -= BONUS.drawWeights[t]) < 0) ?? types[types.length - 1];
-  }
+  const type = forced ?? draw(state, ctx);
   if (!type) return;
 
   const item = { id: ctx.newId(), type };

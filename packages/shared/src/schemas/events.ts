@@ -261,7 +261,7 @@ export type BonusItem = z.infer<typeof bonusItemSchema>;
 /** To the player only: what they hold is private, only the count is public. */
 export const bonusGrantedSchema = z.strictObject({
   item: bonusItemSchema,
-  reason: z.enum(['streak', 'fastest', 'catchup', 'stolen']),
+  reason: z.enum(['streak', 'fastest', 'catchup', 'stolen', 'swap']),
 });
 export type BonusGranted = z.infer<typeof bonusGrantedSchema>;
 

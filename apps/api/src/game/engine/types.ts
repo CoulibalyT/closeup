@@ -242,7 +242,7 @@ export type EngineEvent =
       type: 'bonusGranted';
       playerId: string;
       item: BonusItem;
-      reason: 'streak' | 'fastest' | 'catchup' | 'stolen';
+      reason: 'streak' | 'fastest' | 'catchup' | 'stolen' | 'swap';
     }
   | { type: 'malus'; malus: Malus; from: string; to: string; until: number }
   | {

@@ -130,3 +130,20 @@ describe('fixed points', () => {
     expect(party.guess('p1', 2_000)).toMatchObject({ data: { points: 850 } });
   });
 });
+
+describe('a phone on a big screen', () => {
+  it('never gets the shared crop, only the second zone it bought', () => {
+    const party = new Party({ bigscreen: true, mcq: true });
+    const before = toSnapshot(party.state, 'p2', sign, party.start + 1_000);
+    expect(before.round?.crop).toBeUndefined();
+    expect(before.round?.hints.secondZone).toBeUndefined();
+
+    const [zone] = party.give('p2', 'secondZone');
+    expect(party.use('p2', zone!, 1_000).ok).toBe(true);
+    const after = toSnapshot(party.state, 'p2', sign, party.start + 1_500);
+    expect(after.round?.crop).toBeUndefined();
+    expect(after.round?.hints.secondZone?.url).toMatch(/^\/api\/media\/crop-/);
+    // The shared screen still sees the room's image.
+    expect(toSnapshot(party.state, null, sign, party.start + 1_500).round?.crop).toBeDefined();
+  });
+});

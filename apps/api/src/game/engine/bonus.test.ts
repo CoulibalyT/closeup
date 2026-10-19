@@ -1,6 +1,7 @@
 import type { BonusType } from '@closeup/shared';
 import { describe, expect, it } from 'vitest';
 import { Party } from '../../testing/party.js';
+import { createRoom, reduce } from './reducer.js';
 
 const refused = (code: string) => ({ ok: false, error: { code } });
 
@@ -327,5 +328,38 @@ describe('bonuses and the room hint', () => {
       error: { code: 'ALREADY_SHOWN' },
     });
     expect(party.inventory('p1')).toEqual(['initials', 'category']);
+  });
+});
+
+describe('starting a big-screen game', () => {
+  it('swaps a Blur or a Flip kept from a phone game for a bonus dealt there', () => {
+    let state = createRoom({
+      code: 'AB2CD',
+      mode: 'private',
+      host: { id: 'p1', nickname: 'Awa' },
+      language: 'fr',
+      settings: { rounds: 3, answerMode: 'mcq', display: 'bigscreen' },
+      lexicon: [],
+      now: 1_000,
+    });
+    let ids = 0;
+    const ctx = (now: number) => ({ now, newId: () => `new-${++ids}`, random: () => 0.5 });
+    state = reduce(state, { type: 'join', playerId: 'p2', nickname: 'Moussa' }, ctx(1_001)).state;
+    state.players.p1!.inventory = [
+      { id: 'a', type: 'blur' },
+      { id: 'b', type: 'shield' },
+      { id: 'c', type: 'flip' },
+    ];
+    const started = reduce(state, { type: 'start', playerId: 'p1' }, ctx(1_002));
+    const held = started.state.players.p1!.inventory!;
+    expect(held).toHaveLength(3);
+    expect(held[1]).toEqual({ id: 'b', type: 'shield' });
+    expect(held.map((item) => item.type)).not.toContain('blur');
+    expect(held.map((item) => item.type)).not.toContain('flip');
+    const swapped = started.effects.filter(
+      (e) => e.type === 'emit' && e.event.type === 'bonusGranted',
+    );
+    expect(swapped).toHaveLength(2);
+    expect(swapped.every((e) => e.type === 'emit' && e.to === 'p1')).toBe(true);
   });
 });

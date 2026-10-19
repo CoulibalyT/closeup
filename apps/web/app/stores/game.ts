@@ -6,6 +6,7 @@ import {
   type BonusUseReply,
   brand,
   ClientEvent,
+  dealableBonuses,
   type DisplayMode,
   type Hints,
   type Malus,
@@ -386,10 +387,21 @@ export const useGameStore = defineStore('game', () => {
     // Private: only the owner hears what they were given.
     io.on(ServerEvent.bonusGranted, (raw) => {
       const { item, reason } = bonusGrantedSchema.parse(raw);
+      if (reason === 'swap') {
+        // A bonus this room does not deal was swapped for this one, at the start of the game.
+        const dealt = dealableBonuses({
+          mode: mode.value,
+          answerMode: answerMode.value,
+          display: display.value,
+        });
+        inventory.value = inventory.value.filter((owned) => dealt.includes(owned.type));
+      }
       if (!inventory.value.some((owned) => owned.id === item.id)) {
         inventory.value = [...inventory.value, item];
       }
-      if (reason !== 'stolen') announce({ kind: 'granted', bonus: item.type, reason });
+      if (reason !== 'stolen' && reason !== 'swap') {
+        announce({ kind: 'granted', bonus: item.type, reason });
+      }
     });
     // Public: everyone sees who did what to whom. That is the fun part.
     io.on(ServerEvent.roundEffect, (raw) => {
