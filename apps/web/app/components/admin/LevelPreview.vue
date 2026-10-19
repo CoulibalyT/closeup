@@ -47,7 +47,6 @@ const levels = computed(() =>
       />
       <small class="muted">
         {{ t('admin.level', { n: item.level + 1 }) }}
-        <template v-if="item.level === 3"> · {{ t('play.bonusFrame') }}</template>
         <br />{{ item.side }} px
       </small>
     </li>

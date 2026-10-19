@@ -3,7 +3,7 @@ import { type Crop, ZOOM } from '@closeup/shared';
 
 /**
  * The photo-booth strip is the zoom indicator: one frame per level, developing as the levels
- * unlock. The last frame only exists with a bonus (phase 3), so it stays an empty dashed frame.
+ * unlock, by the clock or sooner with the "zoom out" bonus.
  */
 const props = defineProps<{ crops: Crop[]; mediaUrl: (path: string) => string }>();
 const { t } = useI18n();
@@ -12,20 +12,14 @@ const frames = computed(() =>
   Array.from({ length: ZOOM.maxLevel + 1 }, (_, level) => ({
     level,
     crop: props.crops.find((crop) => crop.level === level),
-    bonusOnly: level === ZOOM.maxLevel,
   })),
 );
 </script>
 
 <template>
   <ol class="strip" :aria-label="t('play.stripLabel')">
-    <li
-      v-for="frame in frames"
-      :key="frame.level"
-      :class="{ on: frame.crop, locked: frame.bonusOnly && !frame.crop }"
-    >
+    <li v-for="frame in frames" :key="frame.level" :class="{ on: frame.crop }">
       <img v-if="frame.crop" :src="mediaUrl(frame.crop.url)" alt="" draggable="false" />
-      <span v-else-if="frame.bonusOnly">{{ t('play.bonusFrame') }}</span>
     </li>
   </ol>
 </template>
@@ -48,22 +42,6 @@ li {
   overflow: hidden;
   border-radius: 2px;
   background: var(--line);
-}
-li.locked {
-  background: transparent;
-  outline: 1.5px dashed var(--muted);
-  outline-offset: -2px;
-}
-li span {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 2px;
-  font-size: 10px;
-  line-height: 1.1;
-  text-align: center;
-  color: var(--muted);
 }
 img {
   display: block;
@@ -101,9 +79,6 @@ img {
     color: var(--ink);
     font: 800 12px/1 var(--font-display);
     font-stretch: 140%;
-  }
-  li span {
-    font-size: 13px;
   }
 }
 </style>
