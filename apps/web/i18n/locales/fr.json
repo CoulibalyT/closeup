@@ -828,5 +828,39 @@
     "light": "Clair",
     "rose": "Rose poudré",
     "dark": "Sombre"
+  },
+  "howto": {
+    "open": "Comment on joue ?",
+    "skip": "Passer",
+    "next": "Suivant",
+    "go": "J’ai compris, on joue",
+    "progress": "Écran {n} sur {total}",
+    "find": {
+      "title": "Trouve avant les autres",
+      "text": "L’image part d’un tout petit détail et recule toute seule. Plus tu trouves tôt, plus ça rapporte.",
+      "alt": "Un œil en très gros plan qui recule jusqu’à montrer un chat entier.",
+      "found": "Un chat !",
+      "points": "points selon le moment où tu trouves"
+    },
+    "earn": {
+      "title": "Gagne des bonus",
+      "text": "Tu en gardes {cap} au maximum, d’une manche à l’autre.",
+      "streak": "{n} bonnes réponses d’affilée",
+      "streakHint": "une série, un bonus",
+      "fastest": "Le plus rapide de la manche",
+      "fastestHint": "à partir de {n} joueurs",
+      "catchUp": "Dernier au classement ?",
+      "catchUpHint": "un coup de pouce pour revenir dans la partie",
+      "never": "Les bonus se gagnent en jouant. On ne les achète jamais avec ses points."
+    },
+    "use": {
+      "title": "Utilise-les bien",
+      "help": "Pour t’aider · la manche vaut un peu moins",
+      "attack": "Pour embêter les autres"
+    },
+    "board": {
+      "title": "Comment on joue",
+      "text": "L’image part d’un détail et recule. Trouve avant les autres : de {start} à {end} points selon le moment. {streak} bonnes réponses d’affilée, la réponse la plus rapide, ou un coup de pouce au dernier : ça rapporte un bonus."
+    }
   }
 }

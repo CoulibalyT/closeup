@@ -828,5 +828,39 @@
     "light": "Light",
     "rose": "Powder pink",
     "dark": "Dark"
+  },
+  "howto": {
+    "open": "How do we play?",
+    "skip": "Skip",
+    "next": "Next",
+    "go": "Got it, let’s play",
+    "progress": "Screen {n} of {total}",
+    "find": {
+      "title": "Find it before the others",
+      "text": "The picture starts on a tiny detail and zooms out by itself. The sooner you find it, the more it’s worth.",
+      "alt": "An eye in extreme close-up, zooming out until a whole cat shows.",
+      "found": "A cat!",
+      "points": "points, depending on when you find it"
+    },
+    "earn": {
+      "title": "Earn bonuses",
+      "text": "You keep up to {cap}, from one round to the next.",
+      "streak": "{n} right answers in a row",
+      "streakHint": "a streak, a bonus",
+      "fastest": "Fastest of the round",
+      "fastestHint": "from {n} players",
+      "catchUp": "Last in the ranking?",
+      "catchUpHint": "a little push to get back in the game",
+      "never": "Bonuses are earned by playing. Never bought with points."
+    },
+    "use": {
+      "title": "Use them well",
+      "help": "To help you · the round is worth a bit less",
+      "attack": "To annoy the others"
+    },
+    "board": {
+      "title": "How to play",
+      "text": "The picture starts on a detail and zooms out. Find it before the others: {start} to {end} points depending on when. {streak} right answers in a row, the fastest answer, or a push for the last one: that earns a bonus."
+    }
   }
 }

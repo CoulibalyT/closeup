@@ -92,6 +92,31 @@ async function replaySolo(): Promise<void> {
   }
 }
 
+// How to play: offered once per device when its first lobby opens, and again from a button.
+const howTo = useHowTo();
+const howToDialog = ref<HTMLDialogElement | null>(null);
+watch(
+  () => game.stage,
+  (stage) => {
+    if (stage === 'lobby') howTo.offer();
+  },
+  { immediate: true },
+);
+watch(
+  () => howTo.open.value,
+  (open) => {
+    const dialog = howToDialog.value;
+    if (!dialog) return;
+    if (open && !dialog.open) dialog.showModal();
+    if (!open && dialog.open) dialog.close();
+  },
+  { flush: 'post' },
+);
+onMounted(() => {
+  if (howTo.open.value && howToDialog.value && !howToDialog.value.open)
+    howToDialog.value.showModal();
+});
+
 async function quit(): Promise<void> {
   await game.leaveRoom();
   await navigateTo(localePath('/'));
@@ -117,6 +142,9 @@ async function quit(): Promise<void> {
     </div>
 
     <template v-else-if="game.stage === 'lobby'">
+      <button type="button" class="link howto-open" @click="howTo.show()">
+        {{ t('howto.open') }}
+      </button>
       <LobbyPanel />
       <button type="button" class="quit" @click="quit">{{ t('lobby.leave') }}</button>
     </template>
@@ -298,10 +326,43 @@ async function quit(): Promise<void> {
         </div>
       </div>
     </section>
+    <dialog
+      ref="howToDialog"
+      class="howto-dialog"
+      :aria-label="t('howto.board.title')"
+      @close="howTo.close()"
+    >
+      <HowToPlay v-if="howTo.open.value" @done="howTo.close()" />
+    </dialog>
   </main>
 </template>
 
 <style scoped>
+.howto-open {
+  display: block;
+  min-height: var(--tap);
+  margin: var(--space-2) var(--space-4) 0 auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.howto-dialog {
+  width: min(440px, calc(100vw - 2 * var(--space-4)));
+  max-height: calc(100dvh - 2 * var(--space-4));
+  padding: var(--space-4);
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink);
+}
+.howto-dialog::backdrop {
+  background: rgb(6 10 30 / 62%);
+}
 .screen {
   display: flex;
   flex-direction: column;

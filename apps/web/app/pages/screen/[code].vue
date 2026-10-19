@@ -177,6 +177,7 @@ async function reopen(): Promise<void> {
           }}
         </p>
         <p v-if="game.display === 'phones'" class="warn">{{ t('screen.phonesMode') }}</p>
+        <HowToPlay layout="board" class="howto-board" />
       </aside>
     </section>
 
@@ -352,6 +353,13 @@ h2 {
 }
 
 /* ---- lobby ---- */
+/* How to play, read from the sofa while people join. */
+.howto-board {
+  margin-top: 2vmin;
+  padding: 2.4vmin;
+  border-radius: var(--radius);
+  background: var(--surface);
+}
 .invite {
   display: flex;
   flex-direction: column;

@@ -30,3 +30,5 @@ apps/api/src/generated/
 .playwright-mcp/
 apps/web/dev-dist/
 *.log
+
+.superpowers/
