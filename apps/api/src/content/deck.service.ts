@@ -18,6 +18,9 @@ import { chooseDistractors, pickWeighted, shuffle } from './distractors.js';
 import { oneCardPerSubject } from './subjects.js';
 import { type DeckScope, playableWhere } from './playable.js';
 
+/** "ds-sportif-2" and "ds-sportif" are one domain: the numbered packs of a family. */
+const familyOf = (slug: string | null) => slug?.replace(/-\d+$/, '') ?? null;
+
 /** Phones get the small crops; the big screen (phase 4) will ask for the large ones. */
 const PHONE_CROP_PX = ZOOM.cropSizesPx[0];
 
@@ -60,6 +63,7 @@ export class DeckService {
       include: {
         answers: true,
         image: true,
+        pack: { select: { slug: true } },
         zoomPoints: { include: { crops: { where: { sizePx: PHONE_CROP_PX } } } },
       },
     });
@@ -119,12 +123,20 @@ export class DeckService {
           sourceUrl: card.creditSourceUrl ?? undefined,
         },
       },
-      ...(answerMode === 'mcq' ? await this.options(card, primary.text, language, scope) : {}),
+      ...(answerMode === 'mcq'
+        ? await this.options({ ...card, packSlug: card.pack.slug }, primary.text, language, scope)
+        : {}),
     };
   }
 
   private async options(
-    card: { id: string; category: string; difficulty: number },
+    card: {
+      id: string;
+      category: string;
+      difficulty: number;
+      gender: string | null;
+      packSlug: string | null;
+    },
     label: string,
     language: Locale,
     scope: DeckScope,
@@ -135,14 +147,21 @@ export class DeckService {
         category: card.category as never,
         id: { not: card.id },
       },
-      select: { id: true, difficulty: true, category: true, answers: true },
+      select: {
+        id: true,
+        difficulty: true,
+        category: true,
+        gender: true,
+        answers: true,
+        pack: { select: { slug: true } },
+      },
     });
     const pool = others.flatMap((other) => {
       const answer = other.answers.find((a) => a.locale === language) ?? other.answers[0];
-      return answer ? [{ ...other, label: answer.text }] : [];
+      return answer ? [{ ...other, family: familyOf(other.pack.slug), label: answer.text }] : [];
     });
     const wrong = chooseDistractors(
-      { ...card, label },
+      { ...card, family: familyOf(card.packSlug), label },
       pool,
       MULTIPLE_CHOICE.optionCount - 1,
       Math.random,

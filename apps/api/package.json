@@ -19,6 +19,7 @@
     "import:dataset": "nest start --entryFile import-dataset --",
     "import:hints": "nest start --entryFile import-hints --",
     "crops:faces": "nest start --entryFile crops-faces",
+    "cards:gender": "nest start --entryFile cards-gender",
     "admin:create": "nest start --entryFile create-admin",
     "face:check": "node scripts/face-check.mjs",
     "prisma:generate": "prisma generate",

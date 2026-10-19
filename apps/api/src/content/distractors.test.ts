@@ -61,6 +61,79 @@ describe('chooseDistractors', () => {
   });
 });
 
+describe('chooseDistractors for people', () => {
+  const person = (
+    id: string,
+    gender: 'MALE' | 'FEMALE' | null,
+    family: string,
+    difficulty = 2,
+  ) => ({ id, label: id, difficulty, category: 'CELEBRITY', gender, family });
+  const zidane = person('Zidane', 'MALE', 'ds-sportif');
+
+  it('offers people of the same gender before anyone else, whatever the domain', () => {
+    const pool = [
+      person('Serena', 'FEMALE', 'ds-sportif'),
+      person('Manaudou', 'FEMALE', 'ds-sportif'),
+      person('Brel', 'MALE', 'ds-chanteur'),
+      person('Canet', 'MALE', 'ds-acteur'),
+      person('Stromae', 'MALE', 'ds-chanteur'),
+    ];
+    for (let i = 0; i < 20; i++) {
+      const chosen = chooseDistractors(zidane, pool, 3, Math.random).map((c) => c.id);
+      expect(chosen.sort()).toEqual(['Brel', 'Canet', 'Stromae']);
+    }
+  });
+
+  it('prefers the same domain among people of the same gender', () => {
+    const pool = [
+      person('Mbappé', 'MALE', 'ds-sportif'),
+      person('Nadal', 'MALE', 'ds-sportif'),
+      person('Brel', 'MALE', 'ds-chanteur'),
+      person('Canet', 'MALE', 'ds-acteur'),
+      person('Federer', 'MALE', 'ds-sportif'),
+    ];
+    for (let i = 0; i < 20; i++) {
+      const chosen = chooseDistractors(zidane, pool, 3, Math.random).map((c) => c.id);
+      expect(chosen.sort()).toEqual(['Federer', 'Mbappé', 'Nadal']);
+    }
+  });
+
+  it('takes someone of unknown gender before someone of the other one', () => {
+    const pool = [
+      person('Serena', 'FEMALE', 'ds-sportif'),
+      person('Inconnu', null, 'ds-acteur'),
+      person('Brel', 'MALE', 'ds-chanteur'),
+      person('Canet', 'MALE', 'ds-acteur'),
+    ];
+    const chosen = chooseDistractors(zidane, pool, 3, Math.random).map((c) => c.id);
+    expect(chosen.sort()).toEqual(['Brel', 'Canet', 'Inconnu']);
+  });
+
+  it('falls back on the domain when the answer has no known gender', () => {
+    const pikachu = { ...person('Pikachu', null, 'ds-enfants'), category: 'CHARACTER' };
+    const character = (id: string, family: string) => ({
+      ...person(id, null, family),
+      category: 'CHARACTER',
+    });
+    const pool = [
+      character('Dark Vador', 'ds-fiction'),
+      character('Salamèche', 'ds-enfants'),
+      character('Bulbizarre', 'ds-enfants'),
+      character('Carapuce', 'ds-enfants'),
+      character('Gollum', 'ds-fiction'),
+    ];
+    for (let i = 0; i < 20; i++) {
+      const chosen = chooseDistractors(pikachu, pool, 3, Math.random).map((c) => c.id);
+      expect(chosen.sort()).toEqual(['Bulbizarre', 'Carapuce', 'Salamèche']);
+    }
+  });
+
+  it('still fills the four options from the other gender when it must', () => {
+    const pool = [person('Brel', 'MALE', 'ds-chanteur'), person('Serena', 'FEMALE', 'ds-sportif')];
+    expect(chooseDistractors(zidane, pool, 3, Math.random)).toHaveLength(2);
+  });
+});
+
 describe('pickWeighted', () => {
   const points = [
     { id: 'eye', weight: 4 },

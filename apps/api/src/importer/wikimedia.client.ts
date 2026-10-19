@@ -72,6 +72,15 @@ export interface PersonWorks {
   female?: boolean;
 }
 
+export type PersonGender = 'FEMALE' | 'MALE' | 'OTHER';
+/** P21 values: male, female, trans man, trans woman. Any other stated value is OTHER. */
+const GENDERS: Record<string, PersonGender> = {
+  Q6581097: 'MALE',
+  Q6581072: 'FEMALE',
+  Q2449503: 'MALE',
+  Q1052281: 'FEMALE',
+};
+
 export interface WikimediaApi {
   sparql(query: string): Promise<SparqlRow[]>;
   entities(qids: string[], options?: EntityOptions): Promise<Map<string, WikidataEntity>>;
@@ -83,6 +92,8 @@ export interface WikimediaApi {
   /** Items whose name matches, best first: humans or not, the caller checks. */
   searchHumans(name: string): Promise<string[]>;
   subjects(qids: string[]): Promise<Map<string, SubjectFacts>>;
+  /** Each person's gender (P21); people Wikidata says nothing about are left out. */
+  genders(qids: string[]): Promise<Map<string, PersonGender>>;
   /** Keyed by the name given, whatever Commons normalised it to. */
   files(names: string[], thumbWidth: number): Promise<Map<string, CommonsFile>>;
   /** The bytes of a picture at a Commons media address (see `downloadCommonsMedia`). */
@@ -279,6 +290,25 @@ export class WikimediaHttpClient implements WikimediaApi {
           description: entity.descriptions?.fr?.value ?? entity.descriptions?.en?.value ?? null,
           familyNameQid: itemId(family),
         });
+      }
+    }
+    return found;
+  }
+
+  async genders(qids: string[]): Promise<Map<string, PersonGender>> {
+    const found = new Map<string, PersonGender>();
+    for (const ids of batches(qids)) {
+      const body = (await this.request(
+        'https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=claims&ids=' +
+          ids.join('|'),
+      )) as { entities?: Record<string, RawPerson> };
+      for (const [id, entity] of Object.entries(body.entities ?? {})) {
+        if (entity.missing !== undefined) continue;
+        const stated = (entity.claims?.P21 ?? []).map((claim) =>
+          itemId(claim.mainsnak?.datavalue?.value),
+        );
+        const qid = stated.find(Boolean);
+        if (qid) found.set(id, GENDERS[qid] ?? 'OTHER');
       }
     }
     return found;

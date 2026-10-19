@@ -128,6 +128,9 @@ function fakeWikimedia(picture: Buffer): WikimediaApi {
     async files(names) {
       return new Map(names.map((name) => [name, file(name)]));
     },
+    async genders() {
+      return new Map();
+    },
     async download() {
       return picture;
     },

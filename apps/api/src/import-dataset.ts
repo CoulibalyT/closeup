@@ -3,6 +3,7 @@ import 'reflect-metadata';
 import { existsSync } from 'node:fs';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
+import { CardGenders } from './importer/card-genders.js';
 import { DatasetCorrections } from './importer/dataset/corrections.js';
 import {
   type DatasetLine,
@@ -104,7 +105,10 @@ try {
     );
     table(flag('dry-run') ? 'Résumé (à blanc, rien d’écrit) :' : 'Résumé :', summary);
     if (!flag('dry-run')) {
-      console.log('\nLes photos passent dans le worker : suis-les avec --status.');
+      // New people get their gender, for the multiple-choice options.
+      const genders = await app.get(CardGenders).fill();
+      console.log(`\nGenre lu sur Wikidata : ${genders.filled} carte(s) sur ${genders.cards}.`);
+      console.log('Les photos passent dans le worker : suis-les avec --status.');
     }
   }
 } catch (error) {

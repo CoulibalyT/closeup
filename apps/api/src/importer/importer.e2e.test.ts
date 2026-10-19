@@ -143,6 +143,9 @@ function fakeWikimedia(picture: Buffer): WikimediaApi & { downloads: string[] } 
     async files(names) {
       return new Map(names.flatMap((name) => (files.has(name) ? [[name, files.get(name)!]] : [])));
     },
+    async genders() {
+      return new Map();
+    },
     async download(url) {
       downloads.push(url);
       return picture;

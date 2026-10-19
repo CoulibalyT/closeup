@@ -7,6 +7,10 @@ export interface OptionCandidate {
   label: string;
   difficulty: number;
   category: string;
+  /** People only, from Wikidata; null when nobody knows. */
+  gender?: string | null;
+  /** The pack family ("ds-sportif" for "ds-sportif-2"): the answer's domain or universe. */
+  family?: string | null;
 }
 
 export function shuffle<T>(items: readonly T[], random: Random): T[] {
@@ -32,8 +36,11 @@ export function pickWeighted<T extends { weight: number }>(
 }
 
 /**
- * Wrong options for a multiple-choice round: same category, similar difficulty first, and never
- * two options that read the same (nor one that reads like the answer).
+ * Wrong options for a multiple-choice round: same category, and the closer to the answer the
+ * better, so that the options do not give it away: same gender first (a man among three women
+ * is found at once), then the same domain or universe (footballers with footballers, Pokémon with
+ * Pokémon), then a similar difficulty. Never two options that read the same, nor one that reads
+ * like the answer.
  */
 export function chooseDistractors<T extends OptionCandidate>(
   target: OptionCandidate,
@@ -42,11 +49,17 @@ export function chooseDistractors<T extends OptionCandidate>(
   random: Random,
 ): T[] {
   const taken = new Set([normalise(target.label)]);
+  // 0 the same gender, 1 unknown (could be either), 2 the other one. No rank without a target gender.
+  const genderRank = (c: OptionCandidate) =>
+    !target.gender ? 0 : !c.gender ? 1 : c.gender === target.gender ? 0 : 2;
+  const familyRank = (c: OptionCandidate) => (target.family && c.family === target.family ? 0 : 1);
   const candidates = shuffle(
     pool.filter((c) => c.id !== target.id && c.category === target.category),
     random,
   ).sort(
     (a, b) =>
+      genderRank(a) - genderRank(b) ||
+      familyRank(a) - familyRank(b) ||
       Math.abs(a.difficulty - target.difficulty) - Math.abs(b.difficulty - target.difficulty),
   );
 

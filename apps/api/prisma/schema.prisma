@@ -147,6 +147,13 @@ enum CardStatus {
   DISABLED
 }
 
+/// A person's gender as Wikidata states it: multiple-choice options stay within it.
+enum Gender {
+  FEMALE
+  MALE
+  OTHER
+}
+
 enum CardSource {
   SEED
   UPLOAD
@@ -199,6 +206,8 @@ model Card {
   status            CardStatus   @default(DRAFT)
   /// Authoring hint for the image pipeline only (face landmarks). The engine never reads it.
   isPerson          Boolean      @default(false)
+  /// People only (Wikidata P21, filled by `cards:gender`); null when unknown.
+  gender            Gender?
   source            CardSource
   creditAuthor      String?
   creditLicence     String?

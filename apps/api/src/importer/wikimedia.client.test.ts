@@ -328,3 +328,30 @@ describe('subject facts', () => {
     });
   });
 });
+
+describe('genders', () => {
+  const claim = (qid: string) => ({ mainsnak: { datavalue: { value: { id: qid } } } });
+  it('reads a person’s gender from P21, trans identities included, and skips the unknown', async () => {
+    const fetch = replies(
+      json({
+        entities: {
+          Q1: { id: 'Q1', claims: { P21: [claim('Q6581097')] } },
+          Q2: { id: 'Q2', claims: { P21: [claim('Q6581072')] } },
+          Q3: { id: 'Q3', claims: { P21: [claim('Q1052281')] } },
+          Q4: { id: 'Q4', claims: { P21: [claim('Q48270')] } },
+          Q5: { id: 'Q5', claims: {} },
+          Q6: { id: 'Q6', missing: '' },
+        },
+      }),
+    );
+    const client = new WikimediaHttpClient({ fetch, sleep: async () => undefined });
+    const found = await client.genders(['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6']);
+    expect(Object.fromEntries(found)).toEqual({
+      Q1: 'MALE',
+      Q2: 'FEMALE',
+      Q3: 'FEMALE',
+      Q4: 'OTHER',
+    });
+    expect(String(fetch.mock.calls[0]![0])).toContain('props=claims');
+  });
+});
