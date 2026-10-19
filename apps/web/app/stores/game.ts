@@ -407,7 +407,14 @@ export const useGameStore = defineStore('game', () => {
         }
         announce({ kind: 'stealBonus', from, to, bonus: bonusType });
       } else if (amount === undefined) announce({ kind: 'stealPoints', from, to });
-      else announce({ kind: 'stolenPoints', from, to, amount });
+      else {
+        // The thief's own total moves now, like the ranking does; still set again at round end.
+        if (from === you.value) {
+          score.value += amount;
+          scoreAtRoundStart += amount;
+        }
+        announce({ kind: 'stolenPoints', from, to, amount });
+      }
     });
     io.on(ServerEvent.roundBlocked, (raw) => {
       const blocked = roundBlockedSchema.parse(raw);
