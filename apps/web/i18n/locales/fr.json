@@ -243,7 +243,8 @@
     "full": "Trop d'écrans sur cette partie",
     "closedHint": "Tout le monde est parti, ou personne n'est venu. Tu peux en ouvrir une autre sur cet écran.",
     "reopen": "Ouvrir une nouvelle partie",
-    "zone": "On voyait {zone}."
+    "zone": "On voyait {zone}.",
+    "settings": "Réglages de la partie"
   },
   "account": {
     "short": "Compte",

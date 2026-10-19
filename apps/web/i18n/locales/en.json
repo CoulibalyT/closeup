@@ -243,7 +243,8 @@
     "full": "Too many screens on this game",
     "closedHint": "Everybody left, or nobody came. You can open another one on this screen.",
     "reopen": "Open a new game",
-    "zone": "That was {zone}."
+    "zone": "That was {zone}.",
+    "settings": "Game settings"
   },
   "account": {
     "short": "Account",

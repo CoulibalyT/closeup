@@ -168,16 +168,57 @@ async function reopen(): Promise<void> {
         </ul>
         <p v-if="!game.players.length" class="muted">{{ t('screen.firstIsHost') }}</p>
         <p v-else class="muted">{{ t('screen.hostStarts', { host: hostName }) }}</p>
-        <p class="muted">
-          {{
-            t('lobby.settingsSummary', {
-              rounds: game.totalRounds,
-              mode: t(game.answerMode === 'text' ? 'lobby.modeText' : 'lobby.modeMcq'),
-            })
-          }}
-        </p>
+        <!-- What the host chose, readable by the whole room before it starts. -->
+        <dl class="settings" :aria-label="t('screen.settings')">
+          <div>
+            <dt>{{ t('home.rounds') }}</dt>
+            <dd>{{ game.totalRounds }}</dd>
+          </div>
+          <div>
+            <dt>{{ t('home.answerMode') }}</dt>
+            <dd>{{ t(game.answerMode === 'text' ? 'home.text' : 'home.mcq') }}</dd>
+          </div>
+          <div>
+            <dt>{{ t('home.scoring') }}</dt>
+            <dd>{{ t(`home.scoringMode.${game.scoring}`) }}</dd>
+          </div>
+          <div>
+            <dt>{{ t('lobby.roundSeconds') }}</dt>
+            <dd>
+              {{
+                game.roundSeconds === null
+                  ? t('lobby.untimed')
+                  : t('lobby.seconds', { n: game.roundSeconds })
+              }}
+            </dd>
+          </div>
+          <div>
+            <dt>{{ t('lobby.hints') }}</dt>
+            <dd>{{ t(game.hintsOn ? 'lobby.yes' : 'lobby.no') }}</dd>
+          </div>
+          <div>
+            <dt>{{ t('lobby.difficulty') }}</dt>
+            <dd>{{ t(`lobby.difficultyLevel.${game.difficulty}`) }}</dd>
+          </div>
+          <div class="wide">
+            <dt>{{ t('lobby.packs') }}</dt>
+            <dd>
+              {{
+                game.packIds.length
+                  ? t('lobby.packsChosen', { n: game.packIds.length })
+                  : t('lobby.packsAll')
+              }}
+            </dd>
+          </div>
+        </dl>
         <p v-if="game.display === 'phones'" class="warn">{{ t('screen.phonesMode') }}</p>
-        <HowToPlay layout="board" class="howto-board" />
+        <!-- A full room needs the height for its names: the board shrinks, then leaves. -->
+        <HowToPlay
+          v-if="game.players.length <= 8"
+          layout="board"
+          class="howto-board"
+          :compact="game.players.length > 4"
+        />
       </aside>
     </section>
 
@@ -353,10 +394,39 @@ h2 {
 }
 
 /* ---- lobby ---- */
+/* The host's choices, as tiles the room can read. */
+.settings {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(110px, 13vmin, 200px), 1fr));
+  gap: 0.8vmin;
+  margin: 0;
+  font-size: 0.85em;
+}
+.settings div {
+  padding: 0.7vmin 1.2vmin;
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.settings .wide {
+  grid-column: 1 / -1;
+}
+.settings dt {
+  color: var(--muted);
+  font-size: 0.85em;
+}
+.settings dd {
+  margin: 0;
+  font-size: 1.1em;
+  font-weight: 700;
+}
+/* Everything in the column must fit a TV: it starts at the top rather than overflowing both ends. */
+.lobby .side {
+  justify-content: flex-start;
+  gap: 1.4vmin;
+}
 /* How to play, read from the sofa while people join. */
 .howto-board {
-  margin-top: 2vmin;
-  padding: 2.4vmin;
+  padding: 1.6vmin 2vmin;
   border-radius: var(--radius);
   background: var(--surface);
 }

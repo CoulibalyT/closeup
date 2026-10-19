@@ -6,7 +6,14 @@ import { BONUS, MALUSES, SCORING, SELF_BONUSES, STEALS } from '@closeup/shared';
  * swipes through. `board`: one page for the shared screen, read from the sofa while people join.
  * The rules quoted come from the game's own constants, so the page cannot drift from them.
  */
-const props = withDefaults(defineProps<{ layout?: 'steps' | 'board' }>(), { layout: 'steps' });
+const props = withDefaults(
+  defineProps<{
+    layout?: 'steps' | 'board';
+    /** The board without its paragraph, when a full room needs the height. */
+    compact?: boolean;
+  }>(),
+  { layout: 'steps', compact: false },
+);
 const emit = defineEmits<{ done: [] }>();
 const { t } = useI18n();
 
@@ -124,7 +131,7 @@ onMounted(() => props.layout === 'steps' && heading.value?.focus());
 
   <section v-else class="howto board">
     <h2 class="display">{{ t('howto.board.title') }}</h2>
-    <p>
+    <p v-if="!compact">
       {{
         t('howto.board.text', {
           start: rules.start,
@@ -303,14 +310,24 @@ onMounted(() => props.layout === 'steps' && heading.value?.focus());
 
 /* The shared screen: read from across the room, every bonus at once. */
 .board {
-  --icon-size: clamp(44px, 6vmin, 76px);
-  font-size: clamp(15px, 1.9vmin, 24px);
+  --icon-size: clamp(34px, 4.6vmin, 60px);
+  font-size: clamp(14px, 1.7vmin, 22px);
 }
 .board h2 {
-  font-size: 1.8em;
+  font-size: 1.5em;
+}
+.board p {
+  margin: 0 0 0.6em;
+}
+.board .family {
+  margin: 0.8em 0 0.4em;
+}
+.board .bonuses li {
+  padding: 0.5vmin 4px;
 }
 .board .bonuses {
-  grid-template-columns: repeat(auto-fill, minmax(clamp(96px, 12vmin, 150px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(clamp(80px, 10vmin, 130px), 1fr));
+  gap: 0.8vmin;
 }
 .board .bonuses li,
 .board .family {
