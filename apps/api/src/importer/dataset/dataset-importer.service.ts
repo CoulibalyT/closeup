@@ -12,7 +12,11 @@ import { judgeFile, PREVIEW_WIDTH } from '../candidates.js';
 import { slugOf } from '../card-factory.js';
 import { WIKIMEDIA, type WikimediaApi } from '../wikimedia.client.js';
 import {
+  aliasesOf,
   answerOf,
+  englishAnswerOf,
+  expectedSlugs,
+  wikidataOf,
   DATASET_PACKS,
   type DatasetCategory,
   type DatasetPackKey,
@@ -40,8 +44,14 @@ export interface DatasetOptions {
   packSize?: number;
   /** Remake a card whose picture file changed in the dataset since it was imported. */
   replaceChanged?: boolean;
+  /**
+   * Take away the cards whose entry or photo is no longer in the manifest (excluded, dropped
+   * photos). Only on a full run: a partial one does not know what the manifest still has.
+   */
+  dropMissing?: boolean;
 }
-export type DatasetOutcome = 'created' | 'exists' | 'remade' | 'replaced' | `refused:${string}`;
+export type DatasetOutcome =
+  'created' | 'exists' | 'remade' | 'replaced' | 'dropped' | `refused:${string}`;
 export interface DatasetLine {
   index: number;
   total: number;
@@ -194,7 +204,7 @@ export class DatasetImporter {
           continue;
         }
         credit = judged.credit;
-        const qid = items.get(frwikiTitleOf(entry));
+        const qid = wikidataOf(entry) ?? items.get(frwikiTitleOf(entry));
         slug = (qid ? slugOf(qid) : `${prefix}-${entry.id}`) + photo.suffix;
       } else {
         credit = {
@@ -300,8 +310,12 @@ export class DatasetImporter {
           rightsConfirmedAt: person ? null : new Date(),
           answers: {
             create: [
-              { locale: 'fr', text: answer, aliases: [] },
-              { locale: 'en', text: answer, aliases: [] },
+              { locale: 'fr', text: answer, aliases: aliasesOf(entry) },
+              {
+                locale: 'en',
+                text: englishAnswerOf(entry) ?? answer,
+                aliases: englishAnswerOf(entry) ? [answer, ...aliasesOf(entry)] : aliasesOf(entry),
+              },
             ],
           },
         },
@@ -323,6 +337,38 @@ export class DatasetImporter {
       const room = packs.get(target.pack);
       if (room && room.id === packId) room.count += 1;
       line(outcome, credit.licence);
+    }
+    if (options.dropMissing && !options.only && !options.limit) {
+      const qids = new Map(
+        people.flatMap((entry) => {
+          const qid = wikidataOf(entry) ?? items.get(frwikiTitleOf(entry));
+          return qid ? [[entry.id, qid] as const] : [];
+        }),
+      );
+      const wanted = expectedSlugs(entries, prefix, qids);
+      const packSlugs = Object.keys(DATASET_PACKS).map((key) => `${prefix}-${key}`);
+      const cards = await this.prisma.card.findMany({
+        where: {
+          status: { not: 'PROCESSING' },
+          pack: {
+            OR: packSlugs.flatMap((slug) => [{ slug }, { slug: { startsWith: `${slug}-` } }]),
+          },
+        },
+        select: { id: true, slug: true, pack: { select: { slug: true } } },
+      });
+      for (const card of cards) {
+        if (!card.slug || wanted.has(card.slug)) continue;
+        if (!options.dryRun) await this.dropCard(card.id);
+        report({
+          index: work.length,
+          total: work.length,
+          name: card.slug,
+          pack: card.pack.slug ?? '',
+          outcome: 'dropped',
+        });
+        const counts = (summary[card.pack.slug ?? '?'] ??= {});
+        counts.dropped = (counts.dropped ?? 0) + 1;
+      }
     }
     return summary;
   }

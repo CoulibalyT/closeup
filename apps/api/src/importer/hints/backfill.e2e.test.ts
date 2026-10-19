@@ -100,6 +100,7 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('hint backfill', () => {
           image: 'images/fiction/alex.jpg',
           source: 'fandom',
           wiki: 'totallyspies',
+          universe: 'Totally Spies !',
           source_url: 'https://static.wikia.nocookie.net/x.png',
           page_url: 'https://totallyspies.fandom.com/wiki/Alex',
           page_title: 'Alex',
@@ -153,8 +154,8 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('hint backfill', () => {
       secondary: [],
     });
     expect((await answers(`ds-alex${run}`))[1]).toMatchObject({
-      hint: 'Totally Spies',
-      secondary: ['Totally Spies'],
+      hint: 'Totally Spies !',
+      secondary: ['Totally Spies !'],
     });
     // The owner's own hint stays.
     const [laikaEn, laikaFr] = await answers('wd-Q996003');

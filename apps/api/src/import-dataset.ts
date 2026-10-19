@@ -14,7 +14,7 @@ import { DATASET_CATEGORIES, type DatasetCategory } from './importer/dataset/man
 /**
  * The owner's dataset into the game (see the README):
  *   OWNER_EMAIL=me@example.org pnpm --filter @closeup/api import:dataset \
- *     [--only acteur] [--limit 20] [--dry-run] [--status] [--replace-changed]
+ *     [--only acteur] [--limit 20] [--dry-run] [--status] [--replace-changed] [--drop-missing]
  *     [--export-corrections] [--apply-corrections]   (the owner's review, in DATASET_DIR/corrections.json)
  * DATASET_DIR defaults to data/celebrities. A rerun only adds what is missing.
  */
@@ -95,6 +95,7 @@ try {
         limit,
         dryRun: flag('dry-run'),
         replaceChanged: flag('replace-changed'),
+        dropMissing: flag('drop-missing'),
         onWait: () => console.log('… en attente du worker'),
       },
       say,

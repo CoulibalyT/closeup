@@ -104,9 +104,16 @@ export class HintBackfill {
         await readFile(join(options.datasetDir, 'manifest.json'), 'utf8'),
       ) as unknown;
       const manifest = (Array.isArray(raw) ? raw : []).flatMap(
-        (e: { id?: unknown; name?: unknown; wiki?: unknown }) =>
+        (e: { id?: unknown; name?: unknown; wiki?: unknown; universe?: unknown }) =>
           typeof e?.id === 'string' && typeof e.name === 'string'
-            ? [{ id: e.id, name: e.name, wiki: typeof e.wiki === 'string' ? e.wiki : undefined }]
+            ? [
+                {
+                  id: e.id,
+                  name: e.name,
+                  wiki: typeof e.wiki === 'string' ? e.wiki : undefined,
+                  universe: typeof e.universe === 'string' ? e.universe.trim() : '',
+                },
+              ]
             : [],
       );
       const byId = new Map(manifest.map((entry) => [entry.id, entry]));
@@ -114,7 +121,10 @@ export class HintBackfill {
         const id = card.slug!.replace(/^ds-/, '').replace(/-kids$/, '');
         const entry = byId.get(id);
         if (!entry) continue;
-        const proposal = characterHint(entry.name, entry.wiki);
+        // The dataset's own universe when it gives one; else guessed from the name or the wiki.
+        const proposal = entry.universe
+          ? { hint: entry.universe, secondary: [entry.universe] }
+          : characterHint(entry.name, entry.wiki);
         proposals.set(card.id, { fr: proposal, en: proposal });
       }
     }

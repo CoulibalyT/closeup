@@ -33,6 +33,18 @@ const entrySchema = z.looseObject({
   tags: z.array(z.string()).optional(),
   /** The Commons file of a replaced picture: the truth when it disagrees with `source_url`. */
   file: z.string().optional(),
+  /** The Commons file of the main photo ("File:…"), when the dataset knows it. */
+  commons_file: z.string().optional(),
+  /** The person's Wikidata item: the exact identity, when the dataset knows it. */
+  wikidata: z.string().nullish(),
+  /** The answer, cleaned of its qualifier; else derived from the name. */
+  answer: z.string().optional(),
+  /** Other accepted spellings and nicknames. */
+  aliases: z.array(z.string()).optional(),
+  /** The English name when it differs. */
+  name_en: z.string().nullish(),
+  /** A character's universe, in French ("La Pat' Patrouille"): its hint. */
+  universe: z.string().nullish(),
   /** Width of the largest face on the picture, real people only. */
   face_px: z.number().optional(),
   /** Several photos of a person, the main one first: one card each. */
@@ -43,6 +55,7 @@ const entrySchema = z.looseObject({
         face_px: z.number().optional(),
         source_url: z.string().optional(),
         page_url: z.string().optional(),
+        commons_file: z.string().optional(),
       }),
     )
     .optional(),
@@ -165,6 +178,7 @@ export function photosOf(entry: DatasetEntry): DatasetPhoto[] {
           commonsFile: commonsFileOf({
             ...entry,
             file: undefined,
+            commons_file: photo.commons_file,
             source_url: photo.source_url ?? '',
           }),
           facePx: photo.face_px,
@@ -184,6 +198,7 @@ export function targetsOf(entry: DatasetEntry): DatasetTarget[] {
 
 /** The Commons file name: `file` when given, else from an upload or thumb URL; null elsewhere. */
 export function commonsFileOf(entry: DatasetEntry): string | null {
+  if (entry.commons_file) return entry.commons_file.replace(/^File:/, '');
   if (entry.file) return entry.file;
   let url: URL;
   try {
@@ -221,5 +236,51 @@ export function frwikiTitleOf(entry: DatasetEntry): string {
 
 /** The answer: the name, without a trailing qualifier in brackets. */
 export function answerOf(entry: DatasetEntry): string | null {
-  return answerFrom(entry.name)?.text ?? null;
+  return entry.answer?.trim() || (answerFrom(entry.name)?.text ?? null);
+}
+
+const fold = (text: string) => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
+
+/** Accepted other spellings: the dataset's aliases, without the answer itself or duplicates. */
+export function aliasesOf(entry: DatasetEntry): string[] {
+  const answer = answerOf(entry);
+  const seen = new Set(answer ? [fold(answer)] : []);
+  return (entry.aliases ?? []).filter((alias) => {
+    const key = fold(alias);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** The English answer, when the dataset gives one. */
+export function englishAnswerOf(entry: DatasetEntry): string | null {
+  return entry.name_en?.trim() || null;
+}
+
+/** The person's Wikidata item, when the dataset gives a well-formed one. */
+export function wikidataOf(entry: DatasetEntry): string | null {
+  return entry.wikidata && /^Q\d+$/.test(entry.wikidata) ? entry.wikidata : null;
+}
+
+/**
+ * Every card slug the manifest still asks for: one per photo of a person (under its Wikidata
+ * slug when known, else the dataset id, both counted), one per pack of a character.
+ */
+export function expectedSlugs(
+  entries: DatasetEntry[],
+  prefix: string,
+  qids: Map<string, string>,
+): Set<string> {
+  const slugs = new Set<string>();
+  for (const entry of entries) {
+    for (const target of targetsOf(entry)) {
+      for (const photo of photosOf(entry)) {
+        slugs.add(`${prefix}-${entry.id}${target.slugSuffix}${photo.suffix}`);
+        const qid = qids.get(entry.id);
+        if (qid && isRealPerson(entry)) slugs.add(`wd-${qid}${photo.suffix}`);
+      }
+    }
+  }
+  return slugs;
 }

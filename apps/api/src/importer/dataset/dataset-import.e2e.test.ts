@@ -761,6 +761,35 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('dataset import', () => {
     await prisma.card.deleteMany({ where: { id: { in: cards.map((c) => c.id) } } });
     await rm(other, { recursive: true, force: true });
   });
+  it('drops, only when asked and on a full run, the cards the manifest no longer has', async () => {
+    await settled();
+    const babar = await prisma.card.findFirstOrThrow({ where: { slug: `${prefix}-babar` } });
+    // The dataset excluded Babar.
+    await writeFile(
+      join(dir, 'manifest.json'),
+      JSON.stringify(entries.filter((entry) => entry.id !== 'babar')),
+    );
+    try {
+      await runOnce();
+      expect(await prisma.card.findUnique({ where: { id: babar.id } })).not.toBeNull();
+      // A partial run knows too little to drop anything.
+      await runOnce({ dropMissing: true, only: 'fiction' });
+      expect(await prisma.card.findUnique({ where: { id: babar.id } })).not.toBeNull();
+
+      const lines = await runOnce({ dropMissing: true });
+      expect(lines.filter((line) => line.outcome === 'dropped').map((line) => line.name)).toContain(
+        `${prefix}-babar`,
+      );
+      expect(await prisma.card.findUnique({ where: { id: babar.id } })).toBeNull();
+      // Everything the manifest still has stays.
+      expect(await prisma.card.count({ where: { slug: `${prefix}-alex` } })).toBe(1);
+    } finally {
+      await writeFile(join(dir, 'manifest.json'), JSON.stringify(entries));
+      await runOnce();
+      await settled();
+    }
+  });
+
   it('replaces a photo the dataset changed, only when asked, and never plays an old correction on it', async () => {
     await settled();
     const corrections = app.get(DatasetCorrections);

@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
+  aliasesOf,
   answerOf,
   commonsFileOf,
+  englishAnswerOf,
+  expectedSlugs,
   type DatasetEntry,
   frwikiTitleOf,
   isRealPerson,
   parseManifest,
   photosOf,
   targetsOf,
+  wikidataOf,
 } from './manifest.js';
 
 const entry = (over: Partial<DatasetEntry>): DatasetEntry => ({
@@ -177,5 +181,58 @@ describe('the 2026-10-18 dataset', () => {
       images: [{ file: 'images/fiction/c-2.jpg' }],
     } as never);
     expect(photosOf(character)).toHaveLength(1);
+  });
+});
+
+describe('the dataset fields read when present', () => {
+  it('takes the answer, the aliases and the English name the dataset gives', () => {
+    const e = entry({
+      name: 'Lisa (chanteuse)',
+      answer: 'Lisa',
+      aliases: ['Lalisa', 'lisa', 'Lisa Manobal'],
+      name_en: 'Lisa',
+    } as never);
+    expect(answerOf(e)).toBe('Lisa');
+    expect(aliasesOf(e)).toEqual(['Lalisa', 'Lisa Manobal']);
+    expect(englishAnswerOf(e)).toBe('Lisa');
+    expect(englishAnswerOf(entry({ name: 'Bob l’éponge', name_en: 'SpongeBob' } as never))).toBe(
+      'SpongeBob',
+    );
+    expect(englishAnswerOf(entry({ name: 'Zidane' }))).toBeNull();
+  });
+
+  it('takes the Commons file the dataset names, for the entry and for each photo', () => {
+    const e = entry({
+      commons_file: 'File:Omar Sy Cannes 2016.jpg',
+      images: [
+        { file: 'images/acteur/x.jpg', commons_file: 'File:Omar Sy Cannes 2016.jpg' },
+        { file: 'images/acteur/x-2.jpg', commons_file: 'File:Omar Sy 2019.jpg', source_url: '' },
+      ],
+    } as never);
+    expect(commonsFileOf(e)).toBe('Omar Sy Cannes 2016.jpg');
+    expect(photosOf(e).map((p) => p.commonsFile)).toEqual([
+      'Omar Sy Cannes 2016.jpg',
+      'Omar Sy 2019.jpg',
+    ]);
+  });
+
+  it('reads the Wikidata item and the universe', () => {
+    expect(wikidataOf(entry({ wikidata: 'Q312' } as never))).toBe('Q312');
+    expect(wikidataOf(entry({ wikidata: 'not an item' } as never))).toBeNull();
+    expect(wikidataOf(entry({}))).toBeNull();
+  });
+});
+
+describe('expectedSlugs', () => {
+  it('names every card the manifest still asks for, photos and kids copies included', () => {
+    const person = entry({
+      id: 'omar',
+      images: [{ file: 'images/acteur/x.jpg' }, { file: 'images/acteur/x-2.jpg' }],
+    });
+    const character = entry({ id: 'alex', category: 'fiction', tags: ['enfants'] });
+    const slugs = expectedSlugs([person, character], 'ds', new Map([['omar', 'Q999']]));
+    expect([...slugs].sort()).toEqual(
+      ['ds-alex', 'ds-alex-kids', 'ds-omar', 'ds-omar-p2', 'wd-Q999', 'wd-Q999-p2'].sort(),
+    );
   });
 });
