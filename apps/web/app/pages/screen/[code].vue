@@ -255,7 +255,14 @@ async function reopen(): Promise<void> {
             {{ t(game.scoring === 'fixed' ? 'play.worthFixed' : 'screen.worthNote') }}
           </p>
           <ol v-if="game.round.options?.length" class="options">
-            <li v-for="option in game.round.options" :key="option.id">{{ option.label }}</li>
+            <li
+              v-for="(option, i) in game.round.options"
+              :key="option.id"
+              :style="{ background: `var(--option-${i % 4})` }"
+            >
+              <OptionMark :index="i" />
+              {{ option.label }}
+            </li>
           </ol>
         </template>
         <p v-else class="display ready">{{ t('play.getReady') }}</p>
@@ -533,11 +540,14 @@ h2 {
   list-style: none;
 }
 .options li {
-  padding: 0.5em 0.7em;
-  border: 1.5px solid var(--line);
+  --mark-size: 0.9em;
+  display: flex;
+  gap: 0.5em;
+  align-items: center;
+  padding: 0.55em 0.7em;
   border-radius: var(--radius);
-  background: var(--surface);
-  font-weight: 600;
+  color: #ffffff;
+  font-weight: 800;
   line-height: 1.2;
 }
 .feed {

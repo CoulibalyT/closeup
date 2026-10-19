@@ -6,6 +6,12 @@
 @import '@fontsource-variable/instrument-sans/standard.css';
 
 :root {
+  /* An option's colour by position (red, blue, yellow, green): the same in every theme, so that
+     the TV and the phones always agree, with white text on each. */
+  --option-0: #d63c33;
+  --option-1: #2f6fd6;
+  --option-2: #d89410;
+  --option-3: #22905a;
   color-scheme: light dark;
 
   --bg: #e9edf3; /* sheet metal */
