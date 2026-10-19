@@ -44,7 +44,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
+  :root:not([data-theme='light']):not([data-theme='rose']) {
     --bg: #0c1130;
     --surface: #161d49;
     --ink: #eef1ff;
@@ -59,7 +59,29 @@
   }
 }
 
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+/* "Rose poudré": a light theme, powder pink with a raspberry accent; contrasts checked (text
+   and links ≥ 4.5:1 on the background, white on the accent ≥ 5:1). */
+:root[data-theme='rose'] {
+  color-scheme: light;
+  --bg: #f6e8ea;
+  --surface: #fffafa;
+  --ink: #3b1f2c;
+  --muted: #7a5563;
+  --line: #ecd2d8;
+  --accent: #a93d65;
+  --accent-ink: #ffffff;
+  --good: #1f7a50;
+  --danger: #c0302a;
+  --danger-ink: #ffffff;
+  --focus: #a93d65;
+}
+
 :root[data-theme='dark'] {
+  color-scheme: dark;
   --bg: #0c1130;
   --surface: #161d49;
   --ink: #eef1ff;

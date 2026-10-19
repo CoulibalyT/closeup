@@ -156,6 +156,7 @@ const playSolo = () =>
           </NuxtLink>
           <span class="grow" />
           <NuxtLink :to="localePath('/account')">{{ t('account.short') }}</NuxtLink>
+          <ThemeSwitch />
         </nav>
 
         <div class="hero">

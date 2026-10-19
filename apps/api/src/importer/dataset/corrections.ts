@@ -282,16 +282,23 @@ export class DatasetCorrections {
     return true;
   }
 
+  /**
+   * Waits for the worker to cut every picture. A small server takes an hour over two thousand
+   * cards: it gives up only when nothing has moved for 10 minutes.
+   */
   private async waitForCrops(prefix: string): Promise<void> {
-    const until = Date.now() + WAIT_LIMIT_MS;
+    let until = Date.now() + WAIT_LIMIT_MS;
+    let last = Infinity;
     while (Date.now() < until) {
       const pending = await this.prisma.card.count({
         where: { status: 'PROCESSING', pack: { slug: { startsWith: `${prefix}-` } } },
       });
       if (!pending) return;
+      if (pending < last) until = Date.now() + WAIT_LIMIT_MS;
+      last = pending;
       await new Promise((resolve) => setTimeout(resolve, WAIT_MS));
     }
-    throw new Error('Pictures still being cut after 10 min: is the worker running?');
+    throw new Error('No picture cut for 10 min: is the worker running?');
   }
 
   private async actorOf(email: string | undefined): Promise<SessionUser> {

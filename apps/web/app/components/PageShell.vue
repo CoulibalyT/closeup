@@ -23,6 +23,7 @@ const { appName } = useRuntimeConfig().public;
         <NuxtLink :to="localePath('/stats')">{{ t('stats.short') }}</NuxtLink>
         <NuxtLink :to="localePath('/account')">{{ t('account.short') }}</NuxtLink>
       </nav>
+      <ThemeSwitch class="theme" />
       <h1 class="display title">{{ title }}</h1>
     </header>
     <slot />
@@ -32,6 +33,7 @@ const { appName } = useRuntimeConfig().public;
 <!-- Not scoped: the forms and blocks of these pages share it. -->
 <style>
 .page {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-height: 100dvh;
@@ -47,6 +49,13 @@ const { appName } = useRuntimeConfig().public;
 .page .brand,
 .page .site {
   display: none;
+}
+/* On a phone the theme button sits in the top right corner, level with the way back. */
+.page .theme {
+  position: absolute;
+  top: calc(var(--space-4) + env(safe-area-inset-top) + 2px);
+  right: var(--space-2);
+  color: var(--muted);
 }
 .page .back {
   display: inline-flex;
@@ -157,10 +166,10 @@ const { appName } = useRuntimeConfig().public;
   .page > .bar {
     grid-column: 1 / -1;
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:
-      'brand site'
-      'title title';
+      'brand site theme'
+      'title title title';
     align-items: center;
     column-gap: var(--space-6);
     margin-bottom: var(--space-10);
@@ -183,6 +192,11 @@ const { appName } = useRuntimeConfig().public;
     font-size: 26px;
     font-stretch: 140%;
     text-decoration: none;
+  }
+  .page .theme {
+    grid-area: theme;
+    position: static;
+    color: inherit;
   }
   .page .site {
     grid-area: site;

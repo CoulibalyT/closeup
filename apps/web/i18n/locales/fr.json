@@ -780,5 +780,12 @@
       "stop": "Arrêter",
       "running409": "Un import est déjà en cours : arrête-le d’abord."
     }
+  },
+  "theme": {
+    "label": "Thème",
+    "auto": "Auto (appareil)",
+    "light": "Clair",
+    "rose": "Rose poudré",
+    "dark": "Sombre"
   }
 }

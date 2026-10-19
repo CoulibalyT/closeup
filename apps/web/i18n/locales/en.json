@@ -780,5 +780,12 @@
       "stop": "Stop",
       "running409": "An import is already running: stop it first."
     }
+  },
+  "theme": {
+    "label": "Theme",
+    "auto": "Auto (device)",
+    "light": "Light",
+    "rose": "Powder pink",
+    "dark": "Dark"
   }
 }

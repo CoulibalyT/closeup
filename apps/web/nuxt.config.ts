@@ -33,6 +33,14 @@ export default defineNuxtConfig({
         { name: 'theme-color', content: '#e9edf3', media: '(prefers-color-scheme: light)' },
         { name: 'theme-color', content: '#0c1130', media: '(prefers-color-scheme: dark)' },
       ],
+      // The theme chosen on this device, applied before the first paint (no flash of the
+      // default colours). Same key as useTheme.
+      script: [
+        {
+          innerHTML:
+            "try{var t=localStorage.getItem('closeup-theme');if(t==='light'||t==='rose'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}",
+        },
+      ],
       link: [
         { rel: 'icon', href: '/icon.svg', type: 'image/svg+xml' },
         { rel: 'icon', href: '/favicon.png', sizes: '48x48', type: 'image/png' },
