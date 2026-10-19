@@ -191,6 +191,15 @@ const screenMissing = computed(() => bigScreen.value && game.screens === 0);
             <small v-if="player.id === game.hostId">{{ t('lobby.host') }}</small>
             <small v-if="!player.connected">{{ t('lobby.offline') }}</small>
           </span>
+          <!-- The host can pass the room on: the new host chooses the settings and starts. -->
+          <button
+            v-if="game.isHost && player.id !== game.you && player.connected"
+            type="button"
+            class="make-host"
+            @click="game.makeHost(player.id)"
+          >
+            {{ t('lobby.makeHost') }}
+          </button>
           <button
             v-if="game.isHost && player.id !== game.you"
             type="button"
@@ -499,6 +508,15 @@ small {
   font-weight: 400;
   color: var(--muted);
 }
+.make-host {
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  border: 0;
+  background: none;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
 .remove {
   min-height: 44px;
   padding: 0 var(--space-2);
@@ -676,6 +694,13 @@ label input:focus-visible + span {
     max-width: 100%;
     overflow-wrap: anywhere;
     white-space: normal;
+  }
+  .make-host {
+    margin-top: auto;
+    padding: 0;
+  }
+  .make-host + .remove {
+    margin-top: 0;
   }
   .remove {
     margin-top: auto;

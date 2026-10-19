@@ -20,6 +20,8 @@ export const ClientEvent = {
   roomLeave: 'room:leave',
   roomSettingsUpdate: 'room:settings:update',
   roomKick: 'room:kick',
+  /** The host hands the room to another player. */
+  roomHostTransfer: 'room:host:transfer',
   gameStart: 'game:start',
   gamePlayAgain: 'game:playAgain',
   roundGuess: 'round:guess',
@@ -84,6 +86,7 @@ export const roomJoinSchema = z.discriminatedUnion('role', [
 export type RoomJoin = z.infer<typeof roomJoinSchema>;
 
 export const roomKickSchema = z.object({ playerId: idSchema });
+export const roomHostTransferSchema = z.object({ playerId: idSchema });
 
 export const roundGuessSchema = z.object({
   roundId: idSchema,

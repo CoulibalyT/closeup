@@ -69,6 +69,7 @@
     "host": "host",
     "offline": "offline",
     "remove": "Remove",
+    "makeHost": "Make host",
     "settingsSummary": "{rounds} rounds, {mode}.",
     "modeText": "typed answers",
     "modeMcq": "4 options",

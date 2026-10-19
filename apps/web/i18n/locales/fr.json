@@ -69,6 +69,7 @@
     "host": "hôte",
     "offline": "hors ligne",
     "remove": "Retirer",
+    "makeHost": "Nommer hôte",
     "settingsSummary": "{rounds} manches, {mode}.",
     "modeText": "réponse écrite",
     "modeMcq": "4 propositions",

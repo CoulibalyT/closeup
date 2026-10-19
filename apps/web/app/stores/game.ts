@@ -617,6 +617,7 @@ export const useGameStore = defineStore('game', () => {
 
   const updateSettings = (settings: RoomSettings) => send(ClientEvent.roomSettingsUpdate, settings);
   const kick = (playerId: string) => send(ClientEvent.roomKick, { playerId });
+  const makeHost = (playerId: string) => send(ClientEvent.roomHostTransfer, { playerId });
   const playAgain = () => send(ClientEvent.gamePlayAgain);
 
   /** Leaving on purpose frees the seat at once; closing the tab keeps it for 60 seconds. */
@@ -695,6 +696,7 @@ export const useGameStore = defineStore('game', () => {
     start,
     updateSettings,
     kick,
+    makeHost,
     playAgain,
     leaveRoom,
     leave,

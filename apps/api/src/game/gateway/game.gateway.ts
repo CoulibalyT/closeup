@@ -24,6 +24,7 @@ import {
   roundSkipSchema,
   ROOM,
   roomJoinSchema,
+  roomHostTransferSchema,
   roomKickSchema,
   type RoomPlayerLeft,
   roomScreensSchema,
@@ -284,6 +285,18 @@ export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
       socket,
       (playerId, kick) => ({ type: 'kick', playerId, targetId: kick.playerId }),
       [roomKickSchema, body],
+    );
+  }
+
+  @SubscribeMessage(ClientEvent.roomHostTransfer)
+  onHostTransfer(
+    @ConnectedSocket() socket: GameSocket,
+    @MessageBody() body: unknown,
+  ): Promise<Reply> {
+    return this.inRoom(
+      socket,
+      (playerId, to) => ({ type: 'transferHost', playerId, targetId: to.playerId }),
+      [roomHostTransferSchema, body],
     );
   }
 

@@ -205,6 +205,7 @@ export type Command =
   | { type: 'leave'; playerId: string }
   | { type: 'disconnect'; playerId: string }
   | { type: 'kick'; playerId: string; targetId: string }
+  | { type: 'transferHost'; playerId: string; targetId: string }
   | { type: 'updateSettings'; playerId: string; settings: RoomSettings }
   /** The room layer builds the deck first and tells how many cards it found. */
   | { type: 'start'; playerId: string; lexicon?: string[]; availableRounds?: number }

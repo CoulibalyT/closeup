@@ -283,6 +283,18 @@ function dispatch(
       return OK;
     }
 
+    // The host passes the room on (settings, start, skip) to someone present, at any time.
+    case 'transferHost': {
+      if (command.playerId !== state.hostId) return refuse('NOT_HOST', 'Only the host can do that');
+      const heir = state.players[command.targetId];
+      if (command.targetId === state.hostId || !heir?.connected || heir.gone) {
+        return refuse('TARGET_INVALID', 'Pick another player');
+      }
+      state.hostId = heir.id;
+      emit({ type: 'hostChanged' });
+      return OK;
+    }
+
     case 'updateSettings': {
       if (command.playerId !== state.hostId) return refuse('NOT_HOST', 'Only the host can do that');
       if (state.phase !== 'lobby') return refuse('BAD_PHASE', 'Only before the game starts');

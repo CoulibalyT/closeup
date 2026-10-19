@@ -140,6 +140,25 @@ describe('the lobby', () => {
     });
   });
 
+  it('lets the host hand the room to another player who is there', () => {
+    const room = new Room();
+    room.join('p2', 'Moussa');
+    room.join('p3', 'Inès');
+    const hand = (playerId: string, targetId: string) =>
+      room.send({ type: 'transferHost', playerId, targetId }, T0 + 2);
+    expect(hand('p2', 'p3')).toMatchObject(refused('NOT_HOST'));
+    expect(hand('p1', 'p1')).toMatchObject(refused('TARGET_INVALID'));
+    expect(hand('p1', 'nobody')).toMatchObject(refused('TARGET_INVALID'));
+    room.send({ type: 'disconnect', playerId: 'p3' }, T0 + 2);
+    expect(hand('p1', 'p3')).toMatchObject(refused('TARGET_INVALID'));
+
+    expect(hand('p1', 'p2').ok).toBe(true);
+    expect(room.state.hostId).toBe('p2');
+    expect(room.events().at(-1)).toBe('hostChanged');
+    // The former host is an ordinary player now.
+    expect(hand('p1', 'p3')).toMatchObject(refused('NOT_HOST'));
+  });
+
   it('hands the room to the longest-present player when the host leaves', () => {
     const room = new Room();
     room.join('p2', 'Moussa', T0 + 100);
