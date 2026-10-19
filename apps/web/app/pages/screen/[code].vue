@@ -128,6 +128,8 @@ async function reopen(): Promise<void> {
       <span v-if="game.code && !['lobby', 'lost', 'connecting'].includes(game.stage)" class="chip">
         {{ t('screen.joinChip', { host: siteHost }) }} <b>{{ game.code }}</b>
       </span>
+      <!-- Colours are chosen before the game: during it the screen belongs to the image. -->
+      <ThemeSwitch v-if="['lobby', 'ended'].includes(game.stage)" class="theme" />
       <button
         v-if="canFullscreen && !isFullscreen"
         type="button"
