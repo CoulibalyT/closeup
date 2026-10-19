@@ -57,18 +57,20 @@ export class AdminContentService {
   // ---- packs ----
 
   async listPacks(): Promise<AdminPack[]> {
-    const [packs, counts] = await Promise.all([
+    const [packs, counts, latest] = await Promise.all([
       this.prisma.pack.findMany({ orderBy: { createdAt: 'asc' } }),
       this.prisma.card.groupBy({ by: ['packId', 'status'], _count: true }),
+      this.latestCards(),
     ]);
-    return packs.map((pack) => this.packView(pack, counts));
+    return packs.map((pack) => this.packView(pack, counts, latest));
   }
 
   async getPack(id: string): Promise<{ pack: AdminPack; cards: AdminCardSummary[] }> {
     const pack = await this.prisma.pack.findUnique({ where: { id } });
     if (!pack) throw new NotFoundException();
-    const [counts, cards] = await Promise.all([
+    const [counts, latest, cards] = await Promise.all([
       this.prisma.card.groupBy({ by: ['packId', 'status'], where: { packId: id }, _count: true }),
+      this.latestCards(id),
       this.prisma.card.findMany({
         where: { packId: id },
         include: cardInclude,
@@ -76,7 +78,7 @@ export class AdminContentService {
       }),
     ]);
     return {
-      pack: this.packView(pack, counts),
+      pack: this.packView(pack, counts, latest),
       cards: cards.map((card) => {
         const answer = (locale: string) => card.answers.find((a) => a.locale === locale)?.text;
         return {
@@ -88,6 +90,8 @@ export class AdminContentService {
           points: card.zoomPoints.length,
           thumbnailUrl: card.image?.revealKey ? this.imageUrl(card.image.id) : null,
           blockers: this.blockers(card),
+          createdAt: card.createdAt.toISOString(),
+          updatedAt: card.updatedAt.toISOString(),
         };
       }),
     };
@@ -407,10 +411,21 @@ export class AdminContentService {
     };
   }
 
+  /** Per pack, when its newest card arrived and when a card last changed. */
+  private latestCards(packId?: string) {
+    return this.prisma.card.groupBy({
+      by: ['packId'],
+      ...(packId ? { where: { packId } } : {}),
+      _max: { createdAt: true, updatedAt: true },
+    });
+  }
+
   private packView(
     pack: Prisma.PackGetPayload<object>,
     counts: { packId: string; status: CardStatus; _count: number }[],
+    latest: { packId: string; _max: { createdAt: Date | null; updatedAt: Date | null } }[] = [],
   ): AdminPack {
+    const last = latest.find((row) => row.packId === pack.id)?._max;
     return {
       id: pack.id,
       slug: pack.slug,
@@ -427,7 +442,10 @@ export class AdminContentService {
       cards: Object.fromEntries(
         counts.filter((row) => row.packId === pack.id).map((row) => [row.status, row._count]),
       ),
+      createdAt: pack.createdAt.toISOString(),
       updatedAt: pack.updatedAt.toISOString(),
+      lastCardAddedAt: last?.createdAt?.toISOString() ?? null,
+      lastCardChangedAt: last?.updatedAt?.toISOString() ?? null,
     };
   }
 

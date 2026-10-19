@@ -649,7 +649,47 @@
     "secondaryFr": "Réponses partielles (français)",
     "secondaryEn": "Réponses partielles (anglais)",
     "secondaryHelp": "Séparées par des virgules : « Pirates des Caraïbes, Edward aux mains d’argent ».",
-    "openCard": "Ouvrir la carte"
+    "openCard": "Ouvrir la carte",
+    "filters": {
+      "search": "Rechercher",
+      "searchPacks": "Titre du pack…",
+      "searchCards": "Nom de la carte…",
+      "all": "Tous",
+      "activity": "Activité",
+      "status": "Filtrer par statut",
+      "sort": "Trier",
+      "reset": "Effacer les filtres",
+      "packCount": "{n} pack(s) sur {total}",
+      "cardCount": "{n} carte(s) sur {total}",
+      "changed": "Modifié {when}",
+      "added": "Ajoutée {when}",
+      "lastAdded": "Dernier ajout {when}",
+      "on": {
+        "added": "Ajoutées",
+        "changed": "Modifiées"
+      },
+      "period": {
+        "label": "Période",
+        "all": "Depuis toujours",
+        "1h": "Dernière heure",
+        "24h": "Dernières 24 h",
+        "7d": "7 derniers jours",
+        "30d": "30 derniers jours"
+      },
+      "packSort": {
+        "recent": "Activité récente",
+        "added": "Derniers ajouts de cartes",
+        "name": "Nom",
+        "cards": "Nombre de cartes",
+        "oldest": "Ordre de création"
+      },
+      "cardSort": {
+        "newest": "Ajoutées récemment",
+        "changed": "Modifiées récemment",
+        "name": "Nom",
+        "oldest": "Ordre d’ajout"
+      }
+    }
   },
   "status": {
     "title": "État de {appName}",

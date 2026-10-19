@@ -649,7 +649,47 @@
     "secondaryFr": "Partial answers (French)",
     "secondaryEn": "Partial answers (English)",
     "secondaryHelp": "Comma-separated: “Pirates of the Caribbean, Edward Scissorhands”.",
-    "openCard": "Open the card"
+    "openCard": "Open the card",
+    "filters": {
+      "search": "Search",
+      "searchPacks": "Pack title…",
+      "searchCards": "Card name…",
+      "all": "All",
+      "activity": "Activity",
+      "status": "Filter by status",
+      "sort": "Sort",
+      "reset": "Clear filters",
+      "packCount": "{n} pack(s) out of {total}",
+      "cardCount": "{n} card(s) out of {total}",
+      "changed": "Changed {when}",
+      "added": "Added {when}",
+      "lastAdded": "Last card added {when}",
+      "on": {
+        "added": "Added",
+        "changed": "Changed"
+      },
+      "period": {
+        "label": "Period",
+        "all": "Any time",
+        "1h": "Last hour",
+        "24h": "Last 24 h",
+        "7d": "Last 7 days",
+        "30d": "Last 30 days"
+      },
+      "packSort": {
+        "recent": "Recent activity",
+        "added": "Latest cards added",
+        "name": "Name",
+        "cards": "Card count",
+        "oldest": "Creation order"
+      },
+      "cardSort": {
+        "newest": "Recently added",
+        "changed": "Recently changed",
+        "name": "Name",
+        "oldest": "Order added"
+      }
+    }
   },
   "status": {
     "title": "{appName} status",

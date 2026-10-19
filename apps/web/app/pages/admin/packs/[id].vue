@@ -3,15 +3,17 @@ import {
   type AdminCard,
   type AdminCardSummary,
   type AdminPack,
+  CARD_STATUSES,
   CATEGORIES,
   type Category,
   RESTRICTED_CATEGORIES,
 } from '@closeup/shared';
+import { ago, PERIODS, within } from '~/utils/since';
 
 definePageMeta({ middleware: 'admin' });
 
 const route = useRoute();
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const localePath = useLocalePath();
 const admin = useSessionStore();
 const { appName } = useRuntimeConfig().public;
@@ -32,6 +34,47 @@ const form = reactive({
   category: 'OBJECT' as Category,
   publicMatchSafe: false,
 });
+const SORTS = ['newest', 'changed', 'name', 'oldest'] as const;
+const search = useQueryFilter('q', '');
+const status = useQueryFilter<'' | AdminCardSummary['status']>('status', '', [
+  '',
+  ...CARD_STATUSES,
+]);
+const since = useQueryFilter('since', 'all', PERIODS);
+const on = useQueryFilter('on', 'added', ['added', 'changed'] as const);
+const sort = useQueryFilter('sort', 'newest', SORTS);
+
+const name = (card: AdminCardSummary) => (locale.value === 'en' ? card.answerEn : card.answerFr);
+const shown = computed(() => {
+  const words = search.value.trim().toLocaleLowerCase();
+  const list = cards.value.filter(
+    (card) =>
+      (!words || `${card.answerFr} ${card.answerEn}`.toLocaleLowerCase().includes(words)) &&
+      (!status.value || card.status === status.value) &&
+      within(on.value === 'added' ? card.createdAt : card.updatedAt, since.value),
+  );
+  const by = {
+    newest: (a: AdminCardSummary, b: AdminCardSummary) => b.createdAt.localeCompare(a.createdAt),
+    changed: (a: AdminCardSummary, b: AdminCardSummary) => b.updatedAt.localeCompare(a.updatedAt),
+    name: (a: AdminCardSummary, b: AdminCardSummary) =>
+      name(a).localeCompare(name(b), locale.value),
+    oldest: () => 0,
+  }[sort.value];
+  return [...list].sort(by);
+});
+/** How many cards of each status, for the chips that filter on it. */
+const byStatus = computed(() =>
+  CARD_STATUSES.map((s) => ({
+    status: s,
+    n: cards.value.filter((c) => c.status === s).length,
+  })).filter((row) => row.n),
+);
+const filtered = computed(() => !!(search.value || status.value || since.value !== 'all'));
+const router = useRouter();
+function reset(): void {
+  void router.replace({ query: {} });
+}
+
 const newCard = reactive({ category: 'OBJECT' as Category, isPerson: false });
 // Real people and fictional characters never play with strangers: the server refuses the box.
 watch(
@@ -173,8 +216,66 @@ async function addCard(): Promise<void> {
       <section class="panel">
         <h2>{{ t('admin.cards') }}</h2>
         <p v-if="!cards.length" class="muted">{{ t('admin.noCards') }}</p>
+        <template v-else>
+          <div class="chips" role="group" :aria-label="t('admin.filters.status')">
+            <button type="button" class="chip choice" :aria-pressed="!status" @click="status = ''">
+              {{ t('admin.filters.all') }} · {{ cards.length }}
+            </button>
+            <button
+              v-for="row in byStatus"
+              :key="row.status"
+              type="button"
+              class="chip choice"
+              :class="row.status.toLowerCase()"
+              :aria-pressed="status === row.status"
+              @click="status = status === row.status ? '' : row.status"
+            >
+              {{ t(`admin.status.${row.status}`) }} · {{ row.n }}
+            </button>
+          </div>
+          <form class="filters" role="search" @submit.prevent>
+            <div class="field grow">
+              <label for="f-search">{{ t('admin.filters.search') }}</label>
+              <input
+                id="f-search"
+                v-model="search"
+                type="search"
+                :placeholder="t('admin.filters.searchCards')"
+              />
+            </div>
+            <div class="field">
+              <label for="f-on">{{ t('admin.filters.activity') }}</label>
+              <select id="f-on" v-model="on">
+                <option value="added">{{ t('admin.filters.on.added') }}</option>
+                <option value="changed">{{ t('admin.filters.on.changed') }}</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="f-since">{{ t('admin.filters.period.label') }}</label>
+              <select id="f-since" v-model="since">
+                <option v-for="p in PERIODS" :key="p" :value="p">
+                  {{ t(`admin.filters.period.${p}`) }}
+                </option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="f-sort">{{ t('admin.filters.sort') }}</label>
+              <select id="f-sort" v-model="sort">
+                <option v-for="s in SORTS" :key="s" :value="s">
+                  {{ t(`admin.filters.cardSort.${s}`) }}
+                </option>
+              </select>
+            </div>
+          </form>
+          <p class="muted count" role="status">
+            {{ t('admin.filters.cardCount', { n: shown.length, total: cards.length }) }}
+            <button v-if="filtered" type="button" class="link" @click="reset">
+              {{ t('admin.filters.reset') }}
+            </button>
+          </p>
+        </template>
         <ul class="plain cards">
-          <li v-for="card in cards" :key="card.id">
+          <li v-for="card in shown" :key="card.id">
             <NuxtLink :to="localePath(`/admin/cards/${card.id}`)">
               <img
                 v-if="card.thumbnailUrl"
@@ -190,6 +291,13 @@ async function addCard(): Promise<void> {
             </span>
             <small v-if="card.blockers.length && card.status !== 'LIVE'" class="muted">
               {{ t('admin.missing', { n: card.blockers.length }) }}
+            </small>
+            <small class="muted" :title="new Date(card.updatedAt).toLocaleString(locale)">
+              {{
+                t(on === 'changed' ? 'admin.filters.changed' : 'admin.filters.added', {
+                  when: ago(on === 'changed' ? card.updatedAt : card.createdAt, locale),
+                })
+              }}
             </small>
           </li>
         </ul>
@@ -261,6 +369,44 @@ async function addCard(): Promise<void> {
 
 <style scoped>
 .chip + .chip {
+  margin-left: var(--space-2);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.chips .chip + .chip {
+  margin-left: 0;
+}
+.chip.choice {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+}
+.chip.choice[aria-pressed='true'] {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: end;
+}
+.filters .field {
+  margin: 0;
+}
+.filters .grow {
+  flex: 1 1 200px;
+}
+.count {
+  margin: var(--space-3) 0;
+}
+.count .link {
   margin-left: var(--space-2);
 }
 .cards {

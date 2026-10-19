@@ -111,7 +111,11 @@ export interface AdminPack extends PackInput {
   byPlayer: boolean;
   /** How many cards per status, e.g. `{ LIVE: 8, NEEDS_POINTS: 1 }`. */
   cards: Partial<Record<CardStatus, number>>;
+  createdAt: string;
   updatedAt: string;
+  /** When a card of the pack last arrived, and last changed: what an import just did. */
+  lastCardAddedAt: string | null;
+  lastCardChangedAt: string | null;
 }
 
 // ---- cards ----
@@ -218,6 +222,8 @@ export interface AdminCardSummary {
   points: number;
   thumbnailUrl: string | null;
   blockers: PublishBlocker[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export const UPLOAD_ERRORS = [

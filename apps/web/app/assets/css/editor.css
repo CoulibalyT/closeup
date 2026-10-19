@@ -8,9 +8,10 @@
 }
 .admin-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-6);
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--line);
   background: var(--surface);
 }
@@ -23,6 +24,8 @@
   flex: 1;
 }
 .admin-bar .who {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: 14px;
 }
 .admin-main {
@@ -71,6 +74,7 @@
 .admin input[type='password'],
 .admin input[type='url'],
 .admin input[type='number'],
+.admin input[type='search'],
 .admin select,
 .admin textarea {
   width: 100%;

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { INestApplication, INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
-import type { AdminCard, AdminPack } from '@closeup/shared';
+import type { AdminCard, AdminCardSummary, AdminPack } from '@closeup/shared';
 import type { Redis } from 'ioredis';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -250,6 +250,21 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('back-office', () => {
     expect(card.status).toBe('READY');
     expect(card.zoomPoints.map((p) => p.cropsReady)).toEqual([true, true]);
     expect(card.blockers).toEqual(['CREDIT_MISSING', 'ANSWER_FR_MISSING', 'ANSWER_EN_MISSING']);
+  });
+
+  it('dates every card and tells, per pack, when a card last arrived and changed', async () => {
+    const { pack: one, cards } = (await (await call(`/admin/packs/${pack.id}`)).json()) as {
+      pack: AdminPack;
+      cards: AdminCardSummary[];
+    };
+    const line = cards.find((c) => c.id === card.id)!;
+    expect(Date.parse(line.createdAt)).toBeLessThanOrEqual(Date.parse(line.updatedAt));
+    expect(one.lastCardAddedAt).toBe(line.createdAt);
+    expect(one.lastCardChangedAt).toBe(line.updatedAt);
+    const listed = ((await (await call('/admin/packs')).json()) as AdminPack[]).find(
+      (p) => p.id === pack.id,
+    );
+    expect(listed).toMatchObject({ lastCardAddedAt: line.createdAt, createdAt: one.createdAt });
   });
 
   it('never publishes a card without a credit', async () => {
