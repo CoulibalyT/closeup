@@ -145,6 +145,22 @@ async function removePack(): Promise<void> {
   await navigateTo(localePath('/admin'));
 }
 
+/** One tap from the list: take a card out of play, or put it back, without opening it. */
+const switching = ref<string | null>(null);
+async function setLive(card: AdminCardSummary, live: boolean): Promise<void> {
+  switching.value = card.id;
+  try {
+    const updated = await admin.request<AdminCard>('PUT', `/admin/cards/${card.id}/live`, { live });
+    cards.value = cards.value.map((c) =>
+      c.id === card.id ? { ...c, status: updated.status, updatedAt: updated.updatedAt } : c,
+    );
+  } catch {
+    failed.value = true;
+  } finally {
+    switching.value = null;
+  }
+}
+
 async function addCard(): Promise<void> {
   const card = await admin.request<AdminCard>('POST', `/admin/packs/${id}/cards`, { ...newCard });
   await navigateTo(localePath(`/admin/cards/${card.id}`));
@@ -289,6 +305,16 @@ async function addCard(): Promise<void> {
             <span class="chip" :class="card.status.toLowerCase()">
               {{ t(`admin.status.${card.status}`) }}
             </span>
+            <button
+              v-if="card.status === 'LIVE' || (card.status === 'READY' && !card.blockers.length)"
+              type="button"
+              class="button small"
+              :class="card.status === 'LIVE' ? 'danger' : 'quiet'"
+              :disabled="switching === card.id"
+              @click="setLive(card, card.status !== 'LIVE')"
+            >
+              {{ t(card.status === 'LIVE' ? 'admin.unpublish' : 'admin.publish') }}
+            </button>
             <small v-if="card.blockers.length && card.status !== 'LIVE'" class="muted">
               {{ t('admin.missing', { n: card.blockers.length }) }}
             </small>
