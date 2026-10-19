@@ -217,6 +217,14 @@ async function quit(): Promise<void> {
               @pick="game.pick"
             />
           </template>
+          <button
+            v-if="game.stage === 'playing' && game.roundSeconds === null && game.isHost"
+            type="button"
+            class="button quiet skip"
+            @click="game.skipRound()"
+          >
+            {{ t('play.skip') }}
+          </button>
           <EventFeed />
           <BonusBar />
         </template>
@@ -460,6 +468,9 @@ async function quit(): Promise<void> {
   border-radius: 50%;
   background: var(--option-2);
 }
+.pad .skip {
+  margin: 0 var(--space-3);
+}
 .pad .gain {
   font-size: 26px;
 }
@@ -539,14 +550,6 @@ async function quit(): Promise<void> {
   flex-direction: column;
   min-height: 0;
 }
-/* Controller: no strip, a small lens that only keeps time (or shows a zoom-out bonus). */
-.stage.controller {
-  grid-template-columns: minmax(0, 1fr);
-}
-.stage.controller .lens-box {
-  flex-basis: 148px;
-  max-height: 148px;
-}
 .look-up {
   font-size: 13px;
   font-weight: 600;
@@ -561,22 +564,6 @@ async function quit(): Promise<void> {
   color: #ffffff;
   font-size: 15px;
   font-weight: 600;
-}
-.controls {
-  transition:
-    filter 0.25s,
-    rotate 0.35s;
-}
-.controls.blur {
-  filter: blur(7px);
-}
-.controls.flip {
-  rotate: 180deg;
-}
-@media (prefers-reduced-motion: reduce) {
-  .controls {
-    transition: none;
-  }
 }
 .below {
   display: flex;
@@ -687,51 +674,12 @@ async function quit(): Promise<void> {
     align-self: flex-start;
   }
 
-  /* A controller's round (big-screen mode on a computer) keeps the two columns it had: the
-     lens only keeps time, the column holds the news, the bonuses, the ranking and the answer. */
-  .screen.in-round.controller {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 380px;
-    grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
-    grid-template-areas:
-      'top top'
-      'alert alert'
-      'stage feed'
-      'stage bonus'
-      'stage ranking'
-      'stage controls';
-    column-gap: 48px;
-    padding-bottom: var(--space-6);
-  }
-  .in-round.controller .top {
-    grid-area: top;
-    padding-inline: 0;
-    font-size: 17px;
-  }
+  /* A computer used as a controller: the same pad, centred at a phone's width. */
+  .in-round.controller .pad,
+  .in-round.controller .top,
   .in-round.controller .no-screen {
-    grid-area: alert;
-    margin-inline: 0;
-  }
-  .in-round.controller .stage {
-    grid-area: stage;
-    padding: var(--space-6) 0 0;
-  }
-  .in-round.controller .feed {
-    grid-area: feed;
-    padding-top: var(--space-6);
-  }
-  .in-round.controller .bonuses {
-    grid-area: bonus;
-  }
-  .in-round.controller .live {
-    grid-area: ranking;
-    padding: var(--space-4) 0;
-    overflow-y: auto;
-  }
-  .in-round.controller .controls {
-    grid-area: controls;
-    overflow: hidden;
-    border-radius: var(--radius);
+    width: min(100%, 520px);
+    margin-inline: auto;
   }
 
   /* The cabin: the curtain down the left, the strip on it. */

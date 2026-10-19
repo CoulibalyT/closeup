@@ -300,6 +300,8 @@ export const useGameStore = defineStore('game', () => {
       answered.value = view.round.answered;
       roundHint.value = view.round.hint ?? null;
       partialPoints.value = view.round.partial ? (view.round.points ?? 0) : null;
+      // A phone that reloads after answering still shows what its answer earned.
+      myRoundPoints.value = view.round.answered ? (view.round.points ?? null) : null;
       scoreAtRoundStart = score.value - (view.round.points ?? 0);
       penalty.value = view.round.penalty;
       lockedUntil.value = view.round.lockedUntil ?? null;
