@@ -107,7 +107,10 @@ function configLabel(key: string): string {
                   {{
                     game.mode === 'solo'
                       ? t('stats.solo')
-                      : t('stats.rank', { rank: game.rank, players: game.playerCount })
+                      : t(game.rank === 1 ? 'stats.rankFirst' : 'stats.rank', {
+                          rank: game.rank,
+                          players: game.playerCount,
+                        })
                   }}
                 </small>
               </span>

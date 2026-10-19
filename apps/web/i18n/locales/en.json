@@ -310,6 +310,7 @@
     "recent": "Latest games",
     "solo": "solo",
     "rank": "{rank} of {players}",
+    "rankFirst": "1 of {players}",
     "guestNudge": "These stats live on this device. With an account you find them everywhere, and you enter the ranking."
   },
   "rankings": {
@@ -359,7 +360,8 @@
       "bad_zoom": "Bad close-up",
       "wrong_answer": "Wrong or misleading answer",
       "rights": "Image rights",
-      "inappropriate": "Inappropriate content"
+      "inappropriate": "Inappropriate content",
+      "takedown": "Takedown request"
     },
     "message": "What happened (optional)",
     "send": "Send the report",

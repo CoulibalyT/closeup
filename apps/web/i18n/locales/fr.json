@@ -310,6 +310,7 @@
     "recent": "Dernières parties",
     "solo": "solo",
     "rank": "{rank}ᵉ sur {players}",
+    "rankFirst": "1ᵉʳ sur {players}",
     "guestNudge": "Ces stats vivent sur cet appareil. Avec un compte, tu les retrouves partout, et tu entres au classement."
   },
   "rankings": {
@@ -359,7 +360,8 @@
       "bad_zoom": "Gros plan raté",
       "wrong_answer": "Réponse fausse ou trompeuse",
       "rights": "Droits d’image",
-      "inappropriate": "Contenu déplacé"
+      "inappropriate": "Contenu déplacé",
+      "takedown": "Demande de retrait"
     },
     "message": "Ce qui s’est passé (facultatif)",
     "send": "Envoyer le signalement",
