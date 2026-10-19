@@ -39,6 +39,8 @@ const WORDS: Record<string, string> = {
   created: 'créée',
   exists: 'déjà là',
   remade: 'refaite',
+  replaced: 'remplacée',
+  dropped: 'retirée',
 };
 const say = (line: DatasetLine) => {
   const outcome = line.outcome.startsWith('refused:')
