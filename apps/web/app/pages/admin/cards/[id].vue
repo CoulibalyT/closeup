@@ -39,7 +39,12 @@ async function loadCards(packId: string): Promise<void> {
     'GET',
     `/admin/packs/${packId}`,
   );
-  cards.value = onlyMissingPoints.value ? data.cards.filter((row) => row.points === 0) : data.cards;
+  const filtered = onlyMissingPoints.value
+    ? data.cards.filter((row) => row.points === 0)
+    : data.cards;
+  const current = data.cards.find((row) => row.id === cardId);
+  cards.value =
+    current && !filtered.some((row) => row.id === current.id) ? [current, ...filtered] : filtered;
 }
 
 async function goToCard(target: AdminCardSummary | null): Promise<void> {
