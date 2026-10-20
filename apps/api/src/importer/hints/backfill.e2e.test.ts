@@ -145,10 +145,10 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('hint backfill', () => {
 
     const [en, fr] = await answers('wd-Q996001');
     expect(fr).toMatchObject({
-      hint: 'Actrice — Barbie, Le Loup de Wall Street',
+      hint: 'Actrice',
       secondary: ['Barbie', 'Le Loup de Wall Street'],
     });
-    expect(en!.hint).toBe('Actress — Barbie, Le Loup de Wall Street');
+    expect(en!.hint).toBe('Actress');
     expect((await answers('wd-Q996002'))[1]).toMatchObject({
       hint: 'Race de chien',
       secondary: [],

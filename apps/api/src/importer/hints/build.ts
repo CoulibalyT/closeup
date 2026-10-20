@@ -11,12 +11,12 @@ const mentions = (text: string, words: string[]) => {
 };
 const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
-/** Up to two works in the hint, up to eight partial answers. */
+/** Up to two works in the hint (only when nothing else is known), up to eight partial answers. */
 const HINT_WORKS = 2;
 const MAX_SECONDARY = 8;
 
 /**
- * A real person's hint and partial answers: "Actrice — Barbie, Le Loup de Wall Street". Works
+ * A real person's hint and partial answers: "Actrice", and "Barbie, Le Loup de Wall Street…". Works
  * that name the person ("Zidane, un portrait…") are left out of both.
  */
 /** "joueur ou joueuse de tennis" → the form that fits the person. */
@@ -72,9 +72,16 @@ export function personHint(
         ? genderedForm(facts.occupation, facts.female ?? false)
         : null;
   const occupation = said ? capital(said) : null;
+  // A hint is read off the screen: a work it names must not be worth points as well. The works
+  // go to the partial answers, and into the hint only when nothing else is known.
+  if (occupation) {
+    return { hint: cutAtWord(occupation, 80), secondary: works.slice(0, MAX_SECONDARY) };
+  }
   const shown = works.slice(0, HINT_WORKS).join(', ');
-  const hint = occupation && shown ? `${occupation} — ${shown}` : occupation || shown || null;
-  return { hint: hint ? cutAtWord(hint, 80) : null, secondary: works.slice(0, MAX_SECONDARY) };
+  return {
+    hint: shown ? cutAtWord(shown, 80) : null,
+    secondary: works.slice(HINT_WORKS, HINT_WORKS + MAX_SECONDARY),
+  };
 }
 
 /** Fandom wikis whose name does not read as the universe once capitalised. */

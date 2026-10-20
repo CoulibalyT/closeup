@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { characterHint, classHint, personHint } from './build.js';
 
 describe('personHint', () => {
-  it('says the occupation and two best-known works, and keeps the works as partial answers', () => {
+  it('says the occupation and keeps the works as partial answers, out of the hint', () => {
     expect(
       personHint('Johnny Depp', {
         occupation: 'acteur',
@@ -14,7 +14,7 @@ describe('personHint', () => {
         ],
       }),
     ).toEqual({
-      hint: "Acteur — Pirates des Caraïbes, Edward aux mains d'argent",
+      hint: 'Acteur',
       secondary: ['Pirates des Caraïbes', "Edward aux mains d'argent", 'Ed Wood'],
     });
   });
@@ -24,8 +24,15 @@ describe('personHint', () => {
       occupation: 'footballeur',
       works: ['Zidane, un portrait du 21e siècle', 'Real Madrid', 'Juventus'],
     });
-    expect(hint).toBe('Footballeur — Real Madrid, Juventus');
-    expect(secondary).not.toContain('Zidane, un portrait du 21e siècle');
+    expect(hint).toBe('Footballeur');
+    expect(secondary).toEqual(['Real Madrid', 'Juventus']);
+  });
+
+  it('names two works when nothing else is known, and no longer counts them as partial answers', () => {
+    // A hint read off the screen must not be worth points.
+    expect(
+      personHint('Nom Prénom', { occupation: null, works: ['Titanic', 'Inception', 'Heat'] }),
+    ).toEqual({ hint: 'Titanic, Inception', secondary: ['Heat'] });
   });
 
   it('falls back on what it has, and on nothing', () => {
