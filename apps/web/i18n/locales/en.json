@@ -550,6 +550,7 @@
     "newCard": "New card",
     "noImage": "no image",
     "selected": "selected",
+    "maximizeAllPoints": "Set all close-ups to maximum",
     "unnamed": "Card without an answer",
     "missing": "{n} thing(s) missing",
     "isPerson": "It is a person",

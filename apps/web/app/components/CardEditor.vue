@@ -207,6 +207,10 @@ function patchCurrent(patch: Partial<ZoomPointInput>): void {
     points.value.map((point, i) => (i === selected.value ? { ...point, ...patch } : point)),
   );
 }
+function setAllRadiiToMaximum(): void {
+  const maximum = Math.round(shorterSide.value * 0.12);
+  setPoints(points.value.map((point) => ({ ...point, baseRadius: maximum })));
+}
 function removePoint(index: number): void {
   setPoints(points.value.filter((_, i) => i !== index));
   selected.value = Math.min(selected.value, points.value.length - 1);
@@ -474,6 +478,9 @@ onBeforeUnmount(() => {
               />
             </div>
           </div>
+          <button type="button" class="button small quiet" @click="setAllRadiiToMaximum">
+            {{ t('admin.maximizeAllPoints') }}
+          </button>
           <h2>{{ t('admin.preview') }}</h2>
           <div class="all-previews">
             <article v-for="(point, index) in points" :key="index" class="point-preview">
