@@ -55,6 +55,7 @@ const status = useQueryFilter<'' | AdminCardSummary['status']>('status', '', [
 const since = useQueryFilter('since', 'all', PERIODS);
 const on = useQueryFilter('on', 'added', ['added', 'changed'] as const);
 const sort = useQueryFilter('sort', 'newest', SORTS);
+const pointsFilter = useQueryFilter<'all' | 'missing'>('points', 'all', ['all', 'missing']);
 
 const name = (card: AdminCardSummary) => (locale.value === 'en' ? card.answerEn : card.answerFr);
 const shown = computed(() => {
@@ -63,6 +64,7 @@ const shown = computed(() => {
     (card) =>
       (!words || `${card.answerFr} ${card.answerEn}`.toLocaleLowerCase().includes(words)) &&
       (!status.value || card.status === status.value) &&
+      (pointsFilter.value !== 'missing' || card.points === 0) &&
       within(on.value === 'added' ? card.createdAt : card.updatedAt, since.value),
   );
   const by = {
@@ -410,6 +412,15 @@ async function addPerson(person: AdminAvailablePerson): Promise<void> {
                 :placeholder="t('admin.filters.searchCards')"
               />
             </div>
+            <button
+              type="button"
+              class="chip choice"
+              :aria-pressed="pointsFilter === 'missing'"
+              @click="pointsFilter = pointsFilter === 'missing' ? 'all' : 'missing'"
+            >
+              {{ t('admin.missingPoints') }} ·
+              {{ cards.filter((card) => card.points === 0).length }}
+            </button>
             <div class="field">
               <label for="f-on">{{ t('admin.filters.activity') }}</label>
               <select id="f-on" v-model="on">
@@ -451,7 +462,13 @@ async function addPerson(person: AdminAvailablePerson): Promise<void> {
                 @change="toggleCard(card.id)"
               />
             </label>
-            <NuxtLink :to="localePath(`/admin/cards/${card.id}`)">
+            <NuxtLink
+              :to="
+                localePath(
+                  `/admin/cards/${card.id}${pointsFilter === 'missing' ? '?points=missing' : ''}`,
+                )
+              "
+            >
               <img
                 v-if="card.thumbnailUrl"
                 :src="admin.mediaUrl(card.thumbnailUrl)"

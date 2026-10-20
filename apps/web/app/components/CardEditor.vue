@@ -46,6 +46,7 @@ const form = reactive({
 const saving = ref(false);
 const saved = ref(false);
 const formError = ref(false);
+const formSnapshot = ref('');
 /** The server refused the hint: it names the answer. */
 const hintError = ref(false);
 
@@ -77,9 +78,14 @@ function fillForm(next: AdminCard): void {
     en: answerForm(next.answers.en),
     credit: { ...next.credit },
   });
+  formSnapshot.value = JSON.stringify(form);
 }
 
-async function saveDetails(): Promise<void> {
+const detailsDirty = computed(
+  () => Boolean(formSnapshot.value) && JSON.stringify(form) !== formSnapshot.value,
+);
+
+async function saveDetails(): Promise<boolean> {
   saving.value = true;
   saved.value = false;
   formError.value = false;
@@ -95,10 +101,13 @@ async function saveDetails(): Promise<void> {
       },
       credit: form.credit,
     });
+    formSnapshot.value = JSON.stringify(form);
     saved.value = true;
+    return true;
   } catch (failure) {
     if ((failure as { code?: string }).code === 'HINT_GIVES_ANSWER') hintError.value = true;
     else formError.value = true;
+    return false;
   } finally {
     saving.value = false;
   }
@@ -218,7 +227,7 @@ function onEyes(first: Point, second: Point): void {
   useProposals(fromEyes(first, second));
 }
 
-async function savePoints(): Promise<void> {
+async function savePoints(): Promise<boolean> {
   savingPoints.value = true;
   try {
     apply(
@@ -226,12 +235,33 @@ async function savePoints(): Promise<void> {
         points: points.value,
       }),
     );
+    return true;
   } catch {
     failed.value = true;
+    return false;
   } finally {
     savingPoints.value = false;
   }
 }
+
+async function saveChanges(): Promise<boolean> {
+  if (detailsDirty.value && !(await saveDetails())) return false;
+  if (dirty.value && !(await savePoints())) return false;
+  return true;
+}
+
+function discardChanges(): void {
+  if (!card.value) return;
+  fillForm(card.value);
+  points.value = card.value.zoomPoints.map((point) => asInput(point, point.origin));
+  dirty.value = false;
+}
+
+function hasUnsavedChanges(): boolean {
+  return detailsDirty.value || dirty.value;
+}
+
+defineExpose({ hasUnsavedChanges, saveChanges, discardChanges });
 
 // ---- publication ----
 
