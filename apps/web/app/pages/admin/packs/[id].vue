@@ -72,7 +72,10 @@ const shown = computed(() => {
       name(a).localeCompare(name(b), locale.value),
     oldest: () => 0,
   }[sort.value];
-  return [...list].sort(by);
+  return [...list].sort((a, b) => {
+    const imagePriority = Number(Boolean(b.thumbnailUrl)) - Number(Boolean(a.thumbnailUrl));
+    return imagePriority || by(a, b);
+  });
 });
 /** How many cards of each status, for the chips that filter on it. */
 const byStatus = computed(() =>
