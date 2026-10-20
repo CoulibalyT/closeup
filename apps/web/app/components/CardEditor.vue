@@ -475,12 +475,20 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <h2>{{ t('admin.preview') }}</h2>
-          <AdminLevelPreview
-            :src="blobUrl"
-            :image="image"
-            :point="current"
-            :face="faceOf(card?.detection)"
-          />
+          <div class="all-previews">
+            <article v-for="(point, index) in points" :key="index" class="point-preview">
+              <h3>
+                {{ index + 1 }}. {{ point.labelFr || t('admin.unlabelled') }}
+                <span v-if="index === selected" class="muted">({{ t('admin.selected') }})</span>
+              </h3>
+              <AdminLevelPreview
+                :src="blobUrl"
+                :image="image"
+                :point="point"
+                :face="faceOf(card?.detection)"
+              />
+            </article>
+          </div>
         </template>
       </div>
     </section>
@@ -651,6 +659,21 @@ onBeforeUnmount(() => {
     </section>
   </div>
 </template>
+
+<style scoped>
+.all-previews {
+  display: grid;
+  gap: var(--space-4);
+}
+.point-preview {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.point-preview h3 {
+  margin: 0 0 var(--space-2);
+  font-size: 16px;
+}
+</style>
 
 <style scoped>
 .editor {

@@ -549,6 +549,7 @@
     "noCards": "No card yet.",
     "newCard": "New card",
     "noImage": "no image",
+    "selected": "selected",
     "unnamed": "Card without an answer",
     "missing": "{n} thing(s) missing",
     "isPerson": "It is a person",
