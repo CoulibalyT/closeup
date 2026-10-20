@@ -157,7 +157,7 @@
       "fastest": "Bonus earned: {bonus} (fastest of the round)",
       "catchup": "Bonus earned: {bonus} (a hand for whoever is last)"
     },
-    "partial": "{name} found a clue to the answer (+{points})"
+    "partial": "{name} found a film, song or club linked to the answer (+{points})"
   },
   "category": {
     "CELEBRITY": "celebrity",
@@ -188,7 +188,7 @@
       "close": "Almost. Check the spelling or give the full name.",
       "wrong": "That's not it.",
       "rate_limited": "Easy, one answer at a time.",
-      "partial": "A clue to the answer"
+      "partial": "Linked to the answer (film, song, club…)"
     },
     "nextRound": "You play from the next round.",
     "full": "This game is full.",
@@ -202,7 +202,7 @@
     "skip": "Skip",
     "giveUp": "I give up",
     "hint": "Hint",
-    "partial": "Good one, that is a clue to the answer: +{points}. Waiting for the others.",
+    "partial": "Good one, that is linked to the answer: +{points}. The name was worth more. Waiting for the others.",
     "privateTitle": "Just for you",
     "privateViewAlt": "What your bonus shows you of the picture",
     "controllerPick": "Watch the TV, then choose",
@@ -683,7 +683,7 @@
     "hintGivesAnswer": "The hint contains the answer: rephrase it.",
     "secondaryFr": "Partial answers (French)",
     "secondaryEn": "Partial answers (English)",
-    "secondaryHelp": "Comma-separated: “Pirates of the Caribbean, Edward Scissorhands”.",
+    "secondaryHelp": "Comma-separated: “Pirates of the Caribbean, Edward Scissorhands”. Write them as people type them: “Real Madrid”, not “Real Madrid CF”.",
     "openCard": "Open the card",
     "filters": {
       "search": "Search",

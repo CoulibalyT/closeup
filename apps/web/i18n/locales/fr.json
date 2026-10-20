@@ -157,7 +157,7 @@
       "fastest": "Bonus gagné : {bonus} (le plus rapide)",
       "catchup": "Bonus gagné : {bonus} (coup de pouce au dernier)"
     },
-    "partial": "{name} a trouvé un indice de la réponse (+{points})"
+    "partial": "{name} a trouvé un film, une chanson ou un club lié à la réponse (+{points})"
   },
   "category": {
     "CELEBRITY": "célébrité",
@@ -188,7 +188,7 @@
       "close": "Presque. Vérifie l'orthographe ou donne le nom complet.",
       "wrong": "Ce n'est pas ça.",
       "rate_limited": "Doucement, une réponse à la fois.",
-      "partial": "Indice de la réponse"
+      "partial": "Lié à la réponse (film, chanson, club…)"
     },
     "nextRound": "Tu joues à la prochaine manche.",
     "full": "Cette partie est complète.",
@@ -202,7 +202,7 @@
     "skip": "Passer",
     "giveUp": "Je donne ma langue",
     "hint": "Indice",
-    "partial": "Bien vu, c’est un indice de la réponse : +{points}. On attend les autres.",
+    "partial": "Bien vu, c’est lié à la réponse : +{points}. Le nom en rapportait plus. On attend les autres.",
     "privateTitle": "Rien que pour toi",
     "privateViewAlt": "Ce que ton bonus te montre de l’image",
     "controllerPick": "Regarde la télé, puis choisis",
@@ -683,7 +683,7 @@
     "hintGivesAnswer": "L’indice contient la réponse : reformule-le.",
     "secondaryFr": "Réponses partielles (français)",
     "secondaryEn": "Réponses partielles (anglais)",
-    "secondaryHelp": "Séparées par des virgules : « Pirates des Caraïbes, Edward aux mains d’argent ».",
+    "secondaryHelp": "Séparées par des virgules : « Pirates des Caraïbes, Edward aux mains d’argent ». Écris-les comme on les tape : « Real Madrid », pas « Real Madrid CF ».",
     "openCard": "Ouvrir la carte",
     "filters": {
       "search": "Rechercher",
