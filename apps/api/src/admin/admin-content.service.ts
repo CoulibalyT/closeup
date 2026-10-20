@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import {
   type AdminCard,
+  type AdminAvailablePerson,
   type AdminCardSummary,
   type AdminPack,
   type CardInput,
@@ -95,6 +96,45 @@ export class AdminContentService {
         };
       }),
     };
+  }
+
+  async availablePeople(packId: string): Promise<AdminAvailablePerson[]> {
+    const pack = await this.prisma.pack.findUnique({ where: { id: packId } });
+    if (!pack) throw new NotFoundException();
+    const target = await this.prisma.card.findMany({
+      where: { packId, isPerson: true, category: pack.category },
+      include: { answers: true, image: { select: { sha256: true } } },
+    });
+    const imageHashes = new Set(target.map((card) => card.image?.sha256).filter(Boolean));
+    const people = await this.prisma.card.findMany({
+      where: {
+        isPerson: true,
+        category: pack.category,
+        packId: { not: packId },
+        pack: { audience: pack.audience },
+      },
+      include: { ...cardInclude, pack: { select: { titleFr: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+    return people
+      .map((card) => {
+        const answerFr = card.answers.find((answer) => answer.locale === 'fr')?.text ?? '';
+        const answerEn = card.answers.find((answer) => answer.locale === 'en')?.text ?? '';
+        return {
+          person: {
+            id: card.id,
+            packId: card.packId,
+            packTitle: card.pack.titleFr,
+            answerFr,
+            answerEn,
+            thumbnailUrl: card.image?.revealKey ? this.imageUrl(card.image.id) : null,
+          },
+          imageHash: card.image?.sha256 ?? null,
+        };
+      })
+      .filter(({ person }) => person.answerFr || person.answerEn)
+      .filter(({ imageHash }) => !imageHash || !imageHashes.has(imageHash))
+      .map(({ person }) => person);
   }
 
   async createPack(input: PackInput, actor: SessionUser): Promise<AdminPack> {
@@ -193,6 +233,145 @@ export class AdminContentService {
     return this.cardView(await this.requireCard(id));
   }
 
+  async copyCard(id: string, targetPackId: string, actor: SessionUser): Promise<AdminCard> {
+    const source = await this.requireCard(id);
+    if (source.packId === targetPackId) throw new ConflictException({ code: 'SAME_PACK' });
+    await this.requirePack(targetPackId);
+    if (source.status === 'PROCESSING') throw new ConflictException({ code: 'PROCESSING' });
+
+    if (source.image) {
+      const duplicate = await this.prisma.card.findFirst({
+        where: { packId: targetPackId, image: { is: { sha256: source.image.sha256 } } },
+      });
+      if (duplicate) throw new ConflictException({ code: 'IMAGE_ALREADY_IN_PACK' });
+    }
+
+    const copiedFiles: string[] = [];
+    const imageId = source.image ? randomUUID() : null;
+    const image = source.image
+      ? {
+          id: imageId!,
+          originalKey: storageKeys.original(
+            imageId!,
+            source.image.originalKey.split('.').pop() ?? 'bin',
+          ),
+          revealKey: source.image.revealKey ? storageKeys.reveal(imageId!) : null,
+        }
+      : null;
+    const copiedPoints = source.zoomPoints.map((point) => {
+      const pointId = randomUUID();
+      return {
+        point,
+        id: pointId,
+        crops: point.crops.map((crop) => ({
+          crop,
+          storageKey: storageKeys.crop(pointId, crop.level, crop.sizePx, crop.variant),
+        })),
+      };
+    });
+
+    try {
+      if (source.image && image) {
+        await this.storage.put(
+          image.originalKey,
+          await this.storage.read(source.image.originalKey),
+        );
+        copiedFiles.push(image.originalKey);
+        if (source.image.revealKey && image.revealKey) {
+          await this.storage.put(image.revealKey, await this.storage.read(source.image.revealKey));
+          copiedFiles.push(image.revealKey);
+        }
+      }
+      for (const point of copiedPoints) {
+        for (const crop of point.crops) {
+          await this.storage.put(crop.storageKey, await this.storage.read(crop.crop.storageKey));
+          copiedFiles.push(crop.storageKey);
+        }
+      }
+
+      const copied = await this.prisma.$transaction(async (tx) => {
+        if (image) {
+          await tx.imageAsset.create({
+            data: {
+              id: image.id,
+              originalKey: image.originalKey,
+              revealKey: image.revealKey,
+              width: source.image!.width,
+              height: source.image!.height,
+              mime: source.image!.mime,
+              bytes: source.image!.bytes,
+              sha256: source.image!.sha256,
+            },
+          });
+        }
+        return tx.card.create({
+          data: {
+            packId: targetPackId,
+            category: source.category,
+            difficulty: source.difficulty,
+            status: source.status,
+            isPerson: source.isPerson,
+            gender: source.gender,
+            source: source.source,
+            sourceHash: source.sourceHash,
+            creditAuthor: source.creditAuthor,
+            creditLicence: source.creditLicence,
+            creditSourceUrl: source.creditSourceUrl,
+            rightsConfirmedAt: source.rightsConfirmedAt,
+            processingError: source.processingError,
+            detection: source.detection ?? undefined,
+            imageId: image?.id,
+            answers: {
+              create: source.answers.map(({ locale, text, aliases, hint, secondary }) => ({
+                locale,
+                text,
+                aliases,
+                hint,
+                secondary,
+              })),
+            },
+            zoomPoints: {
+              create: copiedPoints.map(({ point, id: pointId, crops }) => ({
+                id: pointId,
+                x: point.x,
+                y: point.y,
+                baseRadius: point.baseRadius,
+                labelFr: point.labelFr,
+                labelEn: point.labelEn,
+                weight: point.weight,
+                origin: point.origin,
+                crops: {
+                  create: crops.map(({ crop, storageKey }) => ({
+                    level: crop.level,
+                    sizePx: crop.sizePx,
+                    storageKey,
+                    focusX: crop.focusX,
+                    focusY: crop.focusY,
+                    scaleFromPrev: crop.scaleFromPrev,
+                    bytes: crop.bytes,
+                    variant: crop.variant,
+                  })),
+                },
+              })),
+            },
+          },
+          include: cardInclude,
+        });
+      });
+      await this.audit(
+        actor,
+        'card.copy',
+        'card',
+        copied.id,
+        `copied from ${id} to pack ${targetPackId}`,
+      );
+      return this.cardView(copied);
+    } catch (error) {
+      await Promise.all(copiedFiles.map((key) => this.storage.remove(key)));
+      throw error;
+    }
+  }
+
   async updateCard(id: string, input: CardInput, actor: SessionUser): Promise<AdminCard> {
     await this.requireCard(id);
     for (const locale of ['fr', 'en'] as const) {
@@ -269,7 +448,7 @@ export class AdminContentService {
     return this.getCard(id);
   }
 
-  /** The whole set at once. Crops are cut again; a card that was live comes back live. */
+  /** The whole set at once. Copies of the same image receive the same points and crops. */
   async setZoomPoints(
     id: string,
     points: ZoomPointInput[],
@@ -278,36 +457,60 @@ export class AdminContentService {
     const card = await this.requireCard(id);
     if (!card.image) throw new ConflictException({ code: 'NO_IMAGE' });
     if (card.status === 'PROCESSING') throw new ConflictException({ code: 'PROCESSING' });
+    const relatedCards = await this.prisma.card.findMany({
+      where: { image: { is: { sha256: card.image.sha256 } } },
+      include: cardInclude,
+    });
+    if (relatedCards.some((related) => related.status === 'PROCESSING')) {
+      throw new ConflictException({ code: 'PROCESSING' });
+    }
     const { width, height } = card.image;
     if (points.some((point) => point.x > width || point.y > height)) {
       throw new BadRequestException({ code: 'POINT_OUTSIDE_IMAGE' });
     }
 
-    for (const point of card.zoomPoints) {
-      for (const crop of point.crops) await this.storage.remove(crop.storageKey);
+    for (const related of relatedCards) {
+      for (const point of related.zoomPoints) {
+        for (const crop of point.crops) await this.storage.remove(crop.storageKey);
+      }
     }
-    const wasLive = card.status === 'LIVE';
     const playable = points.length >= 2;
-    await this.prisma.$transaction([
-      this.prisma.zoomPoint.deleteMany({ where: { cardId: id } }),
-      this.prisma.card.update({
-        where: { id },
-        data: {
-          status: playable ? 'PROCESSING' : 'NEEDS_POINTS',
-          zoomPoints: {
-            create: points.map(({ labelFr, labelEn, ...point }) => ({
-              ...point,
-              labelFr: labelFr || null,
-              labelEn: labelEn || null,
-            })),
+    await this.prisma.$transaction(async (tx) => {
+      for (const related of relatedCards) {
+        await tx.zoomPoint.deleteMany({ where: { cardId: related.id } });
+        await tx.card.update({
+          where: { id: related.id },
+          data: {
+            status: playable ? 'PROCESSING' : 'NEEDS_POINTS',
+            zoomPoints: {
+              create: points.map(({ labelFr, labelEn, ...point }) => ({
+                ...point,
+                labelFr: labelFr || null,
+                labelEn: labelEn || null,
+              })),
+            },
           },
-        },
-      }),
-    ]);
+        });
+      }
+    });
     if (playable) {
-      await this.queue.add(MediaJob.processCard, { cardId: id, publish: wasLive }, JOB_OPTIONS);
+      await Promise.all(
+        relatedCards.map((related) =>
+          this.queue.add(
+            MediaJob.processCard,
+            { cardId: related.id, publish: related.status === 'LIVE' },
+            JOB_OPTIONS,
+          ),
+        ),
+      );
     }
-    await this.audit(actor, 'card.points', 'card', id, `${points.length} point(s)`);
+    await this.audit(
+      actor,
+      'card.points',
+      'card',
+      id,
+      `${points.length} point(s), synchronized to ${relatedCards.length} card(s)`,
+    );
     return this.getCard(id);
   }
 
@@ -434,6 +637,7 @@ export class AdminContentService {
       descriptionFr: pack.descriptionFr,
       descriptionEn: pack.descriptionEn,
       category: pack.category,
+      audience: pack.audience,
       publicMatchSafe: pack.publicMatchSafe,
       visibility: pack.visibility,
       restricted: pack.restricted,

@@ -19,6 +19,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import {
   banSchema,
   cardInputSchema,
+  copyCardSchema,
   newCardSchema,
   packInputSchema,
   packUnlockSchema,
@@ -108,6 +109,11 @@ export class AdminController {
     return this.content.getPack(id);
   }
 
+  @Get('packs/:id/available-people')
+  availablePeople(@Param('id', ParseUUIDPipe) id: string) {
+    return this.content.availablePeople(id);
+  }
+
   @Put('packs/:id')
   updatePack(
     @Param('id', ParseUUIDPipe) id: string,
@@ -155,6 +161,15 @@ export class AdminController {
   @Get('cards/:id')
   getCard(@Param('id', ParseUUIDPipe) id: string) {
     return this.content.getCard(id);
+  }
+
+  @Post('cards/:id/copy')
+  copyCard(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+    @Req() request: AdminRequest,
+  ) {
+    return this.content.copyCard(id, parse(copyCardSchema, body).targetPackId, actorOf(request));
   }
 
   @Put('cards/:id')

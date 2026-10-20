@@ -127,6 +127,12 @@ enum PackVisibility {
   DISABLED
 }
 
+enum PackAudience {
+  CHILDREN
+  FAMILY
+  ADULTS
+}
+
 enum Category {
   CELEBRITY
   CHARACTER
@@ -183,6 +189,7 @@ model Pack {
   visibility      PackVisibility @default(PRIVATE)
   publicMatchSafe Boolean        @default(false)
   category        Category
+  audience        PackAudience   @default(FAMILY)
   /// Celebrity and fictional-character packs: kept off the landing page, previews and SEO.
   restricted      Boolean        @default(false)
   /// False: the server refuses every way to publish this pack (images the owner may not have the

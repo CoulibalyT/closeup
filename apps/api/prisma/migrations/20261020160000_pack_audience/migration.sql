@@ -1,0 +1,3 @@
+CREATE TYPE "PackAudience" AS ENUM ('CHILDREN', 'FAMILY', 'ADULTS');
+
+ALTER TABLE "Pack" ADD COLUMN "audience" "PackAudience" NOT NULL DEFAULT 'FAMILY';

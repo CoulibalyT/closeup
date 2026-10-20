@@ -20,6 +20,10 @@ export const CATEGORIES = [
 export const categorySchema = z.enum(CATEGORIES);
 export type Category = z.infer<typeof categorySchema>;
 
+export const PACK_AUDIENCES = ['CHILDREN', 'FAMILY', 'ADULTS'] as const;
+export const packAudienceSchema = z.enum(PACK_AUDIENCES);
+export type PackAudience = z.infer<typeof packAudienceSchema>;
+
 /** Real people and fictional characters: kept off the landing page, previews, SEO and anything paid. */
 export const RESTRICTED_CATEGORIES: readonly Category[] = ['CELEBRITY', 'CHARACTER'];
 
@@ -88,6 +92,7 @@ export const packInputSchema = z.strictObject({
   descriptionFr: longText.default(''),
   descriptionEn: longText.default(''),
   category: categorySchema,
+  audience: packAudienceSchema.default('FAMILY'),
   publicMatchSafe: z.boolean().default(false),
 });
 export type PackInput = z.infer<typeof packInputSchema>;
@@ -146,6 +151,10 @@ export type CardInput = z.infer<typeof cardInputSchema>;
 export const newCardSchema = z.strictObject({
   category: categorySchema,
   isPerson: z.boolean().default(false),
+});
+
+export const copyCardSchema = z.strictObject({
+  targetPackId: idSchema,
 });
 
 export const zoomPointInputSchema = z.strictObject({
@@ -224,6 +233,15 @@ export interface AdminCardSummary {
   blockers: PublishBlocker[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AdminAvailablePerson {
+  id: string;
+  packId: string;
+  packTitle: string;
+  answerFr: string;
+  answerEn: string;
+  thumbnailUrl: string | null;
 }
 
 export const UPLOAD_ERRORS = [

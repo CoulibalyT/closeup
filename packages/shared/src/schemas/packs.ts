@@ -1,5 +1,12 @@
 import { z } from 'zod';
-import { categorySchema, type Category, type CardStatus, type PackVisibility } from './admin.js';
+import {
+  categorySchema,
+  packAudienceSchema,
+  type Category,
+  type CardStatus,
+  type PackAudience,
+  type PackVisibility,
+} from './admin.js';
 import { idSchema, localeSchema } from './common.js';
 
 /**
@@ -21,6 +28,7 @@ export const packDraftSchema = z.strictObject({
   descriptionFr: z.string().trim().max(600).default(''),
   descriptionEn: z.string().trim().max(600).default(''),
   category: categorySchema,
+  audience: packAudienceSchema.default('FAMILY'),
 });
 export type PackDraft = z.infer<typeof packDraftSchema>;
 
@@ -63,6 +71,7 @@ export interface CataloguePack {
   title: string;
   description: string;
   category: Category;
+  audience: PackAudience;
   cards: number;
   /** Made by a player, as opposed to the house's own packs. */
   byPlayer: boolean;

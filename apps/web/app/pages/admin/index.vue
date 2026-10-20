@@ -1,5 +1,11 @@
 <script setup lang="ts">
-import { type AdminPack, CATEGORIES, type Category, PACK_VISIBILITIES } from '@closeup/shared';
+import {
+  type AdminPack,
+  CATEGORIES,
+  type Category,
+  PACK_AUDIENCES,
+  PACK_VISIBILITIES,
+} from '@closeup/shared';
 import { ago, PERIODS, within } from '~/utils/since';
 
 definePageMeta({ middleware: 'admin' });
@@ -14,7 +20,12 @@ const packs = ref<AdminPack[]>([]);
 const loading = ref(true);
 const failed = ref(false);
 
-const draft = reactive({ titleFr: '', titleEn: '', category: 'OBJECT' as Category });
+const draft = reactive({
+  titleFr: '',
+  titleEn: '',
+  category: 'OBJECT' as Category,
+  audience: 'FAMILY' as (typeof PACK_AUDIENCES)[number],
+});
 const creating = ref(false);
 
 const total = (pack: AdminPack) => Object.values(pack.cards).reduce((sum, n) => sum + (n ?? 0), 0);
@@ -209,6 +220,14 @@ async function toggle(pack: AdminPack): Promise<void> {
           <label for="category">{{ t('admin.category') }}</label>
           <select id="category" v-model="draft.category">
             <option v-for="c in CATEGORIES" :key="c" :value="c">{{ t(`category.${c}`) }}</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="audience">{{ t('admin.audience') }}</label>
+          <select id="audience" v-model="draft.audience">
+            <option v-for="a in PACK_AUDIENCES" :key="a" :value="a">
+              {{ t(`admin.audiences.${a}`) }}
+            </option>
           </select>
         </div>
       </div>

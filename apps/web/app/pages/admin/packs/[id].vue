@@ -2,12 +2,15 @@
 import {
   type AdminCard,
   type AdminCardSummary,
+  type AdminAvailablePerson,
   type AdminPack,
   CARD_STATUSES,
   CATEGORIES,
+  PACK_AUDIENCES,
   type Category,
   RESTRICTED_CATEGORIES,
 } from '@closeup/shared';
+import { ApiError } from '~/stores/session';
 import { ago, PERIODS, within } from '~/utils/since';
 
 definePageMeta({ middleware: 'admin' });
@@ -25,6 +28,14 @@ const failed = ref(false);
 const saved = ref(false);
 const busy = ref(false);
 const unlockRights = ref(false);
+const allPacks = ref<AdminPack[]>([]);
+const selectedCards = ref<string[]>([]);
+const copyTargetPackId = ref('');
+const copying = ref(false);
+const copyNotice = ref('');
+const availablePeople = ref<AdminAvailablePerson[]>([]);
+const peopleSearch = ref('');
+const addingPerson = ref<string | null>(null);
 
 const form = reactive({
   titleFr: '',
@@ -33,6 +44,7 @@ const form = reactive({
   descriptionEn: '',
   category: 'OBJECT' as Category,
   publicMatchSafe: false,
+  audience: 'FAMILY' as (typeof PACK_AUDIENCES)[number],
 });
 const SORTS = ['newest', 'changed', 'name', 'oldest'] as const;
 const search = useQueryFilter('q', '');
@@ -70,6 +82,16 @@ const byStatus = computed(() =>
   })).filter((row) => row.n),
 );
 const filtered = computed(() => !!(search.value || status.value || since.value !== 'all'));
+const shownPeople = computed(() => {
+  const words = peopleSearch.value.trim().toLocaleLowerCase();
+  return availablePeople.value.filter(
+    (person) =>
+      !words ||
+      `${person.answerFr} ${person.answerEn} ${person.packTitle}`
+        .toLocaleLowerCase()
+        .includes(words),
+  );
+});
 const router = useRouter();
 function reset(): void {
   void router.replace({ query: {} });
@@ -88,13 +110,15 @@ useHead({ title: () => `${pack.value?.titleFr ?? t('admin.pack')}, ${appName}` }
 
 function fill(next: AdminPack): void {
   pack.value = next;
-  const { titleFr, titleEn, descriptionFr, descriptionEn, category, publicMatchSafe } = next;
+  const { titleFr, titleEn, descriptionFr, descriptionEn, category, audience, publicMatchSafe } =
+    next;
   Object.assign(form, {
     titleFr,
     titleEn,
     descriptionFr,
     descriptionEn,
     category,
+    audience,
     publicMatchSafe,
   });
 }
@@ -107,6 +131,11 @@ onMounted(async () => {
     );
     fill(data.pack);
     cards.value = data.cards;
+    allPacks.value = await admin.request<AdminPack[]>('GET', '/admin/packs');
+    availablePeople.value = await admin.request<AdminAvailablePerson[]>(
+      'GET',
+      `/admin/packs/${id}/available-people`,
+    );
     newCard.category = data.pack.category;
     newCard.isPerson = data.pack.category === 'CELEBRITY';
   } catch {
@@ -124,6 +153,55 @@ async function save(): Promise<void> {
     failed.value = true;
   } finally {
     busy.value = false;
+  }
+}
+
+const allShownSelected = computed(
+  () =>
+    shown.value.length > 0 && shown.value.every((card) => selectedCards.value.includes(card.id)),
+);
+
+function toggleCard(cardId: string): void {
+  selectedCards.value = selectedCards.value.includes(cardId)
+    ? selectedCards.value.filter((selected) => selected !== cardId)
+    : [...selectedCards.value, cardId];
+}
+
+function toggleShown(): void {
+  const shownIds = shown.value.map((card) => card.id);
+  selectedCards.value = allShownSelected.value
+    ? selectedCards.value.filter((selected) => !shownIds.includes(selected))
+    : [...new Set([...selectedCards.value, ...shownIds])];
+}
+
+async function copySelected(): Promise<void> {
+  if (!copyTargetPackId.value || !selectedCards.value.length) return;
+  copying.value = true;
+  copyNotice.value = '';
+  try {
+    const results = await Promise.allSettled(
+      selectedCards.value.map((cardId) =>
+        admin.request<AdminCard>('POST', `/admin/cards/${cardId}/copy`, {
+          targetPackId: copyTargetPackId.value,
+        }),
+      ),
+    );
+    const copied = results.filter((result) => result.status === 'fulfilled').length;
+    const duplicates = results.filter(
+      (result) =>
+        result.status === 'rejected' &&
+        result.reason instanceof ApiError &&
+        result.reason.code === 'IMAGE_ALREADY_IN_PACK',
+    ).length;
+    const otherFailures = results.length - copied - duplicates;
+    if (otherFailures) {
+      failed.value = true;
+    }
+    copyNotice.value = t('admin.copyResult', { copied, duplicates });
+    selectedCards.value = [];
+    copyTargetPackId.value = '';
+  } finally {
+    copying.value = false;
   }
 }
 
@@ -164,6 +242,18 @@ async function setLive(card: AdminCardSummary, live: boolean): Promise<void> {
 async function addCard(): Promise<void> {
   const card = await admin.request<AdminCard>('POST', `/admin/packs/${id}/cards`, { ...newCard });
   await navigateTo(localePath(`/admin/cards/${card.id}`));
+}
+
+async function addPerson(person: AdminAvailablePerson): Promise<void> {
+  addingPerson.value = person.id;
+  try {
+    await admin.request<AdminCard>('POST', `/admin/cards/${person.id}/copy`, { targetPackId: id });
+    availablePeople.value = availablePeople.value.filter((candidate) => candidate.id !== person.id);
+  } catch {
+    failed.value = true;
+  } finally {
+    addingPerson.value = null;
+  }
 }
 </script>
 
@@ -230,9 +320,67 @@ async function addCard(): Promise<void> {
       </section>
 
       <section class="panel">
+        <h2>{{ t('admin.peopleLibrary') }}</h2>
+        <p class="muted">{{ t('admin.peopleLibraryHint') }}</p>
+        <div class="field">
+          <label for="people-search">{{ t('admin.searchPeople') }}</label>
+          <input
+            id="people-search"
+            v-model="peopleSearch"
+            type="search"
+            :placeholder="t('admin.searchPeoplePlaceholder')"
+          />
+        </div>
+        <p v-if="!shownPeople.length" class="muted">{{ t('admin.noPeopleAvailable') }}</p>
+        <ul v-else class="plain people-library">
+          <li v-for="person in shownPeople" :key="person.id">
+            <img v-if="person.thumbnailUrl" :src="admin.mediaUrl(person.thumbnailUrl)" alt="" />
+            <span v-else class="no-image">{{ t('admin.noImage') }}</span>
+            <span class="person-name">
+              <strong>{{ person.answerFr || person.answerEn }}</strong>
+              <small class="muted">{{ person.packTitle }}</small>
+            </span>
+            <button
+              type="button"
+              class="button small"
+              :disabled="addingPerson === person.id"
+              @click="addPerson(person)"
+            >
+              {{ t('admin.addPerson') }}
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <section class="panel">
         <h2>{{ t('admin.cards') }}</h2>
         <p v-if="!cards.length" class="muted">{{ t('admin.noCards') }}</p>
         <template v-else>
+          <div class="copy-tools">
+            <label class="check">
+              <input type="checkbox" :checked="allShownSelected" @change="toggleShown" />
+              <span>{{ t('admin.selectVisible') }}</span>
+            </label>
+            <select v-model="copyTargetPackId" :disabled="!selectedCards.length || copying">
+              <option value="">{{ t('admin.copyTo') }}</option>
+              <option
+                v-for="target in allPacks.filter((candidate) => candidate.id !== id)"
+                :key="target.id"
+                :value="target.id"
+              >
+                {{ target.titleFr }}
+              </option>
+            </select>
+            <button
+              type="button"
+              class="button small quiet"
+              :disabled="!copyTargetPackId || !selectedCards.length || copying"
+              @click="copySelected"
+            >
+              {{ t('admin.copySelected', { n: selectedCards.length }) }}
+            </button>
+          </div>
+          <p v-if="copyNotice" class="good" role="status">{{ copyNotice }}</p>
           <div class="chips" role="group" :aria-label="t('admin.filters.status')">
             <button type="button" class="chip choice" :aria-pressed="!status" @click="status = ''">
               {{ t('admin.filters.all') }} · {{ cards.length }}
@@ -292,6 +440,14 @@ async function addCard(): Promise<void> {
         </template>
         <ul class="plain cards">
           <li v-for="card in shown" :key="card.id">
+            <label class="card-select">
+              <input
+                type="checkbox"
+                :checked="selectedCards.includes(card.id)"
+                :aria-label="t('admin.selectCard', { name: card.answerFr || t('admin.unnamed') })"
+                @change="toggleCard(card.id)"
+              />
+            </label>
             <NuxtLink :to="localePath(`/admin/cards/${card.id}`)">
               <img
                 v-if="card.thumbnailUrl"
@@ -371,6 +527,14 @@ async function addCard(): Promise<void> {
               {{ t('admin.restrictedHint') }}
             </small>
           </div>
+          <div class="field">
+            <label for="audience">{{ t('admin.audience') }}</label>
+            <select id="audience" v-model="form.audience">
+              <option v-for="a in PACK_AUDIENCES" :key="a" :value="a">
+                {{ t(`admin.audiences.${a}`) }}
+              </option>
+            </select>
+          </div>
         </div>
         <label class="check">
           <input
@@ -445,6 +609,50 @@ async function addCard(): Promise<void> {
   display: grid;
   gap: var(--space-1);
   justify-items: start;
+  position: relative;
+}
+.copy-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.people-library {
+  display: grid;
+  gap: var(--space-2);
+  max-height: 420px;
+  overflow: auto;
+  margin-top: var(--space-3);
+}
+.people-library li {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.people-library img,
+.people-library .no-image {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: var(--radius);
+}
+.person-name {
+  display: grid;
+  gap: 2px;
+}
+.card-select {
+  position: absolute;
+  z-index: 1;
+  top: var(--space-2);
+  left: var(--space-2);
+  padding: var(--space-1);
+  border-radius: var(--radius);
+  background: var(--panel);
 }
 .cards a {
   display: grid;
