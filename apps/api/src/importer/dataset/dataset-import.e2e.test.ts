@@ -135,8 +135,18 @@ describe.runIf(process.env.CLOSEUP_TEST_INFRA === '1')('dataset import', () => {
 
   const settled = async () => {
     for (let i = 0; i < 200; i++) {
+      // Copies of the same pictures elsewhere (other suites use the same files) count too: the
+      // admin refuses new points while any of them is being cut.
+      const ours = { pack: { slug: { startsWith: `${prefix}-` } } };
+      const pictures = await prisma.imageAsset.findMany({
+        where: { card: { is: ours } },
+        select: { sha256: true },
+      });
       const processing = await prisma.card.count({
-        where: { status: 'PROCESSING', pack: { slug: { startsWith: `${prefix}-` } } },
+        where: {
+          status: 'PROCESSING',
+          OR: [ours, { image: { is: { sha256: { in: pictures.map((p) => p.sha256) } } } }],
+        },
       });
       if (!processing) return;
       await new Promise((resolve) => setTimeout(resolve, 200));

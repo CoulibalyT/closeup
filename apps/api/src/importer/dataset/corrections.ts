@@ -1,5 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises';
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { type FaceDetection, faceOf, type SessionUser } from '@closeup/shared';
 import { AdminContentService } from '../../admin/admin-content.service.js';
 import { PrismaService } from '../../prisma/prisma.module.js';
@@ -145,20 +145,26 @@ export class DatasetCorrections {
       // Same for a full dataset pack: "ds-acteur — 2" is `ds-acteur-2`.
       const family = /^bulk-(.+)-\d+$/.exec(pack)?.[1];
       const base = family ? `bulk-${family}` : pack.replace(/-\d+$/, '');
-      const candidates = await this.prisma.card.findMany({
-        where: {
-          slug: wanted.slug.replace(/^ds-/, `${prefix}-`),
-          pack: { OR: [{ slug: base }, { slug: { startsWith: `${base}-` } }] },
-        },
-        include: {
-          pack: { select: { slug: true } },
-          image: true,
-          zoomPoints: { orderBy: { id: 'asc' } },
-        },
-      });
-      const card = candidates.find(
-        (c) => c.pack.slug === base || /^-\d+$/.test(c.pack.slug!.slice(base.length)),
-      );
+      const find = async () =>
+        (
+          await this.prisma.card.findMany({
+            where: {
+              slug: wanted.slug.replace(/^ds-/, `${prefix}-`),
+              pack: { OR: [{ slug: base }, { slug: { startsWith: `${base}-` } }] },
+            },
+            include: {
+              pack: { select: { slug: true } },
+              image: true,
+              zoomPoints: { orderBy: { id: 'asc' } },
+            },
+          })
+        ).find((c) => c.pack.slug === base || /^-\d+$/.test(c.pack.slug!.slice(base.length)));
+      let card = await find();
+      // Points given to a copy of the same picture earlier in this run are being cut into it.
+      if (card?.image && card.status === 'PROCESSING') {
+        await this.copiesCut(card.image.sha256, Date.now() + WAIT_LIMIT_MS);
+        card = await find();
+      }
       if (!card?.image || card.status === 'PROCESSING') {
         result.missing++;
         continue;
@@ -195,19 +201,16 @@ export class DatasetCorrections {
       // New landmarks frame the views anew: the card is cut again, with the same points.
       const same = samePoints && !faceChanged;
       if (!same && wanted.points.length >= 2) {
-        await this.admin.setZoomPoints(
-          card.id,
-          wanted.points.map((p) => ({
-            x: Math.min(width, Math.round(p.x * width)),
-            y: Math.min(height, Math.round(p.y * height)),
-            baseRadius: Math.max(4, Math.round(p.r * side)),
-            labelFr: p.fr ?? '',
-            labelEn: p.en ?? '',
-            weight: 1,
-            origin: 'MANUAL' as const,
-          })),
-          actor,
-        );
+        const points = wanted.points.map((p) => ({
+          x: Math.min(width, Math.round(p.x * width)),
+          y: Math.min(height, Math.round(p.y * height)),
+          baseRadius: Math.max(4, Math.round(p.r * side)),
+          labelFr: p.fr ?? '',
+          labelEn: p.en ?? '',
+          weight: 1,
+          origin: 'MANUAL' as const,
+        }));
+        await this.setPointsWhenFree(card.id, card.image.sha256, points, actor);
         if (!samePoints) result.points++;
       }
       // Whether it plays is settled once its crops are cut.
@@ -231,6 +234,43 @@ export class DatasetCorrections {
       }
     }
     return result;
+  }
+
+  /**
+   * The admin refuses new points while a copy of the same picture is being cut (another pack
+   * holding the same photo, often one this very run just changed): wait for those copies, then
+   * save. Gives up when nothing has moved for the usual wait.
+   */
+  private async setPointsWhenFree(
+    cardId: string,
+    sha256: string,
+    points: Parameters<AdminContentService['setZoomPoints']>[1],
+    actor: SessionUser,
+  ): Promise<void> {
+    const until = Date.now() + WAIT_LIMIT_MS;
+    for (;;) {
+      try {
+        await this.admin.setZoomPoints(cardId, points, actor);
+        return;
+      } catch (error) {
+        const busy =
+          error instanceof ConflictException &&
+          (error.getResponse() as { code?: string }).code === 'PROCESSING';
+        if (!busy || Date.now() > until) throw error;
+        await this.copiesCut(sha256, until);
+      }
+    }
+  }
+
+  /** Until no card showing this picture is being cut, or the deadline. */
+  private async copiesCut(sha256: string, until: number): Promise<void> {
+    while (Date.now() < until) {
+      const busy = await this.prisma.card.count({
+        where: { status: 'PROCESSING', image: { is: { sha256 } } },
+      });
+      if (!busy) return;
+      await new Promise((resolve) => setTimeout(resolve, WAIT_MS));
+    }
   }
 
   /** Writes the face's landmarks into the card's detection; false when they already match. */
