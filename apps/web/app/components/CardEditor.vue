@@ -236,7 +236,11 @@ async function savePoints(): Promise<boolean> {
       }),
     );
     return true;
-  } catch {
+  } catch (failure) {
+    if (failure instanceof ApiError && failure.status === 409) {
+      await refresh();
+      return true;
+    }
     failed.value = true;
     return false;
   } finally {
