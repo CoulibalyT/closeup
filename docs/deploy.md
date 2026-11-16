@@ -219,17 +219,42 @@ Everything else is rebuilt from the repository.
 mkdir -p ~/backups
 cat > ~/backup.sh <<'SH'
 #!/bin/sh
+# Nightly: a dump of the database and an archive of the images, into ~/backups.
 set -eu
 cd "$HOME/closeup"
 C="docker compose -f docker-compose.prod.yml"
+B="$HOME/backups"
 STAMP=$(date +%F)
-# Both stream to stdout and are written by this shell, as `closeup`. Mounting ~/backups into
-# the container instead fails: it runs as `node`, which cannot write to a folder it does not own.
-$C exec -T postgres pg_dump -U closeup closeup < /dev/null | gzip > "$HOME/backups/db-$STAMP.sql.gz"
+# Written under a temporary name and moved into place only when complete: a cut archive never
+# passes for a backup, and a failed night leaves nothing behind.
+trap 'rm -f "$B"/*.part' EXIT
+
+# The database: small, a week of it is kept. Both stream to stdout and are written by this
+# shell, as `closeup`: the container runs as `node`, which cannot write to ~/backups.
+$C exec -T postgres pg_dump -U closeup closeup < /dev/null | gzip > "$B/db-$STAMP.part"
+if [ -s "$B/db-$STAMP.part" ] && gzip -t "$B/db-$STAMP.part"; then
+  mv "$B/db-$STAMP.part" "$B/db-$STAMP.sql.gz"
+else
+  echo "$STAMP: database dump failed" >&2
+fi
+ls -1t "$B"/db-*.sql.gz 2>/dev/null | tail -n +8 | xargs -r rm -f
+
+# The images weigh as much as the media volume (4 GB in October 2026): only the latest archive
+# is kept, and a new one is written only when 6 GB stay free. On 2026-11-07 fourteen nights of
+# them filled the disk, Redis could no longer save, and no game could start.
+FREE=$(df -Pk "$B" | awk 'NR == 2 { print $4 }')
+if [ "$FREE" -lt 6000000 ]; then
+  echo "$STAMP: images not archived, only $((FREE / 1024)) MB free" >&2
+  exit 0
+fi
 $C run --rm --no-deps -T --entrypoint sh api -c 'tar czf - -C /data media' \
-  < /dev/null > "$HOME/backups/media-$STAMP.tar.gz"
-# Keep a fortnight here; the copy that matters is the one somewhere else.
-find "$HOME/backups" -name '*.gz' -mtime +14 -delete
+  < /dev/null > "$B/media-$STAMP.part"
+if gzip -t "$B/media-$STAMP.part"; then
+  mv "$B/media-$STAMP.part" "$B/media-$STAMP.tar.gz"
+  ls -1t "$B"/media-*.tar.gz | tail -n +2 | xargs -r rm -f
+else
+  echo "$STAMP: images archive failed" >&2
+fi
 SH
 chmod +x ~/backup.sh
 ~/backup.sh && ls -lh ~/backups   # once by hand: a backup that was never run is a guess
